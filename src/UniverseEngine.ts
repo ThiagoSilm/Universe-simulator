@@ -2,23 +2,23 @@ import { Particle, UniverseState, LatentTrace } from './types';
 
 const INITIAL_PARTICLE_COUNT = 400;
 const INTERACTION_RADIUS = 22;
-const COLLAPSE_DURATION = 200; 
 const GRID_SIZE = 60;
 const ENERGY_REGEN_RATE = 0.01;
-const DORMANCY_THRESHOLD = 300; // Ticks without interaction
-const COMPRESSION_THRESHOLD = 1200; // Ticks without interaction for a whole region
-const BEKENSTEIN_LIMIT = 30; // Max information density per region
+const DORMANCY_THRESHOLD = 300;
+const COMPRESSION_THRESHOLD = 1200;
+const BEKENSTEIN_LIMIT = 30;
 const PRESSURE_STRENGTH = 0.5;
 const MAX_LATENT_TRACES_PER_PARTICLE = 20;
-const C = 40; // Speed of light: max units per tick
-const G_RELATIVISTIC = 1.2; // Relativistic gravity constant
+const C = 40;
+const G_RELATIVISTIC = 1.2;
 const TIME_DILATION_STRENGTH = 0.8;
+const WAKE_RADIUS = 60; // Distance at which an active particle wakes a latent one
 
 export interface RegionData {
   energy: number;
   lastActiveTick: number;
   isCompressed: boolean;
-  curvature: number; // Local space-time distortion
+  curvature: number;
 }
 
 export interface PersistentState {
@@ -104,88 +104,55 @@ export class UniverseEngine {
       .map(item => item.p);
   }
 
-  public step(viewWidth: number, viewHeight: number): UniverseState {
+  public step(): UniverseState {
     this.state.tick++;
-    
-    // 1. Spatial Partitioning & Curvature Calculation
+
+    // 1. Spatial Partitioning & Curvature
     const spatialGrid: Map<string, Particle[]> = new Map();
-    const activeRegions: Set<string> = new Set();
 
-    // Reset curvature for all regions
     this.energyGrid.forEach(region => region.curvature = 0);
-
-    let activeCount = 0;
-    let avgX = 0;
-    let avgY = 0;
 
     this.particles.forEach(p => {
       const gx = Math.floor(p.x / GRID_SIZE);
       const gy = Math.floor(p.y / GRID_SIZE);
       const key = `${gx},${gy}`;
-      
-      // Physics Layer: All particles are now "active" for the engine
-      activeCount++;
-      avgX += p.x;
-      avgY += p.y;
 
-      activeRegions.add(key);
       if (!spatialGrid.has(key)) spatialGrid.set(key, []);
       spatialGrid.get(key)!.push(p);
 
-      // Curvature contribution: each particle distorts its region
+      // All particles contribute to curvature — physics is universal
       const region = this.getRegion(gx, gy);
       region.curvature += p.weight * 0.1;
     });
 
-    // Viewport follows active center
-    if (activeCount > 0) {
-      const targetX = avgX / activeCount;
-      const targetY = avgY / activeCount;
-      
-      // Smooth camera follow
-      this.state.viewportX += (targetX - this.state.viewportX) * 0.1;
-      this.state.viewportY += (targetY - this.state.viewportY) * 0.1;
+    // Build active-particle spatial grid for wake-up checks
+    const activeGrid: Map<string, Particle[]> = new Map();
+    this.particles.forEach(p => {
+      if (!p.isLatent) {
+        const gx = Math.floor(p.x / GRID_SIZE);
+        const gy = Math.floor(p.y / GRID_SIZE);
+        const key = `${gx},${gy}`;
+        if (!activeGrid.has(key)) activeGrid.set(key, []);
+        activeGrid.get(key)!.push(p);
+      }
+    });
 
-      // Calculate spread for Adaptive Zoom (Weighted by weight to focus on significant clusters)
-      let weightedSpread = 0;
-      let totalWeight = 0;
-      
-      this.particles.forEach(p => {
-        const dx = p.x - this.state.viewportX;
-        const dy = p.y - this.state.viewportY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        weightedSpread += dist * p.weight;
-        totalWeight += p.weight;
-      });
-
-      const avgSpread = totalWeight > 0 ? (weightedSpread / totalWeight) : 100;
-      const targetZoom = Math.min(2.0, Math.max(0.05, (Math.min(viewWidth, viewHeight) * 0.35) / (avgSpread + 50)));
-      
-      this.state.zoom += (targetZoom - this.state.zoom) * 0.03;
-    }
-
-    // 2. Bekenstein Limit & Pressure Logic
+    // 2. Bekenstein Limit & Pressure
     spatialGrid.forEach((cellParticles, key) => {
       const totalWeight = cellParticles.reduce((sum, p) => sum + p.weight, 0);
-      
       if (totalWeight > BEKENSTEIN_LIMIT) {
         const [gx, gy] = key.split(',').map(Number);
         const centerX = gx * GRID_SIZE + GRID_SIZE / 2;
         const centerY = gy * GRID_SIZE + GRID_SIZE / 2;
-        
-        // Calculate pressure based on overflow
         const overflow = totalWeight / BEKENSTEIN_LIMIT;
         const pressure = (overflow - 1) * PRESSURE_STRENGTH;
 
-        // Sort by weight: smaller entities are pushed out first
         cellParticles.sort((a, b) => a.weight - b.weight);
 
         cellParticles.forEach((p, idx) => {
-          // Relativistic Time Dilation: Pressure also slows down time
           const region = this.getRegion(gx, gy);
           const timeFactor = 1 / (1 + region.curvature * TIME_DILATION_STRENGTH);
 
-          // Smaller entities (first half) get expelled
           if (idx < cellParticles.length / 2) {
             const dx = p.x - centerX;
             const dy = p.y - centerY;
@@ -193,8 +160,6 @@ export class UniverseEngine {
             p.vx += (dx / dist) * pressure * timeFactor;
             p.vy += (dy / dist) * pressure * timeFactor;
           } else {
-            // Larger entities that can't escape are forced into higher complexity
-            // We increase their level and weight slightly to simulate "fusion pressure"
             if (overflow > 2.0) {
               p.weight += 0.05 * overflow * timeFactor;
               p.persistence += 0.02 * timeFactor;
@@ -208,8 +173,7 @@ export class UniverseEngine {
       }
     });
 
-    // 3. Region Processing (Energy & Compression)
-    // Prune very old regions to save memory/storage
+    // 3. Region Processing & Singularity Formation
     if (this.state.tick % 100 === 0) {
       this.energyGrid.forEach((region, key) => {
         if (this.state.tick - region.lastActiveTick > COMPRESSION_THRESHOLD * 2 && region.energy >= 0.99) {
@@ -219,30 +183,20 @@ export class UniverseEngine {
     }
 
     this.energyGrid.forEach((region, key) => {
-      // Regenerate energy
       region.energy = Math.min(1.0, region.energy + ENERGY_REGEN_RATE);
 
-      // Compression Logic: If region is dead for too long, compress it
       if (!region.isCompressed && this.state.tick - region.lastActiveTick > COMPRESSION_THRESHOLD) {
         const [gx, gy] = key.split(',').map(Number);
-        const regionParticles = this.particles.filter(p => 
+        const regionParticles = this.particles.filter(p =>
           Math.floor(p.x / GRID_SIZE) === gx && Math.floor(p.y / GRID_SIZE) === gy
         );
 
         if (regionParticles.length > 1) {
-          // Create Singularity
           const totalWeight = regionParticles.reduce((sum, p) => sum + p.weight, 0);
           const avgLevel = Math.max(...regionParticles.map(p => p.level));
-          
-          // Collect all information
           const allTraces: LatentTrace[] = [];
           regionParticles.forEach(p => {
-            allTraces.push({
-              weight: p.weight,
-              level: p.level,
-              color: p.color,
-              persistence: p.persistence
-            });
+            allTraces.push({ weight: p.weight, level: p.level, color: p.color, persistence: p.persistence });
             if (p.latentTraces) allTraces.push(...p.latentTraces);
           });
 
@@ -264,7 +218,6 @@ export class UniverseEngine {
             latentTraces: allTraces
           };
 
-          // Remove old particles, add singularity
           this.particles = this.particles.filter(p => !regionParticles.includes(p));
           this.particles.push(singularity);
           region.isCompressed = true;
@@ -274,37 +227,81 @@ export class UniverseEngine {
 
     let totalCollapsed = 0;
 
-    // 3. Update All Particles
+    // 4. Update Particles — LAZY EVALUATION:
+    //    Active particles get full physics.
+    //    Latent particles get only minimal geodesic drift — no gravity loops, no interaction checks.
     this.particles.forEach(p1 => {
       const gx = Math.floor(p1.x / GRID_SIZE);
       const gy = Math.floor(p1.y / GRID_SIZE);
       const region = this.getRegion(gx, gy);
-      region.lastActiveTick = this.state.tick;
 
-      // Time Dilation Factor: local clock slows down in high curvature
+      // --- LATENT PATH: cheap, skip heavy loops ---
+      if (p1.isLatent) {
+        // Check if an active particle is nearby to wake this one up
+        const wakeRange = Math.ceil(WAKE_RADIUS / GRID_SIZE);
+        let shouldWake = false;
+        outer: for (let dx = -wakeRange; dx <= wakeRange; dx++) {
+          for (let dy = -wakeRange; dy <= wakeRange; dy++) {
+            const neighbors = activeGrid.get(`${gx + dx},${gy + dy}`);
+            if (!neighbors) continue;
+            for (const other of neighbors) {
+              const ddx = p1.x - other.x;
+              const ddy = p1.y - other.y;
+              if (ddx * ddx + ddy * ddy < WAKE_RADIUS * WAKE_RADIUS) {
+                shouldWake = true;
+                break outer;
+              }
+            }
+          }
+        }
+
+        if (shouldWake) {
+          p1.isLatent = false;
+          p1.lastActiveTick = this.state.tick;
+          p1.lastInteractionTick = this.state.tick;
+        } else {
+          // Minimal geodesic drift only
+          const timeFactor = 1 / (1 + region.curvature * TIME_DILATION_STRENGTH);
+          const neighborsCurvature = [
+            this.getRegion(gx - 1, gy).curvature,
+            this.getRegion(gx + 1, gy).curvature,
+            this.getRegion(gx, gy - 1).curvature,
+            this.getRegion(gx, gy + 1).curvature,
+          ];
+          const gradX = neighborsCurvature[1] - neighborsCurvature[0];
+          const gradY = neighborsCurvature[3] - neighborsCurvature[2];
+          p1.vx += gradX * 0.1 * timeFactor;
+          p1.vy += gradY * 0.1 * timeFactor;
+          p1.x += p1.vx * timeFactor * 0.5;
+          p1.y += p1.vy * timeFactor * 0.5;
+          p1.vx *= 0.99;
+          p1.vy *= 0.99;
+          if (p1.isCollapsed) totalCollapsed++;
+          return;
+        }
+      }
+
+      // --- ACTIVE PATH: full physics ---
+      region.lastActiveTick = this.state.tick;
       const timeFactor = 1 / (1 + region.curvature * TIME_DILATION_STRENGTH);
 
-      // Economy & Maintenance
+      // Economy & Maintenance for collapsed particles
       if (p1.isCollapsed) {
         const cost = 0.005 * Math.pow(2, p1.level - 1) * timeFactor;
         const efficiency = 1.0 + (p1.level - 1) * 0.5;
-        
         const energyFromGrid = Math.min(cost, region.energy);
         region.energy -= energyFromGrid;
         p1.weight -= (cost - energyFromGrid) / efficiency;
 
-        // Dissolution Logic: If weight is too low, redistribute information
         if (p1.weight < 0.3) {
           const neighbors = this.findNearestNeighbors(p1, 3);
           if (neighbors.length > 0) {
             const weightShare = p1.weight / neighbors.length;
             neighbors.forEach(n => {
               n.weight += weightShare;
-              // Transfer latent traces
               if (p1.latentTraces) {
                 n.latentTraces = [...(n.latentTraces || []), ...p1.latentTraces].slice(-MAX_LATENT_TRACES_PER_PARTICLE);
               }
-              // Add p1 itself as a latent trace to the strongest neighbor
               if (n === neighbors[0]) {
                 n.latentTraces = [...(n.latentTraces || []), {
                   weight: p1.weight,
@@ -315,7 +312,7 @@ export class UniverseEngine {
               }
             });
           }
-          p1.weight = -1; // Mark for removal
+          p1.weight = -1;
           return;
         }
 
@@ -326,22 +323,18 @@ export class UniverseEngine {
         }
       }
 
-      // Geodesic Movement: follow the gradient of curvature
+      // Geodesic movement
       const neighborsCurvature = [
         this.getRegion(gx - 1, gy).curvature,
         this.getRegion(gx + 1, gy).curvature,
         this.getRegion(gx, gy - 1).curvature,
-        this.getRegion(gx, gy + 1).curvature
+        this.getRegion(gx, gy + 1).curvature,
       ];
-      
       const gradX = neighborsCurvature[1] - neighborsCurvature[0];
       const gradY = neighborsCurvature[3] - neighborsCurvature[2];
-      
-      // Particles are attracted to high curvature (geodesics)
       p1.vx += gradX * 0.5 * timeFactor;
       p1.vy += gradY * 0.5 * timeFactor;
 
-      // Movement (scaled by timeFactor)
       if (!p1.isCollapsed) {
         p1.x += (Math.random() - 0.5) * 4 * timeFactor;
         p1.y += (Math.random() - 0.5) * 4 * timeFactor;
@@ -352,7 +345,7 @@ export class UniverseEngine {
         p1.vy *= (1 - 0.02 * timeFactor);
       }
 
-      // Speed of Light Limit (C)
+      // Speed of Light limit
       const speedSq = p1.vx * p1.vx + p1.vy * p1.vy;
       if (speedSq > C * C) {
         const speed = Math.sqrt(speedSq);
@@ -360,7 +353,7 @@ export class UniverseEngine {
         p1.vy = (p1.vy / speed) * C;
       }
 
-      // 4. Emergent Gravity & Interactions
+      // Gravity & Interactions
       const gravityRadius = 180;
       const gravityRadiusSq = gravityRadius * gravityRadius;
       const gravityGridRange = Math.ceil(gravityRadius / GRID_SIZE);
@@ -377,46 +370,39 @@ export class UniverseEngine {
             const distDy = p1.y - p2.y;
             const distSq = distDx * distDx + distDy * distDy;
 
-            // Relativistic Gravity: F = (w1 * w2 * G) / d^2
             if (distSq > 0 && distSq < gravityRadiusSq) {
               const dist = Math.sqrt(distSq);
-              // We use a small constant to scale the force to the simulation's time step
-              // Softening (+10) prevents extreme forces at very close range
               const force = (p1.weight * p2.weight * G_RELATIVISTIC) / (distSq + 10);
-              
-              // Acceleration a = F/m
               p1.vx -= (distDx / dist) * (force / p1.weight) * timeFactor;
               p1.vy -= (distDy / dist) * (force / p1.weight) * timeFactor;
             }
 
-            // Local Interactions (Collisions / Collapse)
-            // Relativistic Interaction: only within light cone (dist < C)
             if (distSq < INTERACTION_RADIUS * INTERACTION_RADIUS && distSq < C * C) {
-              const gx = Math.floor(p1.x / GRID_SIZE);
-              const gy = Math.floor(p1.y / GRID_SIZE);
               const cellParticles = spatialGrid.get(`${gx},${gy}`) || [];
               const cellWeight = cellParticles.reduce((sum, p) => sum + p.weight, 0);
               const isHighPressure = cellWeight > BEKENSTEIN_LIMIT;
 
-              // Absorption Logic: Stronger entity absorbs the weaker one
               if (p1.isCollapsed && p2.isCollapsed && (p1.level > p2.level || (p1.level === p2.level && p1.weight > p2.weight * 1.5) || isHighPressure)) {
-                // Fusion: Under high pressure, fusion is forced
                 const fusionBonus = isHighPressure ? 1.2 : 0.5;
                 p1.weight += p2.weight * fusionBonus * timeFactor;
                 p1.level = Math.max(p1.level, p2.level + (isHighPressure ? 1 : 0));
-                
                 p1.latentTraces = [...(p1.latentTraces || []), {
                   weight: p2.weight,
                   level: p2.level,
                   color: p2.color,
                   persistence: p2.persistence
                 }].slice(-MAX_LATENT_TRACES_PER_PARTICLE);
-                
                 if (p2.latentTraces) {
                   p1.latentTraces = [...p1.latentTraces, ...p2.latentTraces].slice(-MAX_LATENT_TRACES_PER_PARTICLE);
                 }
-                p2.weight = -1; // Mark for removal
+                p2.weight = -1;
                 return;
+              }
+
+              // Wake up latent p2 if touched by active p1
+              if (p2.isLatent) {
+                p2.isLatent = false;
+                p2.lastActiveTick = this.state.tick;
               }
 
               p1.isCollapsed = true;
@@ -427,7 +413,6 @@ export class UniverseEngine {
               p2.lastInteractionTick = this.state.tick;
               p1.lastActiveTick = this.state.tick;
               p2.lastActiveTick = this.state.tick;
-
               p1.persistence += 0.01 * timeFactor;
               p2.persistence += 0.01 * timeFactor;
               p1.weight += 0.01 * timeFactor;
@@ -438,8 +423,8 @@ export class UniverseEngine {
       }
 
       if (p1.isCollapsed) totalCollapsed++;
-      
-      // Update dormancy state
+
+      // Enter dormancy if idle long enough
       if (this.state.tick - p1.lastActiveTick > DORMANCY_THRESHOLD) {
         p1.isLatent = true;
       }
@@ -448,9 +433,8 @@ export class UniverseEngine {
     // 5. Re-emergence & Cleanup
     const newParticles: Particle[] = [];
     this.particles = this.particles.filter(p => {
-      if (p.weight < 0) return false; // Removed particles
+      if (p.weight < 0) return false;
 
-      // Re-emergence Logic: If a particle has latent traces and high energy, spawn them
       if (p.isCollapsed && p.latentTraces && p.latentTraces.length > 0 && p.weight > 10 * p.level) {
         const trace = p.latentTraces.pop()!;
         p.weight -= trace.weight;
@@ -477,28 +461,20 @@ export class UniverseEngine {
     this.particles.push(...newParticles);
 
     this.state.particles = this.particles;
-    this.state.entropy = 1 - (totalCollapsed / this.particles.length);
-    this.state.coherence = totalCollapsed / this.particles.length;
+    this.state.entropy = 1 - (totalCollapsed / Math.max(1, this.particles.length));
+    this.state.coherence = totalCollapsed / Math.max(1, this.particles.length);
     this.state.consciousnessCount = this.particles.filter(p => p.isConscious).length;
-    
+
     let maxCurv = 0;
-    this.energyGrid.forEach(r => {
-      if (r.curvature > maxCurv) maxCurv = r.curvature;
-    });
+    this.energyGrid.forEach(r => { if (r.curvature > maxCurv) maxCurv = r.curvature; });
     this.state.maxCurvature = maxCurv;
-    
-    // Calculate total information (conservation check)
+
     this.state.totalInformation = this.particles.reduce((sum, p) => {
       let info = p.weight;
-      if (p.latentTraces) {
-        info += p.latentTraces.reduce((s, t) => s + t.weight, 0);
-      }
+      if (p.latentTraces) info += p.latentTraces.reduce((s, t) => s + t.weight, 0);
       return sum + info;
     }, 0);
 
     return this.state;
   }
 }
-
-
-
