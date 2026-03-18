@@ -1,6 +1,9 @@
 import { Particle, UniverseState, LatentTrace } from './types';
 
-const INITIAL_PARTICLE_COUNT = 400;
+const INITIAL_PARTICLE_COUNT = 1800; // Large — most start latent, lazy eval handles it
+const CLUSTER_COUNT = 24;            // Proto-galaxies scattered across the infinite field
+const CLUSTER_RADIUS = 350;          // Particles within each proto-galaxy
+const UNIVERSE_RADIUS = 60000;       // Initial Big Bang extent — effectively infinite
 const INTERACTION_RADIUS = 22;
 const GRID_SIZE = 60;
 const ENERGY_REGEN_RATE = 0.01;
@@ -13,8 +16,8 @@ const C = 40;
 const G_RELATIVISTIC = 1.2;
 const TIME_DILATION_STRENGTH = 0.8;
 const WAKE_RADIUS = 60;
-const LAMBDA = 0.00008;       // Cosmological constant — dark energy, opposes collapse
-const MIN_POPULATION = 40;    // Floor: below this, surviving entities shed latent traces aggressively
+const LAMBDA = 0.000003;     // Cosmological constant — tuned for large-scale universe
+const MIN_POPULATION = 50;
 
 export interface RegionData {
   energy: number;
@@ -63,22 +66,78 @@ export class UniverseEngine {
   }
 
   private initParticles(): Particle[] {
-    return Array.from({ length: INITIAL_PARTICLE_COUNT }).map((_, i) => ({
-      id: `p-${i}`,
-      isCollapsed: false,
-      isLatent: false,
-      x: (Math.random() - 0.5) * 1000,
-      y: (Math.random() - 0.5) * 1000,
-      vx: (Math.random() - 0.5) * 2,
-      vy: (Math.random() - 0.5) * 2,
-      weight: 1,
-      level: 1,
-      lastInteractionTick: -1000,
-      lastActiveTick: 0,
-      persistence: 0,
-      isConscious: false,
-      color: `hsla(${Math.random() * 360}, 60%, 60%, 0.2)`,
-    }));
+    const particles: Particle[] = [];
+    let id = 0;
+
+    // Generate proto-galaxy cluster seeds scattered across the vast universe
+    const seeds: Array<{ x: number; y: number; hue: number; vx: number; vy: number }> = [];
+    for (let c = 0; c < CLUSTER_COUNT; c++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * UNIVERSE_RADIUS;
+      seeds.push({
+        x: Math.cos(angle) * dist,
+        y: Math.sin(angle) * dist,
+        hue: Math.random() * 360,
+        vx: (Math.random() - 0.5) * 0.5, // clusters drift slowly
+        vy: (Math.random() - 0.5) * 0.5,
+      });
+    }
+
+    // Distribute particles among clusters — particles within a cluster start active
+    // Isolated "void" particles start latent — they exist but cost nothing until disturbed
+    const clusterSize = Math.floor(INITIAL_PARTICLE_COUNT * 0.85 / CLUSTER_COUNT);
+    const voidCount = INITIAL_PARTICLE_COUNT - clusterSize * CLUSTER_COUNT;
+
+    for (const seed of seeds) {
+      for (let i = 0; i < clusterSize; i++) {
+        // Gaussian-ish distribution within cluster
+        const r = Math.pow(Math.random(), 0.5) * CLUSTER_RADIUS;
+        const a = Math.random() * Math.PI * 2;
+        // Slight rotation gives proto-galactic spin
+        const spin = (Math.random() - 0.5) * 0.8;
+        particles.push({
+          id: `p-${id++}`,
+          isCollapsed: false,
+          isLatent: false,             // active — within interaction distance of neighbors
+          x: seed.x + Math.cos(a) * r,
+          y: seed.y + Math.sin(a) * r,
+          vx: seed.vx + Math.cos(a + Math.PI / 2) * spin + (Math.random() - 0.5) * 1.5,
+          vy: seed.vy + Math.sin(a + Math.PI / 2) * spin + (Math.random() - 0.5) * 1.5,
+          weight: 0.8 + Math.random() * 0.4,
+          level: 1,
+          lastInteractionTick: -DORMANCY_THRESHOLD, // hasn't interacted yet
+          lastActiveTick: 0,
+          persistence: 0,
+          isConscious: false,
+          color: `hsla(${seed.hue + (Math.random() - 0.5) * 40}, 60%, 60%, 0.2)`,
+        });
+      }
+    }
+
+    // Void particles — sparse, isolated, latent from birth
+    // They exist in the infinite space between clusters, dormant until something arrives
+    for (let i = 0; i < voidCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * UNIVERSE_RADIUS;
+      particles.push({
+        id: `p-void-${id++}`,
+        isCollapsed: false,
+        isLatent: true,              // dormant — far from everything, costs nothing
+        x: Math.cos(angle) * dist,
+        y: Math.sin(angle) * dist,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
+        weight: 0.5 + Math.random() * 0.5,
+        level: 1,
+        lastInteractionTick: -DORMANCY_THRESHOLD * 10,
+        lastActiveTick: -DORMANCY_THRESHOLD,  // already "dormant" at birth
+        persistence: 0,
+        isConscious: false,
+        color: `hsla(${Math.random() * 360}, 30%, 40%, 0.1)`,
+      });
+    }
+
+    return particles;
   }
 
   private getRegion(gx: number, gy: number): RegionData {

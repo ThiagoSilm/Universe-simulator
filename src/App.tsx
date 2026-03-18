@@ -13,7 +13,7 @@ import {
 import { UniverseEngine, PersistentState } from './UniverseEngine';
 import { UniverseState } from './types';
 
-const STORAGE_KEY = 'lazy_universe_state_v2';
+const STORAGE_KEY = 'lazy_universe_state_v3';
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
