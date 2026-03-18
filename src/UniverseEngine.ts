@@ -94,7 +94,7 @@ export class UniverseEngine {
 
   private findNearestNeighbors(p: Particle, count: number): Particle[] {
     return this.particles
-      .filter(other => other.id !== p.id && !other.isLatent)
+      .filter(other => other.id !== p.id)
       .map(other => ({
         p: other,
         dist: Math.pow(p.x - other.x, 2) + Math.pow(p.y - other.y, 2)
@@ -107,16 +107,6 @@ export class UniverseEngine {
   public step(viewWidth: number, viewHeight: number): UniverseState {
     this.state.tick++;
     
-    // 0. Update Latency based on Viewport (Observer Principle)
-    const viewHalfW = (viewWidth / 2) / this.state.zoom;
-    const viewHalfH = (viewHeight / 2) / this.state.zoom;
-    const buffer = 300 / this.state.zoom;
-
-    const minX = this.state.viewportX - viewHalfW - buffer;
-    const maxX = this.state.viewportX + viewHalfW + buffer;
-    const minY = this.state.viewportY - viewHalfH - buffer;
-    const maxY = this.state.viewportY + viewHalfH + buffer;
-
     // 1. Spatial Partitioning & Curvature Calculation
     const spatialGrid: Map<string, Particle[]> = new Map();
     const activeRegions: Set<string> = new Set();
@@ -129,41 +119,22 @@ export class UniverseEngine {
     let avgY = 0;
 
     this.particles.forEach(p => {
-      // Observer Check: Only process if within view bounds
-      const inView = p.x > minX && p.x < maxX && p.y > minY && p.y < maxY;
-      
-      // If was latent and now in view, wake up
-      if (p.isLatent && inView) {
-        p.isLatent = false;
-        p.lastActiveTick = this.state.tick;
-      } 
-      // If was active and now out of view, go latent
-      else if (!p.isLatent && !inView) {
-        p.isLatent = true;
-      }
-
       const gx = Math.floor(p.x / GRID_SIZE);
       const gy = Math.floor(p.y / GRID_SIZE);
       const key = `${gx},${gy}`;
       
-      // Dormancy Logic: If not interacted for a while, mark latent (even if in view)
-      if (!p.isLatent && this.state.tick - p.lastActiveTick > DORMANCY_THRESHOLD) {
-        p.isLatent = true;
-      }
+      // Physics Layer: All particles are now "active" for the engine
+      activeCount++;
+      avgX += p.x;
+      avgY += p.y;
 
-      if (!p.isLatent) {
-        activeCount++;
-        avgX += p.x;
-        avgY += p.y;
+      activeRegions.add(key);
+      if (!spatialGrid.has(key)) spatialGrid.set(key, []);
+      spatialGrid.get(key)!.push(p);
 
-        activeRegions.add(key);
-        if (!spatialGrid.has(key)) spatialGrid.set(key, []);
-        spatialGrid.get(key)!.push(p);
-
-        // Curvature contribution: each particle distorts its region
-        const region = this.getRegion(gx, gy);
-        region.curvature += p.weight * 0.1;
-      }
+      // Curvature contribution: each particle distorts its region
+      const region = this.getRegion(gx, gy);
+      region.curvature += p.weight * 0.1;
     });
 
     // Viewport follows active center
@@ -180,20 +151,16 @@ export class UniverseEngine {
       let totalWeight = 0;
       
       this.particles.forEach(p => {
-        if (!p.isLatent) {
-          const dx = p.x - this.state.viewportX;
-          const dy = p.y - this.state.viewportY;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          weightedSpread += dist * p.weight;
-          totalWeight += p.weight;
-        }
+        const dx = p.x - this.state.viewportX;
+        const dy = p.y - this.state.viewportY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        weightedSpread += dist * p.weight;
+        totalWeight += p.weight;
       });
 
       const avgSpread = totalWeight > 0 ? (weightedSpread / totalWeight) : 100;
-      // We want the view to be roughly 3-4 times the average spread to see the context
       const targetZoom = Math.min(2.0, Math.max(0.05, (Math.min(viewWidth, viewHeight) * 0.35) / (avgSpread + 50)));
       
-      // Smoother transition
       this.state.zoom += (targetZoom - this.state.zoom) * 0.03;
     }
 
@@ -307,10 +274,8 @@ export class UniverseEngine {
 
     let totalCollapsed = 0;
 
-    // 3. Update Active Particles
+    // 3. Update All Particles
     this.particles.forEach(p1 => {
-      if (p1.isLatent) return; // Skip latent processing
-
       const gx = Math.floor(p1.x / GRID_SIZE);
       const gy = Math.floor(p1.y / GRID_SIZE);
       const region = this.getRegion(gx, gy);
@@ -403,19 +368,7 @@ export class UniverseEngine {
       for (let dx = -gravityGridRange; dx <= gravityGridRange; dx++) {
         for (let dy = -gravityGridRange; dy <= gravityGridRange; dy++) {
           const neighbors = spatialGrid.get(`${gx + dx},${gy + dy}`);
-          if (!neighbors) {
-            // Wake up latent particles in neighbor regions if we enter
-            const neighborRegion = this.getRegion(gx + dx, gy + dy);
-            this.particles.forEach(pLatent => {
-              if (pLatent.isLatent && 
-                  Math.floor(pLatent.x / GRID_SIZE) === gx + dx && 
-                  Math.floor(pLatent.y / GRID_SIZE) === gy + dy) {
-                pLatent.isLatent = false;
-                pLatent.lastActiveTick = this.state.tick;
-              }
-            });
-            continue;
-          }
+          if (!neighbors) continue;
 
           neighbors.forEach(p2 => {
             if (p1.id === p2.id) return;
@@ -468,6 +421,8 @@ export class UniverseEngine {
 
               p1.isCollapsed = true;
               p2.isCollapsed = true;
+              p1.isLatent = false;
+              p2.isLatent = false;
               p1.lastInteractionTick = this.state.tick;
               p2.lastInteractionTick = this.state.tick;
               p1.lastActiveTick = this.state.tick;
@@ -483,6 +438,11 @@ export class UniverseEngine {
       }
 
       if (p1.isCollapsed) totalCollapsed++;
+      
+      // Update dormancy state
+      if (this.state.tick - p1.lastActiveTick > DORMANCY_THRESHOLD) {
+        p1.isLatent = true;
+      }
     });
 
     // 5. Re-emergence & Cleanup

@@ -299,7 +299,7 @@ export default function App() {
             <div className="space-y-2">
               <div className="flex items-center gap-2 opacity-40">
                 <Orbit size={12} />
-                <span className="text-[10px] uppercase tracking-widest font-bold">Latent Nodes</span>
+                <span className="text-[10px] uppercase tracking-widest font-bold">Dormant Entities</span>
               </div>
               <div className="text-3xl font-light tracking-tighter text-zinc-500">
                 {state?.particles.filter(p => p.isLatent).length ?? 0}
@@ -384,13 +384,16 @@ export default function App() {
               </div>
               <div className="space-y-4 text-[11px] leading-relaxed opacity-70">
                 <p>
-                  <span className="text-white font-bold">OBSERVER LAZY EVALUATION:</span> The universe only exists where it is observed. Physics processing is suspended for entities outside the observer's field of vision, entering a state of temporal latency.
+                  <span className="text-white font-bold">UNIVERSAL PHYSICS:</span> The universe is a persistent simulation. Physics processing (gravity, collisions, expansion) occurs for all entities simultaneously, regardless of whether they are being observed.
                 </p>
                 <p>
-                  <span className="text-white font-bold">ADAPTIVE ZOOM:</span> The observer's focal length automatically adjusts to encompass emergent structures, ensuring total structural visibility across scales.
+                  <span className="text-white font-bold">LAZY RENDERING:</span> To optimize visual throughput, only entities within the observer's current field of vision are rendered to the display buffer. Reality exists beyond the frame.
                 </p>
                 <p>
-                  <span className="text-white font-bold">LAZY EVALUATION:</span> Particles exist in a state of spatial superposition until an interaction event forces a local collapse.
+                  <span className="text-white font-bold">DORMANCY STATE:</span> Entities that haven't interacted for extended periods enter a "Dormant" state. They continue to follow gravitational geodesics but minimize complex local interactions until disturbed.
+                </p>
+                <p>
+                  <span className="text-white font-bold">ADAPTIVE ZOOM:</span> The observer's focal length automatically adjusts based on the weighted mass distribution of the entire universe, maintaining structural context across scales.
                 </p>
                 <p>
                   <span className="text-white font-bold">EMERGENT GRAVITY:</span> Entities exert attraction proportional to their weight. In this relativistic model, gravity is the result of entities following geodesics in curved space-time.
@@ -406,9 +409,6 @@ export default function App() {
                 </p>
                 <p>
                   <span className="text-white font-bold">BEKENSTEIN LIMIT:</span> Each spatial region has a maximum information capacity. When exceeded, pressure forces smaller entities out, while larger ones are forced to collapse into higher-level complexity (Fusion).
-                </p>
-                <p>
-                  <span className="text-white font-bold">CONSCIOUSNESS:</span> Occurs when a high-weight pattern begins to actively collapse the superposition of adjacent particles, creating a localized field of defined reality.
                 </p>
                 <p>
                   <span className="text-white font-bold">INFORMATION CONSERVATION:</span> No data is lost. Dissolved entities redistribute their weight to neighbors. Absorbed entities persist as latent traces, capable of re-emerging when energy density allows.
