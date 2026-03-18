@@ -12,7 +12,9 @@ const MAX_LATENT_TRACES_PER_PARTICLE = 20;
 const C = 40;
 const G_RELATIVISTIC = 1.2;
 const TIME_DILATION_STRENGTH = 0.8;
-const WAKE_RADIUS = 60; // Distance at which an active particle wakes a latent one
+const WAKE_RADIUS = 60;
+const LAMBDA = 0.00008;       // Cosmological constant — dark energy, opposes collapse
+const MIN_POPULATION = 40;    // Floor: below this, surviving entities shed latent traces aggressively
 
 export interface RegionData {
   energy: number;
@@ -225,6 +227,11 @@ export class UniverseEngine {
       }
     });
 
+    // Barycenter — needed for cosmological expansion force
+    let baryX = 0, baryY = 0, baryTotalW = 0;
+    this.particles.forEach(p => { baryX += p.x * p.weight; baryY += p.y * p.weight; baryTotalW += p.weight; });
+    if (baryTotalW > 0) { baryX /= baryTotalW; baryY /= baryTotalW; }
+
     let totalCollapsed = 0;
 
     // 4. Update Particles — LAZY EVALUATION:
@@ -335,6 +342,13 @@ export class UniverseEngine {
       p1.vx += gradX * 0.5 * timeFactor;
       p1.vy += gradY * 0.5 * timeFactor;
 
+      // Cosmological constant (dark energy) — outward push from barycenter, opposes collapse
+      const cosmDx = p1.x - baryX;
+      const cosmDy = p1.y - baryY;
+      const cosmDist = Math.sqrt(cosmDx * cosmDx + cosmDy * cosmDy) || 1;
+      p1.vx += (cosmDx / cosmDist) * cosmDist * LAMBDA;
+      p1.vy += (cosmDy / cosmDist) * cosmDist * LAMBDA;
+
       if (!p1.isCollapsed) {
         p1.x += (Math.random() - 0.5) * 4 * timeFactor;
         p1.y += (Math.random() - 0.5) * 4 * timeFactor;
@@ -432,6 +446,40 @@ export class UniverseEngine {
 
     // 5. Re-emergence & Cleanup
     const newParticles: Particle[] = [];
+
+    // Population floor: if too few particles, force the most massive to emit aggressively
+    if (this.particles.length < MIN_POPULATION) {
+      const survivors = [...this.particles].sort((a, b) => b.weight - a.weight);
+      for (const p of survivors) {
+        if (newParticles.length + this.particles.length >= MIN_POPULATION) break;
+        // Force emit regardless of weight threshold
+        const emitCount = Math.min(6, Math.ceil(MIN_POPULATION - this.particles.length));
+        for (let e = 0; e < emitCount; e++) {
+          const angle = (e / emitCount) * Math.PI * 2;
+          const speed = 1 + Math.random();
+          newParticles.push({
+            id: `rebirth-${this.state.tick}-${Math.random()}`,
+            isCollapsed: p.isCollapsed,
+            isLatent: false,
+            x: p.x + Math.cos(angle) * 20,
+            y: p.y + Math.sin(angle) * 20,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            weight: Math.max(0.5, p.weight * 0.1 / emitCount),
+            level: Math.max(1, p.level - 1),
+            lastInteractionTick: this.state.tick,
+            lastActiveTick: this.state.tick,
+            persistence: 0,
+            isConscious: false,
+            color: p.color,
+            latentTraces: []
+          });
+          p.weight *= 0.9;
+        }
+        if (newParticles.length > 0) break;
+      }
+    }
+
     this.particles = this.particles.filter(p => {
       if (p.weight < 0) return false;
 
