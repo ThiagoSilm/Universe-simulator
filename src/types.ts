@@ -14,9 +14,11 @@ export interface Particle {
   isConscious: boolean;
   color: string;
   // Quantum state
-  waveRadius: number;        // uncertainty radius — shrinks on interaction, grows in isolation
-  // Electromagnetic charge: -1 | 0 | +1
-  charge: number;
+  waveRadius: number;        // de Broglie uncertainty — ħ/p; shrinks when fast/heavy
+  spin: number;              // intrinsic angular momentum: +0.5 or -0.5
+  charge: number;            // electromagnetic charge: -1 | 0 | +1
+  // State flags
+  isBound: boolean;          // in a nuclear bound state (atom analogue)
   latentTraces?: LatentTrace[];
 }
 
@@ -36,7 +38,10 @@ export interface UniverseState {
   tick: number;
   maxCurvature: number;
   avgTemperature: number;
-  // legacy fields kept for compatibility
+  pairProductionCount: number;   // cumulative pair-production events
+  annihilationCount: number;     // cumulative annihilation events
+  fissionCount: number;          // cumulative fission events
+  // legacy
   viewportX: number;
   viewportY: number;
   zoom: number;
