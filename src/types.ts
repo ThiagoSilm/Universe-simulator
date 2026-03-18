@@ -13,6 +13,10 @@ export interface Particle {
   persistence: number;
   isConscious: boolean;
   color: string;
+  // Quantum state
+  waveRadius: number;        // uncertainty radius — shrinks on interaction, grows in isolation
+  // Electromagnetic charge: -1 | 0 | +1
+  charge: number;
   latentTraces?: LatentTrace[];
 }
 
@@ -30,8 +34,10 @@ export interface UniverseState {
   consciousnessCount: number;
   totalInformation: number;
   tick: number;
+  maxCurvature: number;
+  avgTemperature: number;
+  // legacy fields kept for compatibility
   viewportX: number;
   viewportY: number;
   zoom: number;
-  maxCurvature: number;
 }
