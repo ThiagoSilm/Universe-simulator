@@ -1,4 +1,4 @@
-import { Particle, UniverseState, LatentTrace } from './types';
+import { Particle, UniverseState, LatentTrace, Molecule } from './types';
 
 // ═══════════════════════════════════════════════════════════════════
 //  CONSTANTS
@@ -275,20 +275,14 @@ export class UniverseEngine {
         const r    = Math.pow(Math.random(), 0.5) * CLUSTER_RADIUS;
         const a    = Math.random() * Math.PI * 2;
         const spin = (Math.random() - 0.5) * 0.8;
-        particles.push({
-          id: `p-${id++}`, isCollapsed: false, isLatent: false,
-          x: seed.x + Math.cos(a) * r, y: seed.y + Math.sin(a) * r,
-          vx: seed.vx + Math.cos(a + Math.PI / 2) * spin + (Math.random() - 0.5) * 1.5,
-          vy: seed.vy + Math.sin(a + Math.PI / 2) * spin + (Math.random() - 0.5) * 1.5,
-          weight: 0.8 + Math.random() * 0.4, level: 1,
-          lastInteractionTick: -DORMANCY_THRESHOLD,
-          lastActiveTick: 0, persistence: 0, isConscious: false,
-          color: `hsla(${seed.hue + (Math.random() - 0.5) * 40},60%,60%,0.2)`,
-          waveRadius: WAVE_INITIAL, spin: this.makeSpin(),
-          charge: this.makeCharge(), isBound: false,
-          isDarkMatter: Math.random() < DARK_MATTER_FRACTION,
-          entangledWith: null,
-        });
+        particles.push(this.newParticle(
+          `p-${id++}`,
+          seed.x + Math.cos(a) * r, seed.y + Math.sin(a) * r,
+          seed.vx + Math.cos(a + Math.PI / 2) * spin + (Math.random() - 0.5) * 1.5,
+          seed.vy + Math.sin(a + Math.PI / 2) * spin + (Math.random() - 0.5) * 1.5,
+          0.8 + Math.random() * 0.4, this.makeCharge(), false,
+          `hsla(${seed.hue + (Math.random() - 0.5) * 40},60%,60%,0.2)`, 0
+        ));
       }
     }
 
@@ -296,20 +290,13 @@ export class UniverseEngine {
     for (let i = 0; i < voidCount; i++) {
       const a = Math.random() * Math.PI * 2;
       const r = Math.random() * UNIVERSE_RADIUS;
-      particles.push({
-        id: `void-${id++}`, isCollapsed: false, isLatent: true,
-        x: Math.cos(a) * r, y: Math.sin(a) * r,
-        vx: (Math.random() - 0.5) * 0.3, vy: (Math.random() - 0.5) * 0.3,
-        weight: 0.5 + Math.random() * 0.5, level: 1,
-        lastInteractionTick: -DORMANCY_THRESHOLD * 10,
-        lastActiveTick: -DORMANCY_THRESHOLD,
-        persistence: 0, isConscious: false,
-        color: `hsla(${Math.random() * 360},30%,40%,0.1)`,
-        waveRadius: WAVE_INITIAL, spin: this.makeSpin(),
-        charge: this.makeCharge(), isBound: false,
-        isDarkMatter: Math.random() < DARK_MATTER_FRACTION,
-        entangledWith: null,
-      });
+      particles.push(this.newParticle(
+        `void-${id++}`,
+        Math.cos(a) * r, Math.sin(a) * r,
+        (Math.random() - 0.5) * 0.3, (Math.random() - 0.5) * 0.3,
+        0.5 + Math.random() * 0.5, this.makeCharge(), false,
+        `hsla(${Math.random() * 360},30%,40%,0.1)`, -DORMANCY_THRESHOLD
+      ));
     }
 
     return particles;
@@ -483,6 +470,12 @@ export class UniverseEngine {
         persistence: 10, isConscious: true, color: '#ffffff',
         waveRadius: 0, spin: 0, charge: 0, isBound: false,
         latentTraces: allTraces,
+        energy: 0,
+        isMetabolizing: false,
+        isReplicating: false,
+        generation: 0,
+        moleculeId: null,
+        element: null,
       });
       region.isCompressed = true;
     }
