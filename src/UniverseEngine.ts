@@ -824,11 +824,29 @@ export class UniverseEngine {
     this.state.lastNodes = nodes;
     this.state.lastRelations = this.state.relationsCount;
 
-    // 3. Civilization Trigger (simplified)
-    if (nodes >= 3 && Math.random() < 0.01) {
+    // 3. Civilization Trigger (refined)
+    if (nodes >= 3) {
         if (isNaN(this.state.culture)) this.state.culture = 0;
-        this.state.culture += 0.1;
-        this.state.events.push(`Civilização emergida! Cultura: ${this.state.culture.toFixed(2)}`);
+        if (isNaN(this.state.technology)) this.state.technology = 0;
+        
+        // Culture grows with nodes and relations
+        const cultureGrowth = (nodes * 0.001) + (this.state.relationsCount * 0.0005);
+        this.state.culture += cultureGrowth;
+        
+        // Technology grows with knowledge and tools of conscious particles
+        const consciousParticles = this.particles.filter(p => p.isCollectiveConscious);
+        const avgKnowledge = consciousParticles.reduce((s, p) => s + p.knowledge, 0) / nodes;
+        const avgTools = consciousParticles.reduce((s, p) => s + p.tools, 0) / nodes;
+        
+        const techGrowth = (avgKnowledge * 0.01) + (avgTools * 0.005);
+        this.state.technology += techGrowth;
+
+        if (Math.random() < 0.01) {
+            this.state.events.push(`Avanço cultural detectado. Cultura: ${this.state.culture.toFixed(2)}`);
+        }
+        if (Math.random() < 0.01 && techGrowth > 0.01) {
+            this.state.events.push(`Salto tecnológico! Nível: ${this.state.technology.toFixed(2)}`);
+        }
     }
   }
 
@@ -1587,8 +1605,12 @@ export class UniverseEngine {
     this.state.maxGeneration = Math.max(0, ...Array.from(this.molecules.values()).map(m => m.generation));
     this.state.lifeCount = this.particles.filter(p => p.isMetabolizing).length;
     
-    // Update fertility: regions with high recycling
-    this.state.fertility = Array.from(this.energyGrid.values()).filter(r => r.temperature > 0.5).length / Math.max(1, this.energyGrid.size);
+    // Update fertility: regions with high recycling and organic density
+    const organicParticles = this.particles.filter(p => p.isMetabolizing);
+    const organicDensity = organicParticles.length / Math.max(1, this.particles.length);
+    const recyclingRate = (this.state.recycledMatterCount || 0) / Math.max(1, tick);
+    
+    this.state.fertility = (organicDensity * 10) + (recyclingRate * 5) + (this.state.organicCount * 0.1);
 
     return this.state;
   }
