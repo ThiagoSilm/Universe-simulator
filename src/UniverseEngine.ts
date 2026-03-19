@@ -151,6 +151,12 @@ export class UniverseEngine {
       if (this.state.replicantCount      === undefined) this.state.replicantCount      = 0;
       if (this.state.maxGeneration       === undefined) this.state.maxGeneration       = 0;
       if (this.state.lifeCount           === undefined) this.state.lifeCount           = 0;
+      if (this.state.culture             === undefined || isNaN(this.state.culture)) this.state.culture             = 0;
+      if (this.state.relationsCount      === undefined || isNaN(this.state.relationsCount)) this.state.relationsCount      = 0;
+      if (this.state.collectiveConsciousnessNodes === undefined || isNaN(this.state.collectiveConsciousnessNodes)) this.state.collectiveConsciousnessNodes = 0;
+      if (this.state.recycledMatterCount === undefined || isNaN(this.state.recycledMatterCount)) this.state.recycledMatterCount = 0;
+      if (this.state.latentTraceCount    === undefined || isNaN(this.state.latentTraceCount)) this.state.latentTraceCount    = 0;
+      if (this.state.fertility           === undefined || isNaN(this.state.fertility)) this.state.fertility           = 0;
     } else {
       this.particles = this.initParticles();
       this.state = {
@@ -366,6 +372,7 @@ export class UniverseEngine {
     
     // 3. Civilization Trigger (simplified)
     if (nodes >= 3 && Math.random() < 0.01) {
+        if (isNaN(this.state.culture)) this.state.culture = 0;
         this.state.culture += 0.1;
         this.state.events.push(`Civilização emergida! Cultura: ${this.state.culture.toFixed(2)}`);
     }
