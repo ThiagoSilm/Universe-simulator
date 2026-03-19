@@ -122,6 +122,7 @@ export class UniverseEngine {
 
   constructor(savedState?: PersistentState) {
     if (savedState) {
+      console.log('UniverseEngine: restoring state');
       this.state      = savedState.state;
       this.particles  = this.state.particles;
       this.energyGrid = new Map(savedState.energyGrid);

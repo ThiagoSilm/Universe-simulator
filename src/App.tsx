@@ -272,13 +272,39 @@ export default function App() {
     if (typeof window === 'undefined') return;
     let saved: PersistentState | null = null;
     if (!forceReset) {
-      try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? ''); } catch (_) {}
+      try {
+        const item = localStorage.getItem(STORAGE_KEY);
+        console.log('Persistence: loading from localStorage', item ? 'found' : 'not found');
+        if (item) {
+          saved = JSON.parse(item);
+          console.log('Persistence: loaded successfully');
+        }
+      } catch (e) {
+        console.error('Persistence: failed to load', e);
+      }
     } else {
       localStorage.removeItem(STORAGE_KEY);
     }
     engineRef.current = new UniverseEngine(saved || undefined);
     lazyDocRef.current = new LazyDocumentary(engineRef.current);
     setState(engineRef.current.step());
+  }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (engineRef.current) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(engineRef.current.getPersistentState()));
+          console.log('Persistence: saved on beforeunload');
+        } catch (e) {
+          console.error('Persistence: failed to save on beforeunload', e);
+        }
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
   }, []);
 
   useEffect(() => { initEngine(); }, [initEngine]);
