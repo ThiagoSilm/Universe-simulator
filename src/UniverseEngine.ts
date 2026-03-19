@@ -151,6 +151,8 @@ export class UniverseEngine {
         tick: 0, maxCurvature: 0, avgTemperature: 0,
         pairProductionCount: 0, annihilationCount: 0, fissionCount: 0,
         moleculeCount: 0, organicCount: 0, replicantCount: 0, maxGeneration: 0, lifeCount: 0,
+        recycledMatterCount: 0, latentTraceCount: 0, fertility: 0,
+        campoLatente: [], events: [],
         viewportX: 0, viewportY: 0, zoom: 1,
       };
     }
@@ -250,6 +252,47 @@ export class UniverseEngine {
         }
       }
     }
+  }
+
+  public morrer(entidade: Particle) {
+    const regiao = { x: entidade.x, y: entidade.y };
+    
+    // Libera matéria (aumenta Dormant na região)
+    const novasParticulas = Math.floor(entidade.weight * 0.7);
+    for(let i = 0; i < novasParticulas; i++) {
+        this.criarParticulaDormente(regiao);
+    }
+    
+    // Libera energia (aumenta temperatura)
+    const gridKey = `${Math.floor(entidade.x / GRID_SIZE)},${Math.floor(entidade.y / GRID_SIZE)}`;
+    const region = this.energyGrid.get(gridKey);
+    if (region) {
+        region.temperature += entidade.energy * 0.7;
+    }
+    
+    // Guarda informação (para futura recombinação)
+    this.state.campoLatente.push({
+        posicao: regiao,
+        genoma: entidade.id, // Using id as placeholder for genoma
+        experiencias: entidade.latentTraces || [],
+        timestamp: this.state.tick
+    });
+    
+    // Remove entidade ATIVA
+    this.particles = this.particles.filter(p => p.id !== entidade.id);
+    this.state.recycledMatterCount += novasParticulas;
+    this.state.latentTraceCount++;
+    this.state.events.push(`Morte na região ${regiao.x.toFixed(0)},${regiao.y.toFixed(0)} → ${novasParticulas} novas partículas dormentes`);
+  }
+
+  private criarParticulaDormente(posicao: { x: number, y: number }) {
+    const p = this.newParticle(
+        `dormant-${this.state.tick}-${Math.random().toString(36).slice(2)}`,
+        posicao.x + (Math.random()-0.5)*10, posicao.y + (Math.random()-0.5)*10,
+        (Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1,
+        0.1, 0, true, '#444444', this.state.tick
+    );
+    this.particles.push(p);
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -357,6 +400,9 @@ export class UniverseEngine {
             for (const ap of activeCell) {
               if ((dp.x - ap.x) ** 2 + (dp.y - ap.y) ** 2 < WAKE_RADIUS ** 2) {
                 dp.isLatent = false; dp.lastActiveTick = tick;
+                if (dp.id.startsWith('dormant-')) {
+                    this.state.events.push("Ciclo completo: vida → morte → nova vida");
+                }
                 let sc = spatialGrid.get(dKey);
                 if (!sc) { sc = []; spatialGrid.set(dKey, sc); } sc.push(dp);
                 const r = this.getRegion(agx+dx, agy+dy);
@@ -833,6 +879,7 @@ export class UniverseEngine {
         trace.weight*0.5, this.makeCharge(), true, trace.color, tick,
         { level: trace.level, persistence: trace.persistence }
       ));
+      this.state.events.push("Informação ancestral reativada");
     }
 
     this.particles = this.particles.filter(p => !toKill.has(p.id));
@@ -886,6 +933,9 @@ export class UniverseEngine {
     this.state.replicantCount = Array.from(this.molecules.values()).filter(m => m.isReplicating).length;
     this.state.maxGeneration = Math.max(0, ...Array.from(this.molecules.values()).map(m => m.generation));
     this.state.lifeCount = this.particles.filter(p => p.isMetabolizing).length;
+    
+    // Update fertility: regions with high recycling
+    this.state.fertility = Array.from(this.energyGrid.values()).filter(r => r.temperature > 0.5).length / Math.max(1, this.energyGrid.size);
 
     return this.state;
   }

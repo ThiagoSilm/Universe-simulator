@@ -369,6 +369,16 @@ export default function App() {
               <Stat label="Annihilat." value={state?.annihilationCount   ?? 0} icon={<Zap  size={10}/>} color="text-red-400" />
               <Stat label="Fissions"   value={state?.fissionCount        ?? 0} icon={<Atom size={10}/>} color="text-yellow-400" />
               <Stat label="Conscious"  value={state?.consciousnessCount  ?? 0} icon={<Activity size={10}/>} color="text-violet-400" />
+              <Stat label="Ciclos"     value={state?.recycledMatterCount ?? 0} icon={<RefreshCw size={10}/>} color="text-emerald-400" />
+              <Stat label="Memória"    value={state?.latentTraceCount    ?? 0} icon={<Brain size={10}/>} color="text-blue-400" />
+              <Stat label="Fertilidade" value={(state?.fertility ?? 0).toFixed(2)} icon={<Activity size={10}/>} color="text-orange-400" />
+            </div>
+          </div>
+
+          <div className="w-60 text-right space-y-2">
+            <div className="text-[9px] opacity-30 uppercase tracking-widest">Eventos Recentes</div>
+            <div className="space-y-1 text-[10px] text-zinc-400 max-h-40 overflow-y-auto">
+              {state?.events?.slice(-5)?.map((e, i) => <p key={i}>{e}</p>)}
             </div>
           </div>
 

@@ -49,6 +49,13 @@ export interface LatentTrace {
   persistence: number;
 }
 
+export interface LatentInformation {
+  posicao: { x: number, y: number };
+  genoma: string; // or whatever type genoma is
+  experiencias: any; // or whatever type memoria is
+  timestamp: number;
+}
+
 export interface UniverseState {
   particles: Particle[];
   entropy: number;
@@ -68,6 +75,14 @@ export interface UniverseState {
   replicantCount: number;
   maxGeneration: number;
   lifeCount: number;
+  
+  // Transformation metrics
+  recycledMatterCount: number;
+  latentTraceCount: number;
+  fertility: number;
+  
+  campoLatente: LatentInformation[];
+  events: string[];
 
   // legacy
   viewportX: number;
