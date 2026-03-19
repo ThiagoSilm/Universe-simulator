@@ -47,65 +47,31 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
   const spectatorTarget = state.isSpectatorMode ? { x: state.viewportX, y: state.viewportY, zoom: state.zoom } : undefined;
   const { toX, toY, scale } = computeTransform(particles, w, h, spectatorTarget);
 
-  // ── Layer 0: Energy Grid (Economy/Entropy) ──────────────────────────
-  const grid = engine.energyGridMap;
-  if (grid && scale > 0.001) {
-    ctx.save();
-    const viewW = w / scale;
-    const viewH = h / scale;
-    // Approximate viewport in world coordinates
-    const viewX = state.viewportX - viewW / 2;
-    const viewY = state.viewportY - viewH / 2;
+  // ── Layer 0: Energy Grid (Removed for performance/aesthetic) ──────
 
-    for (const [key, region] of grid) {
-      if (region.energy < 0.05 && region.temperature < 0.05) continue;
-      
-      const [gx, gy] = key.split(',').map(Number);
-      const wx = gx * GRID_SIZE;
-      const wy = gy * GRID_SIZE;
-      
-      // Basic culling
-      if (wx < viewX - GRID_SIZE || wx > viewX + viewW + GRID_SIZE || 
-          wy < viewY - GRID_SIZE || wy > viewY + viewH + GRID_SIZE) continue;
-
-      const x = toX(wx), y = toY(wy);
-      const s = GRID_SIZE * scale;
-      
-      const energyAlpha = Math.min(0.15, region.energy * 0.1);
-      const tempAlpha = Math.min(0.15, region.temperature * 0.1);
-      
-      if (energyAlpha > 0.01) {
-        ctx.fillStyle = `rgba(0, 150, 255, ${energyAlpha})`;
-        ctx.fillRect(x, y, s, s);
-      }
-      if (tempAlpha > 0.01) {
-        ctx.fillStyle = `rgba(255, 100, 0, ${tempAlpha})`;
-        ctx.fillRect(x, y, s, s);
-      }
-    }
-    ctx.restore();
-  }
-
-  // ── Layer 1: gravitational field glow ──────────────────────────────
+  // ── Layer 1: gravitational field glow (Subtle) ──────────────────────
   ctx.save();
   for (const p of particles) {
     if (p.isLatent || !p.isCollapsed) continue;
-    const x = toX(p.x), y = toY(p.y);
-    const glowR = Math.max(10, (5 + p.level*7 + p.weight*0.22)*scale);
     const isSing = p.id.startsWith('singularity');
+    if (!isSing && !p.isBound) continue; // Only show subtle glow for singularities or bound matter
+
+    const x = toX(p.x), y = toY(p.y);
+    const glowR = Math.max(4, (2 + p.level * 2 + p.weight * 0.1) * scale);
     const glow = ctx.createRadialGradient(x, y, 0, x, y, glowR);
+    
     if (isSing) {
-      glow.addColorStop(0, `rgba(160,80,255,${Math.min(0.3, 0.05*p.level)})`);
-      glow.addColorStop(1, 'transparent');
-    } else if (p.isBound) {
-      glow.addColorStop(0, `rgba(60,200,120,${Math.min(0.25, 0.04*p.level+0.02)})`);
+      glow.addColorStop(0, `rgba(160,80,255,${Math.min(0.15, 0.02 * p.level)})`);
       glow.addColorStop(1, 'transparent');
     } else {
-      glow.addColorStop(0, `rgba(25,45,100,${Math.min(0.2, 0.02*p.level+0.02)})`);
+      glow.addColorStop(0, `rgba(60,200,120,${Math.min(0.1, 0.01 * p.level)})`);
       glow.addColorStop(1, 'transparent');
     }
+    
     ctx.fillStyle = glow;
-    ctx.beginPath(); ctx.arc(x, y, glowR, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); 
+    ctx.arc(x, y, glowR, 0, Math.PI * 2); 
+    ctx.fill();
   }
   ctx.restore();
 
@@ -119,24 +85,28 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
   }
   ctx.restore();
 
-  // ── Layer 3: photon-like fast particles ─────────────────────────────
+  // ── Layer 3: photon-like fast particles (Subtle Trails) ────────────
   ctx.save();
   for (const p of particles) {
     if (p.isLatent || p.isCollapsed || p.charge !== 0) continue;
     const spd2 = p.vx**2 + p.vy**2;
-    if (spd2 < 400) continue; // only photon-like (fast, uncharged)
+    if (spd2 < 400) continue; 
     const x = toX(p.x), y = toY(p.y);
     const spd = Math.sqrt(spd2);
-    const len = Math.min(12, spd) * scale * 3;
+    const len = Math.min(8, spd) * scale * 2;
     const nx = -p.vx/spd, ny = -p.vy/spd;
-    const g = ctx.createLinearGradient(x, y, x+nx*len, y+ny*len);
-    g.addColorStop(0, 'rgba(255,255,180,0.85)');
-    g.addColorStop(1, 'transparent');
-    ctx.strokeStyle = g;
-    ctx.lineWidth = Math.max(0.5, 0.8*scale);
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x+nx*len, y+ny*len); ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,200,0.9)';
-    ctx.beginPath(); ctx.arc(x, y, Math.max(0.6, 0.9*scale), 0, Math.PI*2); ctx.fill();
+    
+    ctx.strokeStyle = 'rgba(255,255,200,0.3)';
+    ctx.lineWidth = Math.max(0.3, 0.5 * scale);
+    ctx.beginPath(); 
+    ctx.moveTo(x, y); 
+    ctx.lineTo(x + nx * len, y + ny * len); 
+    ctx.stroke();
+    
+    ctx.fillStyle = 'rgba(255,255,220,0.6)';
+    ctx.beginPath(); 
+    ctx.arc(x, y, Math.max(0.4, 0.6 * scale), 0, Math.PI * 2); 
+    ctx.fill();
   }
   ctx.restore();
 
