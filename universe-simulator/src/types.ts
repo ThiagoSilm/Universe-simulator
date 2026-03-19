@@ -20,8 +20,6 @@ export interface Particle {
   // State flags
   isBound: boolean;          // in a nuclear bound state (atom analogue)
   latentTraces?: LatentTrace[];
-  entangledWith?: string | null; // Quantum entanglement partner ID
-  isDarkMatter?: boolean;    // Interacts only gravitationally
 }
 
 export interface LatentTrace {

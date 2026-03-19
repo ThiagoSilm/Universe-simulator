@@ -19,8 +19,7 @@ const REPULSION_STRENGTH     = 10.0;     // degeneracy / Pauli pressure
 const STRONG_K               = 90;       // nuclear binding force
 const STRONG_RADIUS          = 4.5;      // range of strong nuclear force
 const SPIN_ORBIT_K           = 0.8;      // spin-orbit coupling (magnetic-like)
-const DARK_ENERGY_LAMBDA     = 0.015;    // cosmological constant (expansion)
-const DARK_MATTER_FRACTION   = 0.25;     // 25% of universe is dark matter
+const LAMBDA_LOCAL           = 0.012;    // local expansion constant
 
 // Ranges
 const GRAVITY_RADIUS         = 180;
@@ -103,8 +102,6 @@ export class UniverseEngine {
         if (p.charge     === undefined) p.charge = 0;
         if (p.spin       === undefined) p.spin = Math.random() < 0.5 ? 0.5 : -0.5;
         if (p.isBound    === undefined) p.isBound = false;
-        if (p.isDarkMatter === undefined) p.isDarkMatter = Math.random() < DARK_MATTER_FRACTION;
-        if (p.entangledWith === undefined) p.entangledWith = null;
       });
       // patch state
       if (this.state.pairProductionCount === undefined) this.state.pairProductionCount = 0;
@@ -149,8 +146,6 @@ export class UniverseEngine {
       color, waveRadius: isCollapsed ? 0 : WAVE_INITIAL,
       spin: this.makeSpin(), charge, isBound: false,
       latentTraces: [],
-      isDarkMatter: Math.random() < DARK_MATTER_FRACTION,
-      entangledWith: null,
       ...extra,
     };
   }
@@ -189,8 +184,6 @@ export class UniverseEngine {
           color: `hsla(${seed.hue + (Math.random() - 0.5) * 40},60%,60%,0.2)`,
           waveRadius: WAVE_INITIAL, spin: this.makeSpin(),
           charge: this.makeCharge(), isBound: false,
-          isDarkMatter: Math.random() < DARK_MATTER_FRACTION,
-          entangledWith: null,
         });
       }
     }
@@ -210,8 +203,6 @@ export class UniverseEngine {
         color: `hsla(${Math.random() * 360},30%,40%,0.1)`,
         waveRadius: WAVE_INITIAL, spin: this.makeSpin(),
         charge: this.makeCharge(), isBound: false,
-        isDarkMatter: Math.random() < DARK_MATTER_FRACTION,
-        entangledWith: null,
       });
     }
 
@@ -474,19 +465,6 @@ export class UniverseEngine {
         const a = Math.random() * Math.PI * 2;
         p1.vx += Math.cos(a) * 0.3 * tf;
         p1.vy += Math.sin(a) * 0.3 * tf;
-        
-        // Entanglement: spooky action at a distance
-        if (p1.entangledWith) {
-          const partner = this.particles.find(p => p.id === p1.entangledWith);
-          if (partner) {
-            partner.spin = -partner.spin; // instantly flip partner's spin
-            // Break entanglement after one use
-            p1.entangledWith = null;
-            partner.entangledWith = null;
-          } else {
-            p1.entangledWith = null;
-          }
-        }
       }
 
       // c. FISSION — spontaneous splitting of massive particles
@@ -534,7 +512,7 @@ export class UniverseEngine {
           this.getRegion(gx-1,gy).density - this.getRegion(gx+1,gy).density,
           this.getRegion(gx,gy-1).density - this.getRegion(gx,gy+1).density,
         ];
-        const str = DARK_ENERGY_LAMBDA * (1 - localDensity/targetDensity);
+        const str = LAMBDA_LOCAL * (1 - localDensity/targetDensity);
         p1.vx += dens[0] * str * tf;
         p1.vy += dens[1] * str * tf;
       }
@@ -598,7 +576,7 @@ export class UniverseEngine {
             }
 
             // ── ELECTROMAGNETISM ──────────────────────────────────────
-            if (!p1.isDarkMatter && !p2.isDarkMatter && p1.charge !== 0 && p2.charge !== 0 && d2 < emR2) {
+            if (p1.charge !== 0 && p2.charge !== 0 && d2 < emR2) {
               const sign = p1.charge * p2.charge;  // +1=repel, -1=attract
               const F_em = sign * K_EM / (d2 + 4);
               p1.vx += (ddx/d) * (F_em/p1.weight) * tf;
@@ -618,7 +596,7 @@ export class UniverseEngine {
             if (d2 >= intR2) continue;
 
             // ── ANNIHILATION — matter + antimatter → energy ─────────
-            if (!p1.isDarkMatter && !p2.isDarkMatter && d2 < annihR2 &&
+            if (d2 < annihR2 &&
                 p1.charge + p2.charge === 0 && p1.charge !== 0 &&
                 p1.isCollapsed && p2.isCollapsed) {
               // Energy conserved: E = (m1 + m2) * c²
@@ -642,7 +620,7 @@ export class UniverseEngine {
             // ── STRONG NUCLEAR FORCE ─────────────────────────────────
             // At very short range: overwhelms EM repulsion, creates bound states.
             // This is why atoms can exist: protons stay together despite EM repulsion.
-            if (!p1.isDarkMatter && !p2.isDarkMatter && d2 < strongR2 && p1.isCollapsed && p2.isCollapsed) {
+            if (d2 < strongR2 && p1.isCollapsed && p2.isCollapsed) {
               // Strong attraction — deeper well than repulsion at this range
               const F_strong = STRONG_K * (1 - d/STRONG_RADIUS);
               p1.vx -= (ddx/d) * (F_strong/p1.weight) * tf;
@@ -658,12 +636,6 @@ export class UniverseEngine {
               p1.lastActiveTick = tick; p2.lastActiveTick = tick;
               p1.lastInteractionTick = tick; p2.lastInteractionTick = tick;
               continue;
-            }
-
-            // ── QUANTUM ENTANGLEMENT ─────────────────────────────────
-            if (!p1.isDarkMatter && !p2.isDarkMatter && d2 < intR2 && !p1.entangledWith && !p2.entangledWith && Math.random() < 0.05) {
-              p1.entangledWith = p2.id;
-              p2.entangledWith = p1.id;
             }
 
             // ── DEGENERACY PRESSURE (Pauli exclusion) ──────────────

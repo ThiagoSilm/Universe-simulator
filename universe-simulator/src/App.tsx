@@ -138,36 +138,11 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
 
     // Core with charge color
     let bodyColor = p.color.replace('0.2)', '0.5)');
-    if (p.isDarkMatter) {
-      bodyColor = 'rgba(120, 0, 200, 0.15)'; // faint purple for dark matter
-    } else {
-      if (p.charge > 0) bodyColor = 'rgba(255,150,80,0.55)';
-      if (p.charge < 0) bodyColor = 'rgba(80,130,255,0.55)';
-    }
+    if (p.charge > 0) bodyColor = 'rgba(255,150,80,0.55)';
+    if (p.charge < 0) bodyColor = 'rgba(80,130,255,0.55)';
     ctx.fillStyle = bodyColor;
     ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI*2); ctx.fill();
   }
-  ctx.restore();
-
-  // ── Layer 4.5: Entanglement links ───────────────────────────────────
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255, 100, 255, 0.15)';
-  ctx.lineWidth = Math.max(0.5, 0.5 * scale);
-  ctx.setLineDash([5, 5]);
-  const drawnLinks = new Set<string>();
-  for (const p of particles) {
-    if (p.entangledWith && !drawnLinks.has(p.id)) {
-      const partner = particles.find(partner => partner.id === p.entangledWith);
-      if (partner) {
-        ctx.beginPath();
-        ctx.moveTo(toX(p.x), toY(p.y));
-        ctx.lineTo(toX(partner.x), toY(partner.y));
-        ctx.stroke();
-        drawnLinks.add(partner.id); // prevent drawing twice
-      }
-    }
-  }
-  ctx.setLineDash([]);
   ctx.restore();
 
   // ── Layer 5: collapsed particles ────────────────────────────────────
@@ -476,13 +451,10 @@ const LAWS: [string, string][] = [
   ['LAZY EVALUATION', 'Separate active/dormant grids. Active: full physics O(active). Wake-up: O(active_cells × wakeRange²). Dormant: O(1) geodesic drift only. The universe never processes what it doesn\'t need to.'],
   ['FREEDOM', 'Particle identity is not fixed at birth. It changes through physics: charge flips (beta decay), mass splits (fission), new matter born from energy (pair production), bound states form (atoms). The physics decides, not the programmer.'],
   ['GRAVITY', 'F = G·m₁·m₂/(r²+ε). Only active (observed) particles curve spacetime. Dormant particles are in superposition — no classical gravitational field.'],
-  ['DARK MATTER', '25% of the universe. Interacts only via gravity. Invisible to electromagnetism, strong, and weak forces. Forms the unseen scaffolding of galaxies.'],
-  ['DARK ENERGY', 'Cosmological constant (Λ) driving local expansion when density drops below a critical threshold. Pushes particles apart in voids.'],
   ['ELECTROMAGNETISM', 'F = K·q·q/(r²+ε). Charged particles (38%) attract opposites, repel same at range=90. Faster than gravity.'],
   ['SPIN-ORBIT COUPLING', 'Magnetic-like force: spin × charge creates an additional force. Same spin + same charge = extra repulsion. Opposite spin + opposite charge = extra attraction (bonding).'],
   ['STRONG NUCLEAR FORCE', 'At r < 4.5, very strong attractive force overwhelms EM repulsion. Creates bound states analogous to atoms. Hard core prevents r < 1.5. Bound particles have reduced orbital drag.'],
   ['WEAK FORCE (BETA DECAY)', 'Rare charge flip per tick (0.012%/tick). Spin also flips. W boson emitted as heat. Particles can change their electromagnetic identity over time.'],
-  ['QUANTUM ENTANGLEMENT', 'Spooky action at a distance. Interacting particles can become entangled. If one undergoes beta decay and flips its spin, its partner instantly flips its spin regardless of distance.'],
   ['FISSION', 'Spontaneous splitting when weight > 18. Probability scales with excess weight. Daughter has opposite momentum (conserved) and opposite charge. Energy released as heat. Latent traces split.'],
   ['PAIR PRODUCTION', 'In hot regions (T > 2.5), thermal energy creates particle + antiparticle pairs. Energy E is conserved: T -= cost. Pairs have opposite momenta.'],
   ['ANNIHILATION', 'When opposite-charged collapsed particles meet within r < 2.2: E = m·c². Both destroyed. 2 photon-like particles emitted at C in opposite directions. Huge heat burst.'],
