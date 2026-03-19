@@ -1,4 +1,5 @@
 import { Particle, UniverseState, LatentTrace, Molecule } from './types';
+import { VariavelInfinita } from './VariavelInfinita';
 
 // ═══════════════════════════════════════════════════════════════════
 //  CONSTANTS
@@ -109,10 +110,15 @@ export interface PersistentState {
 // ═══════════════════════════════════════════════════════════════════
 
 export class UniverseEngine {
-  private state:      UniverseState;
+  public state:      UniverseState;
   private energyGrid: Map<string, RegionData> = new Map();
   private molecules:  Map<string, Molecule>   = new Map();
   public  particles:  Particle[];
+
+  // Lazy metrics
+  public temperature: VariavelInfinita;
+  public curvature: VariavelInfinita;
+  public particleCount: VariavelInfinita;
 
   constructor(savedState?: PersistentState) {
     if (savedState) {
@@ -156,6 +162,9 @@ export class UniverseEngine {
         viewportX: 0, viewportY: 0, zoom: 1,
       };
     }
+    this.temperature = new VariavelInfinita(() => this.state.avgTemperature);
+    this.curvature = new VariavelInfinita(() => this.state.maxCurvature);
+    this.particleCount = new VariavelInfinita(() => this.particles.length);
   }
 
   public getPersistentState(): PersistentState {

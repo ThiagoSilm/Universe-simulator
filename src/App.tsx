@@ -353,7 +353,7 @@ export default function App() {
           <div className="space-y-3 w-60">
             <Metric label="Entropy"       value={state?.entropy      ?? 1} icon={<Zap          size={11}/>} color="text-blue-400"    pct />
             <Metric label="Coherence"     value={state?.coherence    ?? 0} icon={<Layers       size={11}/>} color="text-emerald-400" pct />
-            <Metric label="Temperature"   value={(state?.avgTemperature ?? 0).toFixed(4)} icon={<Thermometer size={11}/>} color="text-orange-400" />
+            <Metric label="Temperature"   value={engineRef.current ? (engineRef.current.temperature.observar().toFixed(4)) : 0} icon={<Thermometer size={11}/>} color="text-orange-400" />
 
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-1">
               <Stat label="Complexity" value={`Lvl ${maxLevel}`} icon={<Brain size={10}/>} color="text-white" />
@@ -395,13 +395,13 @@ export default function App() {
             <div className="space-y-1">
               <div className="text-[9px] opacity-30 uppercase tracking-widest">Max Curvature</div>
               <div className="text-xl font-light tracking-tighter text-amber-400">
-                {(state?.maxCurvature ?? 0).toFixed(3)}
+                {engineRef.current ? engineRef.current.curvature.observar().toFixed(3) : 0}
               </div>
             </div>
             <div className="space-y-1">
-              <div className="text-[9px] opacity-30 uppercase tracking-widest">Information</div>
+              <div className="text-[9px] opacity-30 uppercase tracking-widest">Particle Count</div>
               <div className="text-xl font-light tracking-tighter text-amber-400">
-                {(state?.totalInformation ?? 0).toFixed(0)}
+                {engineRef.current ? engineRef.current.particleCount.observar() : 0}
               </div>
             </div>
             <div className="flex flex-col items-end gap-1">
