@@ -49,6 +49,20 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
 
   // ── Layer 0: Energy Grid (Removed for performance/aesthetic) ──────
 
+  // ── Layer 0.5: Cosmic Memory (Latent Information) ──────────────────
+  if (state.campoLatente && state.campoLatente.length > 0) {
+    ctx.save();
+    for (const info of state.campoLatente) {
+      const x = toX(info.x), y = toY(info.y);
+      const size = Math.max(0.5, 0.8 * scale);
+      ctx.fillStyle = `rgba(180, 180, 255, ${Math.min(0.15, 0.02 * info.intensity)})`;
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   // ── Layer 1: gravitational field glow (Subtle) ──────────────────────
   ctx.save();
   for (const p of particles) {

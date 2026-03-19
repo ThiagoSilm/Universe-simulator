@@ -481,11 +481,21 @@ export class UniverseEngine {
     
     // Guarda informação (para futura recombinação)
     this.state.campoLatente.push({
-        posicao: regiao,
-        genoma: entidade.id, // Using id as placeholder for genoma
-        experiencias: { knowledge: entidade.knowledge, tools: entidade.tools, traces: entidade.latentTraces },
-        timestamp: this.state.tick
+        x: entidade.x,
+        y: entidade.y,
+        data: { 
+          id: entidade.id, 
+          knowledge: entidade.knowledge, 
+          tools: entidade.tools, 
+          traces: entidade.latentTraces ? [...entidade.latentTraces] : [] 
+        },
+        intensity: entidade.level
     });
+    
+    // Limit Cosmic Memory size
+    if (this.state.campoLatente.length > 500) {
+        this.state.campoLatente.shift();
+    }
     
     // Torna a entidade latente em vez de remover
     entidade.isLatent = true;
@@ -968,14 +978,64 @@ export class UniverseEngine {
         const p_mag = Math.sqrt(p1.vx**2+p1.vy**2) * p1.weight;
         p1.waveRadius = Math.min(WAVE_INITIAL*2, WAVE_INITIAL / (1 + p_mag*HBAR_INV));
         
-        // Chance to wake up if energy is high
-        if (region.energy > 0.9 && Math.random() < 0.005) p1.isLatent = false;
+        // Dormant particles can absorb energy from the field
+        if (region.energy > 0.1) {
+          const absorb = Math.min(region.energy, 0.001 * tf);
+          region.energy -= absorb;
+          p1.energy = Math.min(1.0, p1.energy + absorb * 10); // High efficiency for dormant patterns
+        }
+        
+        // Chance to wake up if energy is sufficient
+        if (p1.energy > 0.5 && Math.random() < 0.01) {
+          p1.isLatent = false;
+          p1.lastActiveTick = tick;
+        }
         continue;
       }
 
       // ── ACTIVE PATH ──────────────────────────────────────────────
       region.lastActiveTick = tick;
       const tf = 1 / (1 + region.curvature * TIME_DILATION_STR);
+      p1.age += 1 * tf;
+
+      // l. Metabolic / Energy Maintenance — O(1)
+      //    Each particle consumes local energy to maintain its pattern.
+      //    If energy is low, the pattern becomes unstable and recycles.
+      const energyCost = (0.0005 + p1.level * 0.0002) * tf;
+      if (region.energy > energyCost * 2) {
+        region.energy -= energyCost;
+        p1.energy = Math.min(1.0, p1.energy + 0.01 * tf);
+      } else {
+        p1.energy -= energyCost * 2;
+      }
+
+      // m. Recycling — when pattern is inviable
+      if (p1.energy < 0.05 && !p1.isLatent) {
+        p1.isLatent = true;
+        p1.energy = 0;
+        region.temperature += p1.weight * 0.2; // Dissipate energy as heat
+        
+        // Store in Cosmic Memory (Latent Field)
+        this.state.campoLatente.push({
+          x: p1.x, y: p1.y,
+          data: { 
+            id: p1.id, 
+            level: p1.level, 
+            knowledge: p1.knowledge,
+            tools: p1.tools,
+            traces: p1.latentTraces ? [...p1.latentTraces] : [] 
+          },
+          intensity: p1.level
+        });
+        
+        // Limit Cosmic Memory size
+        if (this.state.campoLatente.length > 500) {
+          this.state.campoLatente.shift();
+        }
+        
+        this.state.events.push(`Padrão ${p1.id.slice(0,4)} reciclado por ineficiência`);
+        continue;
+      }
 
       // Throttled interaction: only check neighbors every few ticks if moving slowly
       const speed2 = p1.vx**2 + p1.vy**2;
@@ -1315,12 +1375,12 @@ export class UniverseEngine {
           const a = (e/10)*Math.PI*2, spd = 1+Math.random();
           let extra: Partial<Particle> = {};
           if (this.state.campoLatente.length > 0 && Math.random() < 0.5) {
-            const trace = this.state.campoLatente.pop()!;
-            const exp = trace.experiencias || {};
+            const info = this.state.campoLatente.pop()!;
+            const data = info.data || {};
             extra = { 
-              knowledge: exp.knowledge || 0, 
-              tools: exp.tools || 0, 
-              latentTraces: exp.traces || [] 
+              knowledge: data.knowledge || 0, 
+              tools: data.tools || 0, 
+              latentTraces: data.traces || [] 
             };
             this.state.latentTraceCount--;
             this.state.events.push(`Nova vida emergiu de traços antigos`);

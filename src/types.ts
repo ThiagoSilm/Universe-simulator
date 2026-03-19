@@ -57,10 +57,10 @@ export interface LatentTrace {
 }
 
 export interface LatentInformation {
-  posicao: { x: number, y: number };
-  genoma: string; // or whatever type genoma is
-  experiencias: any; // or whatever type memoria is
-  timestamp: number;
+  x: number;
+  y: number;
+  data: any;
+  intensity: number;
 }
 
 export interface UniverseState {
