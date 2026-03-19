@@ -344,8 +344,35 @@ export default function App() {
     event: 'None', 
     nextScan: 0 
   });
+  const [selectedParticleId, setSelectedParticleId] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const requestRef = useRef<number>(0);
+
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current || !state) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const spectatorTarget = state.isSpectatorMode ? { x: state.viewportX, y: state.viewportY, zoom: state.zoom } : undefined;
+    const { toX, toY, scale } = computeTransform(state.particles, canvasRef.current.width, canvasRef.current.height, spectatorTarget);
+
+    let closest: Particle | null = null;
+    let minDist = 20;
+
+    for (const p of state.particles) {
+      if (p.isLatent) continue;
+      const dx = toX(p.x) - x;
+      const dy = toY(p.y) - y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < minDist) {
+        minDist = dist;
+        closest = p;
+      }
+    }
+
+    setSelectedParticleId(closest?.id || null);
+  };
 
   const initEngine = useCallback((forceReset = false) => {
     if (typeof window === 'undefined') return;
@@ -439,7 +466,8 @@ export default function App() {
         ref={canvasRef}
         width={typeof window !== 'undefined' ? window.innerWidth : 800}
         height={typeof window !== 'undefined' ? window.innerHeight : 600}
-        className="absolute inset-0 z-0"
+        onClick={handleCanvasClick}
+        className="absolute inset-0 z-0 cursor-crosshair"
       />
 
       <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-6 z-10">
@@ -584,6 +612,10 @@ export default function App() {
               <Stat label="Ciclos"     value={state?.recycledMatterCount ?? 0} icon={<RefreshCw size={10}/>} color="text-emerald-400" />
               <Stat label="Memória"    value={state?.latentTraceCount    ?? 0} icon={<Brain size={10}/>} color="text-blue-400" />
               <Stat label="Fertilidade" value={(state?.fertility ?? 0).toFixed(2)} icon={<Activity size={10}/>} color="text-orange-400" />
+              <Stat label="Interferência" value={state?.interferenceCount ?? 0} icon={<Sigma size={10}/>} color="text-cyan-400" />
+              <Stat label="Emaranhados" value={state?.entangledPairsCount ?? 0} icon={<RefreshCw size={10}/>} color="text-pink-400" />
+              <Stat label="Fase Média" value={(state?.avgPhase ?? 0).toFixed(2)} icon={<Orbit size={10}/>} color="text-indigo-400" />
+              <Stat label="Contexto" value={(state?.contextualityRate ?? 0).toFixed(2)} icon={<Info size={10}/>} color="text-yellow-400" />
             </div>
           </div>
 
@@ -646,6 +678,48 @@ export default function App() {
               </div>
               <div className="text-[8px] opacity-20 uppercase tracking-[0.2em]">Structural Integrity</div>
             </div>
+
+            {/* Epistemological Panel */}
+            {selectedParticleId && state?.particles.find(p => p.id === selectedParticleId) && (
+              <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-4 rounded-lg w-72 text-left pointer-events-auto mt-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-[10px] uppercase tracking-widest font-bold text-cyan-400">Observação Epistemológica</h3>
+                  <button onClick={() => setSelectedParticleId(null)} className="text-[10px] opacity-40 hover:opacity-100">✕</button>
+                </div>
+                {(() => {
+                  const p = state.particles.find(p => p.id === selectedParticleId)!;
+                  const descriptions = UniverseEngine.describeEvent(p, state.tick);
+                  return (
+                    <div className="space-y-3">
+                      <div>
+                        <div className="text-[8px] opacity-40 uppercase mb-1">Ontologia (Lazy Evaluation)</div>
+                        <p className="text-[10px] text-zinc-300 leading-relaxed italic">"{descriptions.lazyEvaluation}"</p>
+                      </div>
+                      <div>
+                        <div className="text-[8px] opacity-40 uppercase mb-1">Formalismo (Função de Onda)</div>
+                        <p className="text-[10px] text-blue-300 leading-relaxed">"{descriptions.funcaoOnda}"</p>
+                      </div>
+                      <div>
+                        <div className="text-[8px] opacity-40 uppercase mb-1">Contexto (Matriz Densidade)</div>
+                        <p className="text-[10px] text-purple-300 leading-relaxed">"{descriptions.matrizDensidade}"</p>
+                      </div>
+                      <div className="pt-2 border-t border-white/5 flex justify-between text-[9px]">
+                        <span className="opacity-40">Amplitude:</span>
+                        <span className="text-white">{p.amplitude.toFixed(3)}</span>
+                      </div>
+                      <div className="flex justify-between text-[9px]">
+                        <span className="opacity-40">Fase:</span>
+                        <span className="text-white">{(p.phase * 180 / Math.PI).toFixed(1)}°</span>
+                      </div>
+                      <div className="flex justify-between text-[9px]">
+                        <span className="opacity-40">Viés de Contexto:</span>
+                        <span className="text-yellow-400">{p.contextualBias.toFixed(3)}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </div>
         </main>
       </div>
@@ -746,6 +820,10 @@ const LAWS: [string, string][] = [
   ['MOMENTUM CONSERVATION', 'Fusion: v = (p₁m₁+p₂m₂)/(m₁+m₂). Fission: daughter has opposite momentum recoil. Singularity compression conserves total momentum. Annihilation: photons emitted in opposite directions.'],
   ['SPEED OF LIGHT C=40', 'No particle exceeds C per tick. Photon-like particles (fast, uncharged, massless) travel at ≈C.'],
   ['TIME DILATION', 'tf = 1/(1+κ·α). All forces and motion scale by tf. Dense regions evolve slower.'],
+  ['QUANTUM COHERENCE', 'Particles have phase and amplitude. Interaction causes interference (constructive/destructive) based on phase alignment. Coherence measures the global phase order.'],
+  ['NON-LOCALITY', 'Entanglement creates instantaneous correlations. Measuring one particle affects its partner across any distance, violating classical locality.'],
+  ['CONTEXTUALITY', 'Measurement outcomes are not pre-determined but depend on the experimental context (Kochen-Specker). The universe is not a collection of independent facts.'],
+  ['EPISTEMOLOGY', 'Mathematics (Wave Functions, Matrices) are human tools to model reality, not the reality itself. The simulation uses lazy evaluation as a primary ontological substrate.'],
   ['INFORMATION CONSERVATION', 'Dissolution: weight redistributed. Fusion: latent traces inherited. Fission: traces split. Latent traces re-emerge when host weight allows.'],
   ['BIG BANG', '1800 particles. 24 proto-galaxy clusters with proto-galactic spin. Void particles dormant from birth. ±60,000 unit radius.'],
 ];

@@ -234,6 +234,10 @@ export class UniverseEngine {
       if (this.state.technology          === undefined || isNaN(this.state.technology)) this.state.technology = 0;
       if (this.state.metaConsciousness   === undefined) this.state.metaConsciousness = false;
       if (this.state.extinctionCycles    === undefined || isNaN(this.state.extinctionCycles)) this.state.extinctionCycles = 0;
+      if (this.state.avgPhase           === undefined) this.state.avgPhase = 0;
+      if (this.state.interferenceCount  === undefined) this.state.interferenceCount = 0;
+      if (this.state.contextualityRate  === undefined) this.state.contextualityRate = 0;
+      if (this.state.entangledPairsCount === undefined) this.state.entangledPairsCount = 0;
     } else {
       this.particles = this.initParticles();
       this.state = {
@@ -250,6 +254,7 @@ export class UniverseEngine {
         lastNodes: 0, lastRelations: 0, significantEvents: [],
         campoLatente: [], events: [],
         viewportX: 0, viewportY: 0, zoom: 1,
+        avgPhase: 0, interferenceCount: 0, contextualityRate: 0, entangledPairsCount: 0,
       };
     }
     this.temperature = new VariavelInfinita(() => this.state.avgTemperature);
@@ -305,6 +310,7 @@ export class UniverseEngine {
       lastNodes: 0, lastRelations: 0, significantEvents: [],
       campoLatente: campoLatente, events: [`Ciclo #${nextCycle} iniciado`],
       viewportX: 0, viewportY: 0, zoom: 1,
+      avgPhase: 0, interferenceCount: 0, contextualityRate: 0, entangledPairsCount: 0,
     };
   }
 
@@ -316,6 +322,56 @@ export class UniverseEngine {
     return 0;
   }
   private makeSpin(): number { return Math.random() < 0.5 ? 0.5 : -0.5; }
+
+  // ── QUANTUM REFINEMENT ───────────────────────────────────────────
+  private interactQuantum(p1: Particle, p2: Particle, tick: number) {
+    // 1. Coherence and Interference
+    // If latent, collapse state on interaction
+    if (p1.isLatent) { p1.isLatent = false; p1.lastActiveTick = tick; }
+    if (p2.isLatent) { p2.isLatent = false; p2.lastActiveTick = tick; }
+
+    // Interference logic
+    const phaseDiff = p1.phase - p2.phase;
+    const resultantAmplitude = Math.sqrt(
+      p1.amplitude ** 2 + p2.amplitude ** 2 +
+      2 * p1.amplitude * p2.amplitude * Math.cos(phaseDiff)
+    );
+
+    // Update amplitudes (energy redistribution)
+    const newAmp = resultantAmplitude / 2;
+    p1.amplitude = newAmp;
+    p2.amplitude = newAmp;
+
+    // Record interaction for epistemological description
+    p1.lastInteractionType = 'interference';
+    p2.lastInteractionType = 'interference';
+    this.state.interferenceCount++;
+
+    // 2. Contextuality and Non-locality (Entanglement)
+    if (p1.entangledWith === p2.id || Math.random() < 0.001) {
+      if (!p1.entangledWith) {
+        p1.entangledWith = p2.id;
+        p2.entangledWith = p1.id;
+      }
+
+      // Non-local correlation: measuring (interacting with) one affects the other
+      // Contextual bias affects the outcome
+      const context = p1.contextualBias > 0.5 ? 1 : -1;
+      p2.spin = p1.spin * context;
+      p2.phase = p1.phase + Math.PI * (p1.contextualBias > 0.5 ? 1 : 0);
+      
+      p1.lastInteractionType = 'entanglement';
+      p2.lastInteractionType = 'entanglement';
+    }
+  }
+
+  public static describeEvent(p: Particle, tick: number): { funcaoOnda: string, matrizDensidade: string, lazyEvaluation: string } {
+    return {
+      funcaoOnda: `ψ = ${p.amplitude.toFixed(3)} * e^(i${p.phase.toFixed(3)})`,
+      matrizDensidade: `ρ = |${(p.amplitude ** 2).toFixed(3)}| (Contexto: ${p.contextualBias.toFixed(2)})`,
+      lazyEvaluation: `Estado ${p.isLatent ? 'latente' : 'colapsado'} (Peso: ${p.weight.toFixed(2)})`
+    };
+  }
 
   private newParticle(
     id: string, x: number, y: number, vx: number, vy: number,
@@ -349,6 +405,9 @@ export class UniverseEngine {
       knowledge: 0,
       tools: 0,
       age: 0,
+      amplitude: Math.random(),
+      phase: Math.random() * 2 * Math.PI,
+      contextualBias: Math.random(),
       ...extra,
     };
   }
@@ -1328,6 +1387,11 @@ export class UniverseEngine {
 
             if (d2 >= intR2) continue;
 
+            // ── QUANTUM INTERACTION (Interference & Entanglement) ──
+            if (d2 < intR2) {
+              this.interactQuantum(p1, p2, tick);
+            }
+
             // ── ANNIHILATION — matter + antimatter → energy ─────────
             if (!p1.isDarkMatter && !p2.isDarkMatter && d2 < annihR2 &&
                 p1.charge + p2.charge === 0 && p1.charge !== 0 &&
@@ -1368,20 +1432,6 @@ export class UniverseEngine {
               // Binding keeps them active
               p1.lastActiveTick = tick; p2.lastActiveTick = tick;
               p1.lastInteractionTick = tick; p2.lastInteractionTick = tick;
-              continue;
-            }
-
-            // ── QUANTUM ENTANGLEMENT ─────────────────────────────────
-            if (!p1.isDarkMatter && !p2.isDarkMatter && d2 < intR2 && !p1.entangledWith && !p2.entangledWith && Math.random() < 0.05) {
-              p1.entangledWith = p2.id;
-              p2.entangledWith = p1.id;
-            }
-
-            // ── DEGENERACY PRESSURE (Pauli exclusion) ──────────────
-            if (d < REPULSION_RADIUS) {
-              const repF = REPULSION_STRENGTH * (1-d/REPULSION_RADIUS) / Math.max(d, 0.1);
-              p1.vx += (ddx/d) * repF * tf;
-              p1.vy += (ddy/d) * repF * tf;
               continue;
             }
 
@@ -1466,7 +1516,15 @@ export class UniverseEngine {
     this.processMetabolism(tick);
     this.processExtinctions(tick);
 
-    // ── 9. POPULATION FLOOR ─────────────────────────────────────────
+    // ── 9. QUANTUM METRICS ─────────────────────────────────────────
+    const activeParticles = this.particles.filter(p => !p.isLatent);
+    if (activeParticles.length > 0) {
+      this.state.avgPhase = activeParticles.reduce((s, p) => s + p.phase, 0) / activeParticles.length;
+      this.state.entangledPairsCount = this.particles.filter(p => p.entangledWith).length / 2;
+      this.state.contextualityRate = activeParticles.reduce((s, p) => s + p.contextualBias, 0) / activeParticles.length;
+    }
+
+    // ── 10. POPULATION FLOOR ─────────────────────────────────────────
     if (this.particles.filter(p => !p.isLatent).length < MIN_POPULATION) {
       const anchor = this.particles.find(p => p.isCollapsed) ?? this.particles[0];
       if (anchor) {

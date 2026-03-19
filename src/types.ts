@@ -37,6 +37,12 @@ export interface Particle {
   knowledge: number;
   tools: number;
   age: number;
+  
+  // Quantum Refinement
+  amplitude: number;
+  phase: number;
+  lastInteractionType?: 'interference' | 'entanglement' | 'collision';
+  contextualBias: number;
 }
 
 export interface Molecule {
@@ -116,6 +122,12 @@ export interface UniverseState {
   lastNodes: number;
   lastRelations: number;
   significantEvents: { x: number, y: number, type: string, tick: number }[];
+
+  // New Quantum Metrics
+  avgPhase: number;
+  interferenceCount: number;
+  contextualityRate: number;
+  entangledPairsCount: number;
 }
 
 export interface CycleHistory {
