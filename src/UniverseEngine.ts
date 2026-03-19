@@ -52,6 +52,26 @@ const MAX_LATENT_TRACES      = 24;
 const MIN_POPULATION         = 50;
 const ENERGY_REGEN_RATE      = 0.01;
 
+// Chemistry
+const EM_FORCE_K = 4.0;
+const BINDING_TEMP_THRESHOLD = 0.5;
+const MOLECULE_BINDING_ENERGY = 0.2;
+
+// Organic Chemistry
+const CARBON_AFFINITY = 0.8;
+const HYDROGEN_AFFINITY = 0.5;
+const OXYGEN_AFFINITY = 0.7;
+const NITROGEN_AFFINITY = 0.6;
+
+// Replication
+const REPLICATION_PROB = 0.001;
+const REPLICATION_ENERGY_COST = 0.5;
+const MUTATION_PROB = 0.05;
+
+// Metabolism
+const METABOLISM_ENERGY_COST = 0.01;
+const ENERGY_GRADIENT_SENSE = 0.1;
+
 // Particle events
 const FISSION_WEIGHT         = 18;       // minimum weight for spontaneous fission
 const FISSION_PROB_BASE      = 0.0005;   // base fission probability per tick
@@ -81,6 +101,7 @@ export interface RegionData {
 export interface PersistentState {
   state:      UniverseState;
   energyGrid: [string, RegionData][];
+  molecules:  [string, Molecule][];
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -90,6 +111,7 @@ export interface PersistentState {
 export class UniverseEngine {
   private state:      UniverseState;
   private energyGrid: Map<string, RegionData> = new Map();
+  private molecules:  Map<string, Molecule>   = new Map();
   private particles:  Particle[];
 
   constructor(savedState?: PersistentState) {
@@ -97,6 +119,7 @@ export class UniverseEngine {
       this.state      = savedState.state;
       this.particles  = this.state.particles;
       this.energyGrid = new Map(savedState.energyGrid);
+      this.molecules  = new Map(savedState.molecules);
       // patch legacy particles missing new fields
       this.particles.forEach(p => {
         if (p.waveRadius === undefined) p.waveRadius = p.isCollapsed ? 0 : WAVE_INITIAL;
@@ -105,11 +128,20 @@ export class UniverseEngine {
         if (p.isBound    === undefined) p.isBound = false;
         if (p.isDarkMatter === undefined) p.isDarkMatter = Math.random() < DARK_MATTER_FRACTION;
         if (p.entangledWith === undefined) p.entangledWith = null;
+        if (p.energy === undefined) p.energy = 1.0;
+        if (p.isMetabolizing === undefined) p.isMetabolizing = false;
+        if (p.isReplicating === undefined) p.isReplicating = false;
+        if (p.generation === undefined) p.generation = 0;
       });
       // patch state
       if (this.state.pairProductionCount === undefined) this.state.pairProductionCount = 0;
       if (this.state.annihilationCount   === undefined) this.state.annihilationCount   = 0;
       if (this.state.fissionCount        === undefined) this.state.fissionCount        = 0;
+      if (this.state.moleculeCount       === undefined) this.state.moleculeCount       = 0;
+      if (this.state.organicCount        === undefined) this.state.organicCount        = 0;
+      if (this.state.replicantCount      === undefined) this.state.replicantCount      = 0;
+      if (this.state.maxGeneration       === undefined) this.state.maxGeneration       = 0;
+      if (this.state.lifeCount           === undefined) this.state.lifeCount           = 0;
     } else {
       this.particles = this.initParticles();
       this.state = {
@@ -118,13 +150,18 @@ export class UniverseEngine {
         totalInformation: INITIAL_PARTICLE_COUNT,
         tick: 0, maxCurvature: 0, avgTemperature: 0,
         pairProductionCount: 0, annihilationCount: 0, fissionCount: 0,
+        moleculeCount: 0, organicCount: 0, replicantCount: 0, maxGeneration: 0, lifeCount: 0,
         viewportX: 0, viewportY: 0, zoom: 1,
       };
     }
   }
 
   public getPersistentState(): PersistentState {
-    return { state: this.state, energyGrid: Array.from(this.energyGrid.entries()) };
+    return { 
+      state: this.state, 
+      energyGrid: Array.from(this.energyGrid.entries()),
+      molecules: Array.from(this.molecules.entries())
+    };
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -151,8 +188,68 @@ export class UniverseEngine {
       latentTraces: [],
       isDarkMatter: Math.random() < DARK_MATTER_FRACTION,
       entangledWith: null,
+      // New properties
+      moleculeId: null,
+      element: null,
+      energy: 1.0,
+      isMetabolizing: false,
+      isReplicating: false,
+      generation: 0,
       ...extra,
     };
+  }
+
+  private processChemistry(tick: number) {
+    for (let i = 0; i < this.particles.length; i++) {
+      for (let j = i + 1; j < this.particles.length; j++) {
+        const p1 = this.particles[i];
+        const p2 = this.particles[j];
+        if (p1.isLatent || p2.isLatent) continue;
+        const d2 = (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2;
+        if (d2 < 100 && !p1.isBound && !p2.isBound) {
+          const molId = `mol-${tick}-${i}-${j}`;
+          p1.isBound = true; p2.isBound = true;
+          p1.moleculeId = molId; p2.moleculeId = molId;
+          this.molecules.set(molId, {
+            id: molId,
+            particleIds: [p1.id, p2.id],
+            elementComposition: { C: 0, H: 0, O: 0, N: 0 },
+            energy: 1.0,
+            isOrganic: false,
+            isReplicating: false,
+            generation: 0
+          });
+        }
+      }
+    }
+  }
+
+  private processReplication(tick: number) {
+    for (const [molId, molecule] of this.molecules) {
+      if (molecule.energy > REPLICATION_ENERGY_COST && Math.random() < REPLICATION_PROB) {
+        molecule.energy -= REPLICATION_ENERGY_COST;
+        molecule.isReplicating = true;
+        molecule.generation++;
+      }
+    }
+  }
+
+  private processMetabolism(tick: number) {
+    for (const p of this.particles) {
+      if (p.isBound && p.moleculeId) {
+        const mol = this.molecules.get(p.moleculeId);
+        if (mol) {
+          mol.energy -= METABOLISM_ENERGY_COST;
+          p.isMetabolizing = mol.energy > 0;
+          if (mol.energy <= 0) {
+            // Dissolve molecule
+            this.molecules.delete(mol.id);
+            p.moleculeId = null;
+            p.isBound = false;
+          }
+        }
+      }
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -748,6 +845,11 @@ export class UniverseEngine {
     this.particles = this.particles.filter(p => !toKill.has(p.id));
     this.particles.push(...toSpawn);
 
+    // ── 8. CHEMISTRY & BIOLOGY ──────────────────────────────────────
+    this.processChemistry(tick);
+    this.processReplication(tick);
+    this.processMetabolism(tick);
+
     // ── 9. POPULATION FLOOR ─────────────────────────────────────────
     if (this.particles.filter(p => !p.isLatent).length < MIN_POPULATION) {
       const anchor = this.particles.find(p => p.isCollapsed) ?? this.particles[0];
@@ -785,6 +887,12 @@ export class UniverseEngine {
     });
     this.state.maxCurvature   = maxCurv;
     this.state.avgTemperature = tempCount > 0 ? totalTemp/tempCount : 0;
+    
+    this.state.moleculeCount = this.molecules.size;
+    this.state.organicCount = Array.from(this.molecules.values()).filter(m => m.isOrganic).length;
+    this.state.replicantCount = Array.from(this.molecules.values()).filter(m => m.isReplicating).length;
+    this.state.maxGeneration = Math.max(0, ...Array.from(this.molecules.values()).map(m => m.generation));
+    this.state.lifeCount = this.particles.filter(p => p.isMetabolizing).length;
 
     return this.state;
   }

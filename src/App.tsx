@@ -353,6 +353,11 @@ export default function App() {
               <Stat label="Dormant"    value={dormant}           icon={<Orbit size={10}/>} color="text-zinc-400" />
               <Stat label="Charged"    value={charged}           icon={<Zap   size={10}/>} color="text-amber-400" />
               <Stat label="Bound"      value={bound}             icon={<Atom  size={10}/>} color="text-emerald-400" />
+              <Stat label="Moléculas"  value={state?.moleculeCount ?? 0} icon={<Atom size={10}/>} color="text-emerald-300" />
+              <Stat label="Orgânicas"  value={state?.organicCount ?? 0} icon={<Atom size={10}/>} color="text-emerald-500" />
+              <Stat label="Replicantes" value={state?.replicantCount ?? 0} icon={<Activity size={10}/>} color="text-blue-400" />
+              <Stat label="Vida"       value={state?.lifeCount ?? 0} icon={<Activity size={10}/>} color="text-violet-400" />
+              <Stat label="Gerações"   value={state?.maxGeneration ?? 0} icon={<Activity size={10}/>} color="text-violet-600" />
               <Stat label="Pairs"      value={state?.pairProductionCount ?? 0} icon={<Sigma size={10}/>} color="text-orange-300" />
               <Stat label="Annihilat." value={state?.annihilationCount   ?? 0} icon={<Zap  size={10}/>} color="text-red-400" />
               <Stat label="Fissions"   value={state?.fissionCount        ?? 0} icon={<Atom size={10}/>} color="text-yellow-400" />

@@ -22,6 +22,24 @@ export interface Particle {
   latentTraces?: LatentTrace[];
   entangledWith?: string | null; // Quantum entanglement partner ID
   isDarkMatter?: boolean;    // Interacts only gravitationally
+  
+  // New properties for chemistry/biology
+  moleculeId?: string | null;
+  element?: 'C' | 'H' | 'O' | 'N' | null;
+  energy: number;
+  isMetabolizing: boolean;
+  isReplicating: boolean;
+  generation: number;
+}
+
+export interface Molecule {
+  id: string;
+  particleIds: string[];
+  elementComposition: { C: number, H: number, O: number, N: number };
+  energy: number;
+  isOrganic: boolean;
+  isReplicating: boolean;
+  generation: number;
 }
 
 export interface LatentTrace {
@@ -43,6 +61,14 @@ export interface UniverseState {
   pairProductionCount: number;   // cumulative pair-production events
   annihilationCount: number;     // cumulative annihilation events
   fissionCount: number;          // cumulative fission events
+  
+  // New metrics
+  moleculeCount: number;
+  organicCount: number;
+  replicantCount: number;
+  maxGeneration: number;
+  lifeCount: number;
+
   // legacy
   viewportX: number;
   viewportY: number;
