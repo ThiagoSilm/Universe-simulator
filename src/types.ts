@@ -128,6 +128,9 @@ export interface UniverseState {
   interferenceCount: number;
   contextualityRate: number;
   entangledPairsCount: number;
+
+  // Visualization / Debug
+  activeGridKeys: string[];
 }
 
 export interface CycleHistory {

@@ -238,6 +238,7 @@ export class UniverseEngine {
       if (this.state.interferenceCount  === undefined) this.state.interferenceCount = 0;
       if (this.state.contextualityRate  === undefined) this.state.contextualityRate = 0;
       if (this.state.entangledPairsCount === undefined) this.state.entangledPairsCount = 0;
+      if (this.state.activeGridKeys === undefined) this.state.activeGridKeys = [];
     } else {
       this.particles = this.initParticles();
       this.state = {
@@ -254,6 +255,7 @@ export class UniverseEngine {
         lastNodes: 0, lastRelations: 0, significantEvents: [],
         campoLatente: [], events: [],
         viewportX: 0, viewportY: 0, zoom: 1,
+        activeGridKeys: [],
         avgPhase: 0, interferenceCount: 0, contextualityRate: 0, entangledPairsCount: 0,
       };
     }
@@ -310,6 +312,7 @@ export class UniverseEngine {
       lastNodes: 0, lastRelations: 0, significantEvents: [],
       campoLatente: campoLatente, events: [`Ciclo #${nextCycle} iniciado`],
       viewportX: 0, viewportY: 0, zoom: 1,
+      activeGridKeys: [],
       avgPhase: 0, interferenceCount: 0, contextualityRate: 0, entangledPairsCount: 0,
     };
   }
@@ -1516,11 +1519,13 @@ export class UniverseEngine {
     this.processMetabolism(tick);
     this.processExtinctions(tick);
 
+    this.state.activeGridKeys = Array.from(activeRegions);
+
     // ── 9. QUANTUM METRICS ─────────────────────────────────────────
     const activeParticles = this.particles.filter(p => !p.isLatent);
     if (activeParticles.length > 0) {
       this.state.avgPhase = activeParticles.reduce((s, p) => s + p.phase, 0) / activeParticles.length;
-      this.state.entangledPairsCount = this.particles.filter(p => p.entangledWith).length / 2;
+      this.state.entangledPairsCount = Math.floor(this.particles.filter(p => p.entangledWith).length / 2);
       this.state.contextualityRate = activeParticles.reduce((s, p) => s + p.contextualBias, 0) / activeParticles.length;
     }
 
