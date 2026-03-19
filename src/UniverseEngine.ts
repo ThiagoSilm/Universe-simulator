@@ -139,6 +139,8 @@ export class UniverseEngine {
         if (p.isMetabolizing === undefined) p.isMetabolizing = false;
         if (p.isReplicating === undefined) p.isReplicating = false;
         if (p.generation === undefined) p.generation = 0;
+        if (p.mentalModels === undefined) p.mentalModels = {};
+        if (p.isCollectiveConscious === undefined) p.isCollectiveConscious = false;
       });
       // patch state
       if (this.state.pairProductionCount === undefined) this.state.pairProductionCount = 0;
@@ -159,6 +161,7 @@ export class UniverseEngine {
         pairProductionCount: 0, annihilationCount: 0, fissionCount: 0,
         moleculeCount: 0, organicCount: 0, replicantCount: 0, maxGeneration: 0, lifeCount: 0,
         recycledMatterCount: 0, latentTraceCount: 0, fertility: 0,
+        relationsCount: 0, collectiveConsciousnessNodes: 0, culture: 0,
         campoLatente: [], events: [],
         viewportX: 0, viewportY: 0, zoom: 1,
       };
@@ -207,6 +210,8 @@ export class UniverseEngine {
       isMetabolizing: false,
       isReplicating: false,
       generation: 0,
+      mentalModels: {},
+      isCollectiveConscious: false,
       ...extra,
     };
   }
@@ -305,6 +310,67 @@ export class UniverseEngine {
     this.particles.push(p);
   }
 
+  private processCollectiveConsciousness(tick: number, spatialGrid: Map<string, Particle[]>) {
+    // 1. Observation and Mental Models
+    for (const p of this.particles) {
+        if (p.isLatent) continue;
+        
+        const gx = Math.floor(p.x / GRID_SIZE);
+        const gy = Math.floor(p.y / GRID_SIZE);
+        
+        // Observe neighbors in grid
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                const neighbors = spatialGrid.get(`${gx + dx},${gy + dy}`);
+                if (!neighbors) continue;
+                
+                for (const other of neighbors) {
+                    if (p.id === other.id) continue;
+                    
+                    const d2 = (p.x - other.x) ** 2 + (p.y - other.y) ** 2;
+                    if (d2 < 10000) { // observation range
+                        p.mentalModels[other.id] = { state: { x: other.x, y: other.y, energy: other.energy }, lastObserved: tick };
+                    }
+                }
+            }
+        }
+    }
+    
+    // 2. Second-order Consciousness and Collective Consciousness
+    let nodes = 0;
+    let relations = 0;
+    for (const p of this.particles) {
+        if (p.isLatent) continue;
+        
+        let mutualModels = 0;
+        for (const id in p.mentalModels) {
+            const other = this.particles.find(p => p.id === id);
+            if (other && other.mentalModels[p.id]) {
+                mutualModels++;
+            }
+        }
+        relations += mutualModels;
+        
+        if (mutualModels >= 2) {
+            if (!p.isCollectiveConscious) {
+                p.isCollectiveConscious = true;
+                this.state.events.push(`Consciência coletiva emergida: ${p.id}`);
+            }
+            nodes++;
+        } else {
+            p.isCollectiveConscious = false;
+        }
+    }
+    this.state.collectiveConsciousnessNodes = nodes;
+    this.state.relationsCount = relations / 2; // Each relation counted twice
+    
+    // 3. Civilization Trigger (simplified)
+    if (nodes >= 3 && Math.random() < 0.01) {
+        this.state.culture += 0.1;
+        this.state.events.push(`Civilização emergida! Cultura: ${this.state.culture.toFixed(2)}`);
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────
   private initParticles(): Particle[] {
     const particles: Particle[] = [];
@@ -394,6 +460,8 @@ export class UniverseEngine {
         r.density   += 1;
       }
     }
+
+    this.processCollectiveConsciousness(tick, spatialGrid);
 
     // ── 2. WAKE DORMANT — O(active_cells × wakeRange²) ─────────────
     //    Not O(all particles). Active borders check dormant neighbours.
@@ -532,6 +600,8 @@ export class UniverseEngine {
         generation: 0,
         moleculeId: null,
         element: null,
+        mentalModels: {},
+        isCollectiveConscious: false,
       });
       region.isCompressed = true;
     }
