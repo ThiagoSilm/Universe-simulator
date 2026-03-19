@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Zap, Activity, Brain, Orbit, RefreshCw, Info, Layers, Cpu, Thermometer, Atom, Sigma } from 'lucide-react';
 import { UniverseEngine, PersistentState } from './UniverseEngine';
+import { LazyDocumentary } from './LazyDocumentary';
 import { UniverseState, Particle } from './types';
 
 const STORAGE_KEY = 'lazy_universe_state_v6';
@@ -261,7 +262,9 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<UniverseEngine | null>(null);
+  const lazyDocRef = useRef<LazyDocumentary | null>(null);
   const [state, setState] = useState<UniverseState | null>(null);
+  const [lazyMetrics, setLazyMetrics] = useState({ economy: '0%', event: 'None', nextScan: 0 });
   const [showInfo, setShowInfo] = useState(false);
   const requestRef = useRef<number>(0);
 
@@ -274,6 +277,7 @@ export default function App() {
       localStorage.removeItem(STORAGE_KEY);
     }
     engineRef.current = new UniverseEngine(saved || undefined);
+    lazyDocRef.current = new LazyDocumentary(engineRef.current);
     setState(engineRef.current.step());
   }, []);
 
@@ -286,6 +290,9 @@ export default function App() {
     if (newState.tick % 120 === 0) {
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(engineRef.current.getPersistentState())); }
       catch (_) {}
+    }
+    if (newState.tick % 10 === 0 && lazyDocRef.current) {
+      setLazyMetrics(lazyDocRef.current.getMetrics());
     }
     const canvas = canvasRef.current;
     if (canvas) {

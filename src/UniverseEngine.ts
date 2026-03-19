@@ -112,7 +112,7 @@ export class UniverseEngine {
   private state:      UniverseState;
   private energyGrid: Map<string, RegionData> = new Map();
   private molecules:  Map<string, Molecule>   = new Map();
-  private particles:  Particle[];
+  public  particles:  Particle[];
 
   constructor(savedState?: PersistentState) {
     if (savedState) {
