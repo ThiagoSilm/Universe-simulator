@@ -42,11 +42,16 @@ export interface Particle {
 export interface Molecule {
   id: string;
   particleIds: string[];
-  elementComposition: { C: number, H: number, O: number, N: number };
+  protons: number;
+  neutrons: number;
+  electrons: number;
+  symbol: string;
+  name: string;
   energy: number;
   isOrganic: boolean;
   isReplicating: boolean;
   generation: number;
+  isStable: boolean;
 }
 
 export interface LatentTrace {

@@ -87,8 +87,72 @@ const ANNIHILATION_HEAT      = 22;       // energy released on annihilation
 const CHARGE_FRACTION        = 0.38;
 
 // ═══════════════════════════════════════════════════════════════════
+//  PERIODIC TABLE
+// ═══════════════════════════════════════════════════════════════════
+
+const TABELA_PERIODICA: Record<number, { simbolo: string; nome: string; affinity: number }> = {
+  1: { simbolo: 'H', nome: 'Hidrogênio', affinity: 0.5 },
+  2: { simbolo: 'He', nome: 'Hélio', affinity: 0.1 },
+  6: { simbolo: 'C', nome: 'Carbono', affinity: 0.8 },
+  7: { simbolo: 'N', nome: 'Nitrogênio', affinity: 0.6 },
+  8: { simbolo: 'O', nome: 'Oxigênio', affinity: 0.7 },
+  15: { simbolo: 'P', nome: 'Fósforo', affinity: 0.65 },
+  16: { simbolo: 'S', nome: 'Enxofre', affinity: 0.6 },
+};
+
+// ═══════════════════════════════════════════════════════════════════
 //  REGION DATA
 // ═══════════════════════════════════════════════════════════════════
+
+export class Regiao {
+  public seed: number;
+  public coordenadas: { x: number; y: number };
+  public cache: RegionData | null = null;
+  public lastActiveTick: number = 0;
+  public isCompressed: boolean = false;
+
+  constructor(seed: number, x: number, y: number) {
+    this.seed = seed;
+    this.coordenadas = { x, y };
+  }
+
+  public observar(tick: number): RegionData {
+    if (!this.cache) {
+      this.cache = this.reconstruir(this.seed, tick);
+    }
+    this.lastActiveTick = tick;
+    this.cache.lastActiveTick = tick;
+    return this.cache;
+  }
+
+  get temperature() { return this.cache?.temperature || 0; }
+  set temperature(v: number) { if (this.cache) this.cache.temperature = v; }
+  get energy() { return this.cache?.energy || 0; }
+  set energy(v: number) { if (this.cache) this.cache.energy = v; }
+  get curvature() { return this.cache?.curvature || 0; }
+  set curvature(v: number) { if (this.cache) this.cache.curvature = v; }
+  get density() { return this.cache?.density || 0; }
+  set density(v: number) { if (this.cache) this.cache.density = v; }
+
+  private reconstruir(seed: number, tick: number): RegionData {
+    // Função determinística baseada na posição, tempo e seed
+    const hash = (this.coordenadas.x * 374761393 + this.coordenadas.y * 668265263 + seed) ^ (tick * 12741261);
+    const pseudoRandom = (Math.sin(hash) + 1) / 2;
+    
+    return {
+      energy: 0.5 + pseudoRandom * 0.5,
+      lastActiveTick: tick,
+      isCompressed: false,
+      curvature: pseudoRandom * 0.1,
+      temperature: pseudoRandom * 0.2,
+      density: 0
+    };
+  }
+
+  public esquecer() {
+    this.cache = null;
+  }
+}
 
 export interface RegionData {
   energy:         number;
@@ -101,7 +165,7 @@ export interface RegionData {
 
 export interface PersistentState {
   state:      UniverseState;
-  energyGrid: [string, RegionData][];
+  energyGrid: [string, { seed: number, x: number, y: number }][];
   molecules:  [string, Molecule][];
 }
 
@@ -111,7 +175,7 @@ export interface PersistentState {
 
 export class UniverseEngine {
   public state:      UniverseState;
-  private energyGrid: Map<string, RegionData> = new Map();
+  private energyGrid: Map<string, Regiao> = new Map();
   private molecules:  Map<string, Molecule>   = new Map();
   public  particles:  Particle[];
   public get energyGridMap() { return this.energyGrid; }
@@ -127,7 +191,7 @@ export class UniverseEngine {
       console.log('UniverseEngine: restoring state');
       this.state      = savedState.state;
       this.particles  = this.state.particles;
-      this.energyGrid = new Map(savedState.energyGrid);
+      this.energyGrid = new Map(savedState.energyGrid.map(([key, data]) => [key, new Regiao(data.seed, data.x, data.y)]));
       this.molecules  = new Map(savedState.molecules);
       // patch legacy particles missing new fields
       this.particles.forEach(p => {
@@ -196,7 +260,7 @@ export class UniverseEngine {
   public getPersistentState(): PersistentState {
     return { 
       state: this.state, 
-      energyGrid: Array.from(this.energyGrid.entries()),
+      energyGrid: Array.from(this.energyGrid.entries()).map(([key, reg]) => [key, { seed: reg.seed, x: reg.coordenadas.x, y: reg.coordenadas.y }]),
       molecules: Array.from(this.molecules.entries())
     };
   }
@@ -317,6 +381,7 @@ export class UniverseEngine {
       if (p1.isLatent || p1.isBound) continue;
       const gx = Math.floor(p1.x / GRID_SIZE);
       const gy = Math.floor(p1.y / GRID_SIZE);
+      const region = this.getRegion(gx, gy);
       
       let bound = false;
       for (let dx = -1; dx <= 1 && !bound; dx++) {
@@ -327,31 +392,48 @@ export class UniverseEngine {
           for (const p2 of neighbors) {
             if (p1.id === p2.id || p2.isLatent || p2.isBound) continue;
             const d2 = (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2;
-            if (d2 < 100) {
-              const molId = `mol-${tick}-${p1.id}-${p2.id}`;
-              p1.isBound = true; p2.isBound = true;
-              p1.moleculeId = molId; p2.moleculeId = molId;
-              if (this.molecules.size === 0) {
-                  this.state.events.push("Primeira molécula formada!");
-                  this.addSignificantEvent(p1.x, p1.y, 'CHEMISTRY', tick);
-              }
-              const comp = { C: 0, H: 0, O: 0, N: 0 };
-              if (p1.element) comp[p1.element]++;
-              if (p2.element) comp[p2.element]++;
+            
+            // ── FORÇA FORTE (Emergente) ───────────────────────────────
+            // Emerge quando partículas estão muito próximas e em baixa temperatura
+            if (d2 < STRONG_RADIUS * STRONG_RADIUS && region.temperature < BINDING_TEMP_THRESHOLD) {
+              const molId = `atom-${tick}-${p1.id}-${p2.id}`;
+              const particlesInAtom = [p1, p2];
               
-              const isOrganic = comp.C > 0 && comp.H > 0;
+              // Identifica componentes
+              const protons = particlesInAtom.filter(p => p.charge > 0).length;
+              const neutrons = particlesInAtom.filter(p => p.charge === 0).length;
+              const electrons = particlesInAtom.filter(p => p.charge < 0).length;
+              
+              const element = TABELA_PERIODICA[protons] || { simbolo: 'Uu', nome: 'Desconhecido', affinity: 0.1 };
+              
+              const isStable = protons > 0 ? (neutrons / protons >= 0.8 && neutrons / protons <= 1.5) : true;
 
-              this.molecules.set(molId, {
-                id: molId,
-                particleIds: [p1.id, p2.id],
-                elementComposition: comp,
-                energy: 1.0,
-                isOrganic,
-                isReplicating: false,
-                generation: 0
-              });
-              bound = true;
-              break;
+              if (isStable) {
+                p1.isBound = true; p2.isBound = true;
+                p1.moleculeId = molId; p2.moleculeId = molId;
+                
+                if (this.molecules.size === 0) {
+                    this.state.events.push("Primeiro átomo estável formado!");
+                    this.addSignificantEvent(p1.x, p1.y, 'CHEMISTRY', tick);
+                }
+
+                this.molecules.set(molId, {
+                  id: molId,
+                  particleIds: [p1.id, p2.id],
+                  protons,
+                  neutrons,
+                  electrons,
+                  symbol: element.simbolo,
+                  name: element.nome,
+                  energy: 1.0,
+                  isOrganic: element.simbolo === 'C' || element.simbolo === 'H' || element.simbolo === 'O' || element.simbolo === 'N',
+                  isReplicating: false,
+                  generation: 0,
+                  isStable: true
+                });
+                bound = true;
+                break;
+              }
             }
           }
         }
@@ -399,11 +481,16 @@ export class UniverseEngine {
             newMolecules.set(newMolId, {
                 id: newMolId,
                 particleIds: [newP1.id, newP2.id],
-                elementComposition: { ...molecule.elementComposition },
+                protons: molecule.protons,
+                neutrons: molecule.neutrons,
+                electrons: molecule.electrons,
+                symbol: molecule.symbol,
+                name: molecule.name,
                 energy: molecule.energy,
                 isOrganic: molecule.isOrganic,
                 isReplicating: false,
-                generation: molecule.generation
+                generation: molecule.generation,
+                isStable: molecule.isStable
             });
             
             if (molecule.generation === 1 && this.state.events.filter(e => e.includes("replicação")).length === 0) {
@@ -470,24 +557,25 @@ export class UniverseEngine {
   }
 
   public morrer(entidade: Particle) {
-    const regiao = { x: entidade.x, y: entidade.y };
+    const gx = Math.floor(entidade.x / GRID_SIZE);
+    const gy = Math.floor(entidade.y / GRID_SIZE);
+    const region = this.getRegion(gx, gy);
     
     // Libera energia (aumenta temperatura)
-    const gridKey = `${Math.floor(entidade.x / GRID_SIZE)},${Math.floor(entidade.y / GRID_SIZE)}`;
-    const region = this.energyGrid.get(gridKey);
-    if (region) {
-        region.temperature += entidade.energy * 0.7;
-    }
+    region.temperature += entidade.energy * 0.7;
     
-    // Guarda informação (para futura recombinação)
+    // Guarda informação como atrator fractal (seed + metadados)
+    const attractorSeed = Math.abs((entidade.knowledge * 1000 + entidade.tools * 100 + entidade.level) % 1000000);
+    
     this.state.campoLatente.push({
         x: entidade.x,
         y: entidade.y,
         data: { 
+          seed: attractorSeed,
           id: entidade.id, 
           knowledge: entidade.knowledge, 
           tools: entidade.tools, 
-          traces: entidade.latentTraces ? [...entidade.latentTraces] : [] 
+          tracesCount: entidade.latentTraces?.length || 0 
         },
         intensity: entidade.level
     });
@@ -734,12 +822,14 @@ export class UniverseEngine {
 
   private getRegion(gx: number, gy: number): RegionData {
     const key = `${gx},${gy}`;
-    let r = this.energyGrid.get(key);
-    if (!r) {
-      r = { energy: 1.0, lastActiveTick: this.state.tick, isCompressed: false, curvature: 0, temperature: 0, density: 0 };
-      this.energyGrid.set(key, r);
+    let reg = this.energyGrid.get(key);
+    if (!reg) {
+      // Create new region with deterministic seed
+      const seed = Math.abs((gx * 12345 + gy * 67890) % 1000000);
+      reg = new Regiao(seed, gx, gy);
+      this.energyGrid.set(key, reg);
     }
-    return r;
+    return reg.observar(this.state.tick);
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -750,15 +840,15 @@ export class UniverseEngine {
   public step(): UniverseState {
     const tick = ++this.state.tick;
 
-    // Optimization: Pre-calculate active regions to skip empty ones
-    const activeRegions = new Set<string>();
-    for (const [key, region] of this.energyGrid) {
-      // More aggressive active region check: only regions with significant activity or recent activity
-      if (region.energy > 0.02 || region.temperature > 0.02 || region.curvature > 0.02 || (tick - region.lastActiveTick < 5)) {
-        activeRegions.add(key);
-      } else if (tick % 60 === 0) {
-        // Occasionally cleanup very old/dead regions to save memory
-        if (tick - region.lastActiveTick > 500 && region.energy < 0.001 && region.temperature < 0.001) {
+    // ── 0. LAZY CLEANUP ─────────────────────────────────────────────
+    // Esquecer regiões não observadas para liberar memória
+    if (tick % 100 === 0) {
+      for (const [key, reg] of this.energyGrid) {
+        if (tick - reg.observar(tick).lastActiveTick > 100) {
+          reg.esquecer();
+        }
+        // Se a região estiver muito antiga e sem energia, remover do mapa
+        if (tick - reg.observar(tick).lastActiveTick > 1000 && reg.observar(tick).energy < 0.01) {
           this.energyGrid.delete(key);
         }
       }
@@ -769,8 +859,16 @@ export class UniverseEngine {
     //    gravitational field. They exist in quantum superposition.
     const spatialGrid = new Map<string, Particle[]>();
     const dormantGrid = new Map<string, Particle[]>();
+    const activeRegions = new Set<string>();
 
-    this.energyGrid.forEach(r => { r.curvature = 0; r.density = 0; });
+    // Reset density/curvature for observed regions
+    for (const reg of this.energyGrid.values()) {
+      const data = reg.cache;
+      if (data) {
+        data.curvature = 0;
+        data.density = 0;
+      }
+    }
 
     for (const p of this.particles) {
       const gx = Math.floor(p.x / GRID_SIZE);
@@ -780,6 +878,7 @@ export class UniverseEngine {
         let c = dormantGrid.get(key); if (!c) { c = []; dormantGrid.set(key, c); } c.push(p);
       } else {
         let c = spatialGrid.get(key); if (!c) { c = []; spatialGrid.set(key, c); } c.push(p);
+        activeRegions.add(key);
         const r = this.getRegion(gx, gy);
         r.curvature += p.weight * 0.1;
         r.density   += 1;
@@ -1377,13 +1476,15 @@ export class UniverseEngine {
           if (this.state.campoLatente.length > 0 && Math.random() < 0.5) {
             const info = this.state.campoLatente.pop()!;
             const data = info.data || {};
+            // Reconstroi o estado a partir da seed do atrator
+            const seed = data.seed || 0;
             extra = { 
-              knowledge: data.knowledge || 0, 
-              tools: data.tools || 0, 
-              latentTraces: data.traces || [] 
+              knowledge: data.knowledge || (seed % 10), 
+              tools: data.tools || (Math.floor(seed / 10) % 5), 
+              latentTraces: [] // Traces are lost in compression, but potential is kept
             };
             this.state.latentTraceCount--;
-            this.state.events.push(`Nova vida emergiu de traços antigos`);
+            this.state.events.push(`Padrão fractal ${data.id?.slice(0,4)} re-emergindo`);
           }
           this.particles.push(this.newParticle(
             `rb-${tick}-${e}`,
