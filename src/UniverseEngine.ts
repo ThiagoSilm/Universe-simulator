@@ -256,6 +256,11 @@ export class UniverseEngine {
     weight: number, charge: number, isCollapsed: boolean,
     color: string, tick: number, extra: Partial<Particle> = {}
   ): Particle {
+    let element: 'C' | 'H' | 'O' | 'N' = 'H';
+    if (charge > 0) element = 'C';
+    else if (charge < 0) element = 'O';
+    else if (weight > 1.5) element = 'N';
+
     return {
       id, isCollapsed, isLatent: false,
       x, y, vx, vy, weight,
@@ -268,7 +273,7 @@ export class UniverseEngine {
       entangledWith: null,
       // New properties
       moleculeId: null,
-      element: null,
+      element,
       energy: 1.0,
       isMetabolizing: false,
       isReplicating: false,
@@ -285,8 +290,8 @@ export class UniverseEngine {
     const activeParticles = this.particles.filter(p => !p.isLatent);
     if (activeParticles.length === 0) return;
 
-    const avgEnergy = activeParticles.reduce((sum, p) => sum + p.energy, 0) / activeParticles.length;
-    const isScarce = avgEnergy < 0.1;
+    const avgEnergy = activeParticles.reduce((sum, p) => sum + p.weight * (p.vx * p.vx + p.vy * p.vy), 0) / activeParticles.length;
+    const isScarce = avgEnergy < 0.05; // Low kinetic energy means cold/dead universe
     const isConflict = this.state.collectiveConsciousnessNodes > 200;
 
     if ((isScarce || isConflict) && Math.random() < 0.05) {
@@ -295,63 +300,168 @@ export class UniverseEngine {
       this.addSignificantEvent(0, 0, 'EXTINCTION', tick);
 
       // Kill 80% of active particles
-      const toKill = activeParticles.sort(() => Math.random() - 0.5).slice(0, Math.floor(activeParticles.length * 0.8));
-      for (const p of toKill) {
-        this.morrer(p);
+      for (const p of activeParticles) {
+        if (Math.random() < 0.8) {
+          this.morrer(p);
+        }
       }
       this.state.fertility += 10;
     }
   }
 
-  private processChemistry(tick: number) {
-    for (let i = 0; i < this.particles.length; i++) {
-      for (let j = i + 1; j < this.particles.length; j++) {
-        const p1 = this.particles[i];
-        const p2 = this.particles[j];
-        if (p1.isLatent || p2.isLatent) continue;
-        const d2 = (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2;
-        if (d2 < 100 && !p1.isBound && !p2.isBound) {
-          const molId = `mol-${tick}-${i}-${j}`;
-          p1.isBound = true; p2.isBound = true;
-          p1.moleculeId = molId; p2.moleculeId = molId;
-          this.molecules.set(molId, {
-            id: molId,
-            particleIds: [p1.id, p2.id],
-            elementComposition: { C: 0, H: 0, O: 0, N: 0 },
-            energy: 1.0,
-            isOrganic: false,
-            isReplicating: false,
-            generation: 0
-          });
+  private processChemistry(tick: number, spatialGrid: Map<string, Particle[]>) {
+    for (const p1 of this.particles) {
+      if (p1.isLatent || p1.isBound) continue;
+      const gx = Math.floor(p1.x / GRID_SIZE);
+      const gy = Math.floor(p1.y / GRID_SIZE);
+      
+      let bound = false;
+      for (let dx = -1; dx <= 1 && !bound; dx++) {
+        for (let dy = -1; dy <= 1 && !bound; dy++) {
+          const neighbors = spatialGrid.get(`${gx + dx},${gy + dy}`);
+          if (!neighbors) continue;
+          
+          for (const p2 of neighbors) {
+            if (p1.id === p2.id || p2.isLatent || p2.isBound) continue;
+            const d2 = (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2;
+            if (d2 < 100) {
+              const molId = `mol-${tick}-${p1.id}-${p2.id}`;
+              p1.isBound = true; p2.isBound = true;
+              p1.moleculeId = molId; p2.moleculeId = molId;
+              if (this.molecules.size === 0) {
+                  this.state.events.push("Primeira molécula formada!");
+                  this.addSignificantEvent(p1.x, p1.y, 'CHEMISTRY', tick);
+              }
+              const comp = { C: 0, H: 0, O: 0, N: 0 };
+              if (p1.element) comp[p1.element]++;
+              if (p2.element) comp[p2.element]++;
+              
+              const isOrganic = comp.C > 0 && comp.H > 0;
+
+              this.molecules.set(molId, {
+                id: molId,
+                particleIds: [p1.id, p2.id],
+                elementComposition: comp,
+                energy: 1.0,
+                isOrganic,
+                isReplicating: false,
+                generation: 0
+              });
+              bound = true;
+              break;
+            }
+          }
         }
       }
     }
   }
 
   private processReplication(tick: number) {
+    const newMolecules = new Map<string, Molecule>();
+    const newParticles: Particle[] = [];
+    const particleMap = new Map<string, Particle>();
+    for (const p of this.particles) {
+      particleMap.set(p.id, p);
+    }
+
     for (const [molId, molecule] of this.molecules) {
-      if (molecule.energy > REPLICATION_ENERGY_COST && Math.random() < REPLICATION_PROB) {
+      const prob = molecule.isOrganic ? REPLICATION_PROB * 5 : REPLICATION_PROB;
+      if (molecule.energy > REPLICATION_ENERGY_COST && Math.random() < prob) {
         molecule.energy -= REPLICATION_ENERGY_COST;
         molecule.isReplicating = true;
         molecule.generation++;
+
+        const p1 = particleMap.get(molecule.particleIds[0]);
+        const p2 = particleMap.get(molecule.particleIds[1]);
+        
+        if (p1 && p2) {
+            const newP1 = this.newParticle(
+                `rep-${tick}-${p1.id}`,
+                p1.x + Math.random() * 10 - 5, p1.y + Math.random() * 10 - 5,
+                p1.vx, p1.vy,
+                p1.weight, p1.charge, p1.isCollapsed, p1.color, tick
+            );
+            const newP2 = this.newParticle(
+                `rep-${tick}-${p2.id}`,
+                p2.x + Math.random() * 10 - 5, p2.y + Math.random() * 10 - 5,
+                p2.vx, p2.vy,
+                p2.weight, p2.charge, p2.isCollapsed, p2.color, tick
+            );
+            
+            newP1.isBound = true; newP2.isBound = true;
+            const newMolId = `mol-${tick}-${newP1.id}-${newP2.id}`;
+            newP1.moleculeId = newMolId; newP2.moleculeId = newMolId;
+            
+            newParticles.push(newP1, newP2);
+            newMolecules.set(newMolId, {
+                id: newMolId,
+                particleIds: [newP1.id, newP2.id],
+                elementComposition: { ...molecule.elementComposition },
+                energy: molecule.energy,
+                isOrganic: molecule.isOrganic,
+                isReplicating: false,
+                generation: molecule.generation
+            });
+            
+            if (molecule.generation === 1 && this.state.events.filter(e => e.includes("replicação")).length === 0) {
+                this.state.events.push("Primeira replicação molecular!");
+                this.addSignificantEvent(p1.x, p1.y, 'BIOLOGY', tick);
+            }
+        }
       }
+    }
+    
+    if (newParticles.length > 0) {
+        this.particles.push(...newParticles);
+        for (const [id, mol] of newMolecules) {
+            this.molecules.set(id, mol);
+        }
     }
   }
 
   private processMetabolism(tick: number) {
+    const particleMap = new Map<string, Particle>();
     for (const p of this.particles) {
-      if (p.isBound && p.moleculeId) {
-        const mol = this.molecules.get(p.moleculeId);
-        if (mol) {
-          mol.energy -= METABOLISM_ENERGY_COST;
-          p.isMetabolizing = mol.energy > 0;
-          if (mol.energy <= 0) {
-            // Dissolve molecule
-            this.molecules.delete(mol.id);
-            p.moleculeId = null;
-            p.isBound = false;
-          }
-        }
+      particleMap.set(p.id, p);
+    }
+
+    for (const [molId, mol] of this.molecules) {
+      const p1 = particleMap.get(mol.particleIds[0]);
+      const p2 = particleMap.get(mol.particleIds[1]);
+      
+      if (!p1 || !p2) {
+        this.molecules.delete(molId);
+        if (p1) { p1.isBound = false; p1.moleculeId = null; }
+        if (p2) { p2.isBound = false; p2.moleculeId = null; }
+        continue;
+      }
+
+      const gx = Math.floor(p1.x / GRID_SIZE);
+      const gy = Math.floor(p1.y / GRID_SIZE);
+      const region = this.getRegion(gx, gy);
+      
+      // Absorb energy from environment (temperature/curvature)
+      if (region.temperature > 0.05) {
+        const absorbed = Math.min(0.05, region.temperature);
+        mol.energy += absorbed;
+        region.temperature -= absorbed;
+      }
+      if (region.curvature > 0.5) {
+        mol.energy += 0.02;
+      }
+
+      mol.energy -= METABOLISM_ENERGY_COST;
+      
+      p1.isMetabolizing = mol.energy > 0;
+      p2.isMetabolizing = mol.energy > 0;
+      
+      if (mol.energy <= 0) {
+        // Dissolve molecule
+        this.molecules.delete(mol.id);
+        p1.moleculeId = null;
+        p1.isBound = false;
+        p2.moleculeId = null;
+        p2.isBound = false;
       }
     }
   }
@@ -426,12 +536,18 @@ export class UniverseEngine {
     let nodes = 0;
     let relations = 0;
     let totalKnowledge = 0;
+    
+    const particleMap = new Map<string, Particle>();
+    for (const p of this.particles) {
+        if (!p.isLatent) particleMap.set(p.id, p);
+    }
+
     for (const p of this.particles) {
         if (p.isLatent) continue;
         
         let mutualModels = 0;
         for (const id in p.mentalModels) {
-            const other = this.particles.find(p => p.id === id);
+            const other = particleMap.get(id);
             if (other && other.mentalModels[p.id]) {
                 mutualModels++;
                 // Transmissible Culture: exchange knowledge
@@ -473,19 +589,29 @@ export class UniverseEngine {
     
     // First Contact detection
     const collectiveNodes = this.particles.filter(p => p.isCollectiveConscious);
-    for (let i = 0; i < collectiveNodes.length; i++) {
-        for (let j = i + 1; j < collectiveNodes.length; j++) {
-            const p1 = collectiveNodes[i];
-            const p2 = collectiveNodes[j];
-            const d2 = (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2;
-            if (d2 < 10000) { // first contact range
-                if (Math.random() < 0.01) { // Throttle events
-                    this.state.events.push(`Primeiro contato entre grupos: ${p1.id.slice(0,4)} e ${p2.id.slice(0,4)}`);
-                    this.addSignificantEvent((p1.x + p2.x)/2, (p1.y + p2.y)/2, 'CONTACT', tick);
-                    // Exchange culture
-                    const avgK = (p1.knowledge + p2.knowledge) / 2;
-                    p1.knowledge = avgK;
-                    p2.knowledge = avgK;
+    for (const p1 of collectiveNodes) {
+        const gx = Math.floor(p1.x / GRID_SIZE);
+        const gy = Math.floor(p1.y / GRID_SIZE);
+        
+        for (let dx = -2; dx <= 2; dx++) {
+            for (let dy = -2; dy <= 2; dy++) {
+                const neighbors = spatialGrid.get(`${gx + dx},${gy + dy}`);
+                if (!neighbors) continue;
+                
+                for (const p2 of neighbors) {
+                    if (p1.id >= p2.id || !p2.isCollectiveConscious) continue; // Avoid double counting and self
+                    
+                    const d2 = (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2;
+                    if (d2 < 10000) { // first contact range
+                        if (Math.random() < 0.01) { // Throttle events
+                            this.state.events.push(`Primeiro contato entre grupos: ${p1.id.slice(0,4)} e ${p2.id.slice(0,4)}`);
+                            this.addSignificantEvent((p1.x + p2.x)/2, (p1.y + p2.y)/2, 'CONTACT', tick);
+                            // Exchange culture
+                            const avgK = (p1.knowledge + p2.knowledge) / 2;
+                            p1.knowledge = avgK;
+                            p2.knowledge = avgK;
+                        }
+                    }
                 }
             }
         }
@@ -757,24 +883,22 @@ export class UniverseEngine {
         if (p.latentTraces) allTraces.push(...p.latentTraces);
         deadSet.add(p.id);
       });
-      newBorn.push({
-        id: `singularity-${key}-${tick}`, isCollapsed: true, isLatent: false,
-        x: gx*GRID_SIZE+GRID_SIZE/2, y: gy*GRID_SIZE+GRID_SIZE/2,
-        vx: totalPx/totalW, vy: totalPy/totalW,
-        weight: totalW, level: Math.max(...rp.map(p=>p.level))+1,
-        lastInteractionTick: tick, lastActiveTick: tick,
-        persistence: 10, isConscious: true, color: '#ffffff',
-        waveRadius: 0, spin: 0, charge: 0, isBound: false,
-        latentTraces: allTraces,
-        energy: 0,
-        isMetabolizing: false,
-        isReplicating: false,
-        generation: 0,
-        moleculeId: null,
-        element: null,
-        mentalModels: {},
-        isCollectiveConscious: false,
-      });
+      const newP = this.newParticle(
+        `singularity-${key}-${tick}`,
+        gx*GRID_SIZE+GRID_SIZE/2, gy*GRID_SIZE+GRID_SIZE/2,
+        totalPx/totalW, totalPy/totalW,
+        totalW, 0, true, '#ffffff', tick,
+        {
+            level: Math.max(...rp.map(p=>p.level))+1,
+            persistence: 10,
+            isConscious: true,
+            waveRadius: 0,
+            spin: 0,
+            latentTraces: allTraces,
+            energy: 0
+        }
+      );
+      newBorn.push(newP);
       region.isCompressed = true;
     }
 
@@ -1138,7 +1262,7 @@ export class UniverseEngine {
     this.particles.push(...toSpawn);
 
     // ── 8. CHEMISTRY & BIOLOGY ──────────────────────────────────────
-    this.processChemistry(tick);
+    this.processChemistry(tick, spatialGrid);
     this.processReplication(tick);
     this.processMetabolism(tick);
     this.processExtinctions(tick);

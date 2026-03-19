@@ -47,7 +47,7 @@ export class LazyDocumentary {
   getMetrics() {
     const momento = this.capturarMomento();
     return {
-      economia: momento.economia,
+      economy: momento.economia,
       latentesPct: momento.latentesPct,
       calculandoPct: momento.calculandoPct,
       event: momento.eventos[0]?.text || 'Observação Estática',

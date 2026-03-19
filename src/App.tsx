@@ -161,22 +161,51 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
   }
   ctx.restore();
 
-  // ── Layer 4.5: Entanglement links ───────────────────────────────────
+  // ── Layer 4.5: Entanglement and Molecule links ───────────────────────
   ctx.save();
-  ctx.strokeStyle = 'rgba(255, 100, 255, 0.15)';
-  ctx.lineWidth = Math.max(0.5, 0.5 * scale);
-  ctx.setLineDash([5, 5]);
   const drawnLinks = new Set<string>();
+  const particleMap = new Map<string, Particle>();
+  const moleculeMap = new Map<string, Particle[]>();
+  
   for (const p of particles) {
-    if (p.entangledWith && !drawnLinks.has(p.id)) {
-      const partner = particles.find(partner => partner.id === p.entangledWith);
+    particleMap.set(p.id, p);
+    if (p.moleculeId) {
+      if (!moleculeMap.has(p.moleculeId)) moleculeMap.set(p.moleculeId, []);
+      moleculeMap.get(p.moleculeId)!.push(p);
+    }
+  }
+
+  for (const p of particles) {
+    // Entanglement
+    if (p.entangledWith && !drawnLinks.has(p.id + p.entangledWith)) {
+      const partner = particleMap.get(p.entangledWith);
       if (partner) {
+        ctx.strokeStyle = 'rgba(255, 100, 255, 0.15)';
+        ctx.lineWidth = Math.max(0.5, 0.5 * scale);
+        ctx.setLineDash([5, 5]);
         ctx.beginPath();
         ctx.moveTo(toX(p.x), toY(p.y));
         ctx.lineTo(toX(partner.x), toY(partner.y));
         ctx.stroke();
-        drawnLinks.add(partner.id); // prevent drawing twice
+        drawnLinks.add(partner.id + p.id);
+        drawnLinks.add(p.id + partner.id);
       }
+    }
+  }
+  
+  // Molecule bonds
+  for (const [molId, molParticles] of moleculeMap) {
+    if (molParticles.length >= 2) {
+      const p1 = molParticles[0];
+      const p2 = molParticles[1];
+      const isOrganic = (p1.element === 'C' || p1.element === 'H') && (p2.element === 'C' || p2.element === 'H');
+      ctx.strokeStyle = isOrganic ? 'rgba(50, 255, 50, 0.6)' : 'rgba(200, 200, 200, 0.3)';
+      ctx.lineWidth = Math.max(1, 1.5 * scale);
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(toX(p1.x), toY(p1.y));
+      ctx.lineTo(toX(p2.x), toY(p2.y));
+      ctx.stroke();
     }
   }
   ctx.setLineDash([]);
@@ -247,19 +276,29 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
   // ── Layer 6: conscious entities ─────────────────────────────────────
   ctx.save();
   for (const p of particles) {
-    if (!p.isConscious || p.isLatent) continue;
+    if ((!p.isConscious && !p.isCollectiveConscious) || p.isLatent) continue;
     const x = toX(p.x), y = toY(p.y);
     const size = Math.max(2, (2 + p.level*1.2 + p.weight*0.12)*scale);
     const hr = size*10;
     const halo = ctx.createRadialGradient(x, y, size*0.5, x, y, hr);
-    halo.addColorStop(0,    'rgba(255,255,255,0.55)');
-    halo.addColorStop(0.25, 'rgba(180,140,255,0.18)');
-    halo.addColorStop(1,    'transparent');
+    
+    if (p.isCollectiveConscious) {
+      halo.addColorStop(0,    'rgba(255,255,255,0.7)');
+      halo.addColorStop(0.25, 'rgba(255,180,80,0.25)');
+      halo.addColorStop(1,    'transparent');
+    } else {
+      halo.addColorStop(0,    'rgba(255,255,255,0.55)');
+      halo.addColorStop(0.25, 'rgba(180,140,255,0.18)');
+      halo.addColorStop(1,    'transparent');
+    }
+    
     ctx.fillStyle = halo;
     ctx.beginPath(); ctx.arc(x, y, hr, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    
+    ctx.strokeStyle = p.isCollectiveConscious ? 'rgba(255,200,100,0.4)' : 'rgba(255,255,255,0.2)';
     ctx.lineWidth   = Math.max(0.5, 0.7*scale);
     ctx.beginPath(); ctx.arc(x, y, size*3, 0, Math.PI*2); ctx.stroke();
+    
     ctx.fillStyle = '#ffffff';
     ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI*2); ctx.fill();
   }

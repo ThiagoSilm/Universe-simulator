@@ -98,6 +98,12 @@ export interface UniverseState {
   campoLatente: LatentInformation[];
   events: string[];
 
+  // Cosmology metrics
+  scaleFactor: number;
+  hubbleRate: number;
+  horizon: number;
+  phase: 'expansion' | 'collapse';
+
   // legacy
   viewportX: number;
   viewportY: number;
