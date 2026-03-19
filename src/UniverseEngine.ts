@@ -1,4 +1,4 @@
-import { Particle, UniverseState, LatentTrace, Molecule } from './types';
+import { Particle, UniverseState, LatentTrace, Molecule, CycleHistory } from './types';
 import { VariavelInfinita } from './VariavelInfinita';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -157,6 +157,12 @@ export class UniverseEngine {
       if (this.state.recycledMatterCount === undefined || isNaN(this.state.recycledMatterCount)) this.state.recycledMatterCount = 0;
       if (this.state.latentTraceCount    === undefined || isNaN(this.state.latentTraceCount)) this.state.latentTraceCount    = 0;
       if (this.state.fertility           === undefined || isNaN(this.state.fertility)) this.state.fertility           = 0;
+      if (this.state.currentCycle        === undefined) this.state.currentCycle = 1;
+      if (this.state.history             === undefined) this.state.history = [];
+      if (this.state.isSpectatorMode     === undefined) this.state.isSpectatorMode = false;
+      if (this.state.lastNodes           === undefined) this.state.lastNodes = 0;
+      if (this.state.lastRelations       === undefined) this.state.lastRelations = 0;
+      if (this.state.significantEvents   === undefined) this.state.significantEvents = [];
     } else {
       this.particles = this.initParticles();
       this.state = {
@@ -168,6 +174,8 @@ export class UniverseEngine {
         moleculeCount: 0, organicCount: 0, replicantCount: 0, maxGeneration: 0, lifeCount: 0,
         recycledMatterCount: 0, latentTraceCount: 0, fertility: 0,
         relationsCount: 0, collectiveConsciousnessNodes: 0, culture: 0,
+        currentCycle: 1, history: [], isSpectatorMode: false,
+        lastNodes: 0, lastRelations: 0, significantEvents: [],
         campoLatente: [], events: [],
         viewportX: 0, viewportY: 0, zoom: 1,
       };
@@ -182,6 +190,46 @@ export class UniverseEngine {
       state: this.state, 
       energyGrid: Array.from(this.energyGrid.entries()),
       molecules: Array.from(this.molecules.entries())
+    };
+  }
+
+  public addSignificantEvent(x: number, y: number, type: string, tick: number) {
+    this.state.significantEvents.push({ x, y, type, tick });
+    if (this.state.significantEvents.length > 50) this.state.significantEvents.shift();
+  }
+
+  public resetUniverse() {
+    // Save history
+    const historyEntry: CycleHistory = {
+      cycleId: this.state.currentCycle,
+      totalTicks: this.state.tick,
+      maxCulture: this.state.culture,
+      maxNodes: this.state.collectiveConsciousnessNodes,
+      maxRelations: this.state.relationsCount,
+      milestones: this.state.events.map(e => ({ tick: this.state.tick, event: e })).slice(-10) // last 10 events as milestones
+    };
+    this.state.history.push(historyEntry);
+    if (this.state.history.length > 10) this.state.history.shift();
+    
+    // Reset state but keep history and currentCycle
+    const nextCycle = this.state.currentCycle + 1;
+    const history = this.state.history;
+    const isSpectatorMode = this.state.isSpectatorMode;
+    
+    this.particles = this.initParticles();
+    this.state = {
+      particles: this.particles,
+      entropy: 1, coherence: 0, consciousnessCount: 0,
+      totalInformation: INITIAL_PARTICLE_COUNT,
+      tick: 0, maxCurvature: 0, avgTemperature: 0,
+      pairProductionCount: 0, annihilationCount: 0, fissionCount: 0,
+      moleculeCount: 0, organicCount: 0, replicantCount: 0, maxGeneration: 0, lifeCount: 0,
+      recycledMatterCount: 0, latentTraceCount: 0, fertility: 0,
+      relationsCount: 0, collectiveConsciousnessNodes: 0, culture: 0,
+      currentCycle: nextCycle, history: history, isSpectatorMode: isSpectatorMode,
+      lastNodes: 0, lastRelations: 0, significantEvents: [],
+      campoLatente: [], events: [`Ciclo #${nextCycle} iniciado`],
+      viewportX: 0, viewportY: 0, zoom: 1,
     };
   }
 
@@ -361,6 +409,7 @@ export class UniverseEngine {
             if (!p.isCollectiveConscious) {
                 p.isCollectiveConscious = true;
                 this.state.events.push(`Consciência coletiva emergida: ${p.id}`);
+                this.addSignificantEvent(p.x, p.y, 'EMERGENCE', tick);
             }
             nodes++;
         } else {
@@ -370,6 +419,45 @@ export class UniverseEngine {
     this.state.collectiveConsciousnessNodes = nodes;
     this.state.relationsCount = relations / 2; // Each relation counted twice
     
+    // First Contact detection
+    const collectiveNodes = this.particles.filter(p => p.isCollectiveConscious);
+    for (let i = 0; i < collectiveNodes.length; i++) {
+        for (let j = i + 1; j < collectiveNodes.length; j++) {
+            const p1 = collectiveNodes[i];
+            const p2 = collectiveNodes[j];
+            const d2 = (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2;
+            if (d2 < 10000) { // first contact range
+                if (Math.random() < 0.01) { // Throttle events
+                    this.state.events.push(`Primeiro contato entre grupos: ${p1.id.slice(0,4)} e ${p2.id.slice(0,4)}`);
+                    this.addSignificantEvent((p1.x + p2.x)/2, (p1.y + p2.y)/2, 'CONTACT', tick);
+                }
+            }
+        }
+    }
+
+    // Highlights detection
+    if (nodes > this.state.lastNodes * 1.1 && nodes > 5) {
+        this.state.events.push(`Expansão de grupos conscientes: +${Math.round((nodes/this.state.lastNodes - 1)*100)}%`);
+        // Find centroid of nodes for camera focus
+        const consciousParticles = this.particles.filter(p => p.isCollectiveConscious);
+        if (consciousParticles.length > 0) {
+            const avgX = consciousParticles.reduce((s, p) => s + p.x, 0) / consciousParticles.length;
+            const avgY = consciousParticles.reduce((s, p) => s + p.y, 0) / consciousParticles.length;
+            this.addSignificantEvent(avgX, avgY, 'EXPANSION', tick);
+        }
+    }
+    if (this.state.relationsCount > this.state.lastRelations * 2 && this.state.relationsCount > 10) {
+        this.state.events.push(`Explosão de conexões: ${this.state.relationsCount} relações`);
+        const consciousParticles = this.particles.filter(p => p.isCollectiveConscious);
+        if (consciousParticles.length > 0) {
+            const avgX = consciousParticles.reduce((s, p) => s + p.x, 0) / consciousParticles.length;
+            const avgY = consciousParticles.reduce((s, p) => s + p.y, 0) / consciousParticles.length;
+            this.addSignificantEvent(avgX, avgY, 'EXPLOSION', tick);
+        }
+    }
+    this.state.lastNodes = nodes;
+    this.state.lastRelations = this.state.relationsCount;
+
     // 3. Civilization Trigger (simplified)
     if (nodes >= 3 && Math.random() < 0.01) {
         if (isNaN(this.state.culture)) this.state.culture = 0;

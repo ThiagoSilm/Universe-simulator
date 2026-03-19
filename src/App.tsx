@@ -11,7 +11,17 @@ const STORAGE_KEY = 'lazy_universe_state_v6';
 //  VISUALIZATION
 // ═══════════════════════════════════════════════════════════════════
 
-function computeTransform(particles: Particle[], w: number, h: number) {
+function computeTransform(particles: Particle[], w: number, h: number, spectatorTarget?: { x: number, y: number, zoom: number }) {
+  if (spectatorTarget) {
+    const scale = spectatorTarget.zoom;
+    const cx = spectatorTarget.x;
+    const cy = spectatorTarget.y;
+    return {
+      toX: (wx: number) => (wx-cx)*scale + w/2,
+      toY: (wy: number) => (wy-cy)*scale + h/2,
+      scale,
+    };
+  }
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   for (const p of particles) {
     if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
@@ -34,7 +44,8 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
   ctx.fillStyle = '#050505';
   ctx.fillRect(0, 0, w, h);
 
-  const { toX, toY, scale } = computeTransform(particles, w, h);
+  const spectatorTarget = state.isSpectatorMode ? { x: state.viewportX, y: state.viewportY, zoom: state.zoom } : undefined;
+  const { toX, toY, scale } = computeTransform(particles, w, h, spectatorTarget);
 
   // ── Layer 1: gravitational field glow ──────────────────────────────
   ctx.save();
@@ -264,7 +275,13 @@ export default function App() {
   const engineRef = useRef<UniverseEngine | null>(null);
   const lazyDocRef = useRef<LazyDocumentary | null>(null);
   const [state, setState] = useState<UniverseState | null>(null);
-  const [lazyMetrics, setLazyMetrics] = useState({ economy: '0%', event: 'None', nextScan: 0 });
+  const [lazyMetrics, setLazyMetrics] = useState({ 
+    economy: '0%', 
+    latentesPct: '0%', 
+    calculandoPct: '0%', 
+    event: 'None', 
+    nextScan: 0 
+  });
   const [showInfo, setShowInfo] = useState(false);
   const requestRef = useRef<number>(0);
 
@@ -312,6 +329,21 @@ export default function App() {
   const animate = useCallback(() => {
     if (!engineRef.current) { requestRef.current = requestAnimationFrame(animate); return; }
     const newState = engineRef.current.step();
+    
+    // Spectator Mode Camera
+    if (newState.isSpectatorMode && newState.significantEvents.length > 0) {
+        const lastEvent = newState.significantEvents[newState.significantEvents.length - 1];
+        // Smooth pan to event
+        newState.viewportX += (lastEvent.x - newState.viewportX) * 0.05;
+        newState.viewportY += (lastEvent.y - newState.viewportY) * 0.05;
+        newState.zoom += (1.2 - newState.zoom) * 0.02;
+    } else if (newState.isSpectatorMode) {
+        // Default slow pan if no events
+        newState.viewportX += Math.sin(newState.tick * 0.01) * 2;
+        newState.viewportY += Math.cos(newState.tick * 0.01) * 2;
+        newState.zoom += (0.8 - newState.zoom) * 0.01;
+    }
+
     setState(newState);
     if (newState.tick % 120 === 0) {
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(engineRef.current.getPersistentState())); }
@@ -377,6 +409,71 @@ export default function App() {
 
         <main className="flex justify-between items-end">
           <div className="space-y-3 w-60">
+            {/* Documentary Mode Overlay */}
+            <div className="bg-black/40 backdrop-blur-md border border-white/10 p-4 rounded-lg space-y-3 mb-4 pointer-events-auto">
+              <div className="flex justify-between items-center">
+                <h2 className="text-[10px] uppercase tracking-widest font-bold text-orange-400">Modo Documentário</h2>
+                <button 
+                  onClick={() => {
+                    if (engineRef.current) {
+                      engineRef.current.state.isSpectatorMode = !engineRef.current.state.isSpectatorMode;
+                      setState({...engineRef.current.state});
+                    }
+                  }}
+                  className={`px-2 py-1 text-[8px] rounded border transition-all ${state?.isSpectatorMode ? 'bg-orange-500/20 border-orange-500 text-orange-400' : 'border-white/20 text-white/40'}`}
+                >
+                  {state?.isSpectatorMode ? 'ESPECTADOR ATIVO' : 'ATIVAR ESPECTADOR'}
+                </button>
+              </div>
+              
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px]">
+                  <span className="opacity-50">Ciclo atual:</span>
+                  <span className="text-white">#{state?.currentCycle} | Tick {state?.tick}</span>
+                </div>
+                {state?.history && state.history.length > 0 && (
+                  <div className="text-[9px] border-t border-white/5 pt-2 mt-2 space-y-1">
+                    <div className="flex justify-between">
+                      <span className="opacity-50">Vs Ciclo #{state.history[state.history.length-1].cycleId}:</span>
+                      <span className={(state.collectiveConsciousnessNodes ?? 0) > (state.history[state.history.length-1].maxNodes ?? 0) ? 'text-emerald-400' : 'text-red-400'}>
+                        {Math.round(((state.collectiveConsciousnessNodes ?? 0) / (state.history[state.history.length-1].maxNodes || 1) - 1) * 100)}% Nós
+                      </span>
+                    </div>
+                    <div className="opacity-40 italic">
+                      Próximo marco previsto: Consciência em {Math.max(1, 50 - ((state?.tick ?? 0) % 50))} ticks
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-white/5 pt-3 space-y-1.5">
+                <div className="flex justify-between text-[9px]">
+                  <span className="opacity-40">Eficiência lazy:</span>
+                  <span className="text-emerald-400 font-bold">{lazyMetrics.economy}</span>
+                </div>
+                <div className="flex justify-between text-[9px]">
+                  <span className="opacity-40">Entidades latentes:</span>
+                  <span className="text-zinc-400">{lazyMetrics.latentesPct}% do universo</span>
+                </div>
+                <div className="flex justify-between text-[9px]">
+                  <span className="opacity-40">Sendo calculado agora:</span>
+                  <span className="text-orange-400">{lazyMetrics.calculandoPct}%</span>
+                </div>
+              </div>
+              
+              <button 
+                onClick={() => {
+                  if (engineRef.current) {
+                    engineRef.current.resetUniverse();
+                    setState({...engineRef.current.state});
+                  }
+                }}
+                className="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[9px] uppercase tracking-widest transition-all"
+              >
+                Reiniciar Ciclo (Big Bang)
+              </button>
+            </div>
+
             <Metric label="Entropy"       value={state?.entropy      ?? 1} icon={<Zap          size={11}/>} color="text-blue-400"    pct />
             <Metric label="Coherence"     value={state?.coherence    ?? 0} icon={<Layers       size={11}/>} color="text-emerald-400" pct />
             <Metric label="Temperature"   value={engineRef.current ? (engineRef.current.temperature.observar().toFixed(4)) : 0} icon={<Thermometer size={11}/>} color="text-orange-400" />
@@ -405,9 +502,28 @@ export default function App() {
           </div>
 
           <div className="w-60 text-right space-y-2">
-            <div className="text-[9px] opacity-30 uppercase tracking-widest">Eventos Recentes</div>
-            <div className="space-y-1 text-[10px] text-zinc-400 max-h-40 overflow-y-auto">
-              {state?.events?.slice(-5)?.map((e, i) => <p key={i}>{e}</p>)}
+            <div className="text-[9px] opacity-30 uppercase tracking-widest">Linha do Tempo Cósmica</div>
+            <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+              {state?.history?.slice().reverse().map((h, i) => (
+                <div key={i} className="text-right space-y-1 border-r border-white/10 pr-3 mr-1">
+                  <div className="text-[9px] font-bold text-orange-300">Ciclo #{h.cycleId}</div>
+                  <div className="text-[8px] opacity-40">Finalizado em {h.totalTicks} ticks</div>
+                  <div className="text-[8px] text-zinc-500 italic">
+                    {h.milestones.slice(-1).map(m => m.event)}
+                  </div>
+                </div>
+              ))}
+              <div className="text-right space-y-1 border-r border-emerald-500/30 pr-3 mr-1">
+                <div className="text-[9px] font-bold text-emerald-400">Ciclo #{state?.currentCycle} (Atual)</div>
+                <div className="text-[8px] opacity-40 animate-pulse">Evoluindo...</div>
+              </div>
+            </div>
+
+            <div className="pt-4">
+              <div className="text-[9px] opacity-30 uppercase tracking-widest">Eventos Recentes</div>
+              <div className="space-y-1 text-[10px] text-zinc-400 max-h-40 overflow-y-auto">
+                {state?.events?.slice(-5)?.map((e, i) => <p key={i}>{e}</p>)}
+              </div>
             </div>
           </div>
 

@@ -97,4 +97,21 @@ export interface UniverseState {
   viewportX: number;
   viewportY: number;
   zoom: number;
+
+  // Documentary Mode
+  currentCycle: number;
+  history: CycleHistory[];
+  isSpectatorMode: boolean;
+  lastNodes: number;
+  lastRelations: number;
+  significantEvents: { x: number, y: number, type: string, tick: number }[];
+}
+
+export interface CycleHistory {
+  cycleId: number;
+  totalTicks: number;
+  maxCulture: number;
+  maxNodes: number;
+  maxRelations: number;
+  milestones: { tick: number; event: string }[];
 }
