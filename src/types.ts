@@ -34,6 +34,8 @@ export interface Particle {
   // New properties for collective consciousness
   mentalModels: Record<string, { state: any, lastObserved: number }>;
   isCollectiveConscious: boolean;
+  knowledge: number;
+  tools: number;
 }
 
 export interface Molecule {
@@ -89,6 +91,9 @@ export interface UniverseState {
   relationsCount: number;
   collectiveConsciousnessNodes: number;
   culture: number;
+  technology: number;
+  metaConsciousness: boolean;
+  extinctionCycles: number;
   
   campoLatente: LatentInformation[];
   events: string[];

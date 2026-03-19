@@ -141,6 +141,8 @@ export class UniverseEngine {
         if (p.generation === undefined) p.generation = 0;
         if (p.mentalModels === undefined) p.mentalModels = {};
         if (p.isCollectiveConscious === undefined) p.isCollectiveConscious = false;
+        if (p.knowledge === undefined) p.knowledge = 0;
+        if (p.tools === undefined) p.tools = 0;
       });
       // patch state
       if (this.state.pairProductionCount === undefined) this.state.pairProductionCount = 0;
@@ -163,6 +165,9 @@ export class UniverseEngine {
       if (this.state.lastNodes           === undefined) this.state.lastNodes = 0;
       if (this.state.lastRelations       === undefined) this.state.lastRelations = 0;
       if (this.state.significantEvents   === undefined) this.state.significantEvents = [];
+      if (this.state.technology          === undefined || isNaN(this.state.technology)) this.state.technology = 0;
+      if (this.state.metaConsciousness   === undefined) this.state.metaConsciousness = false;
+      if (this.state.extinctionCycles    === undefined || isNaN(this.state.extinctionCycles)) this.state.extinctionCycles = 0;
     } else {
       this.particles = this.initParticles();
       this.state = {
@@ -174,6 +179,7 @@ export class UniverseEngine {
         moleculeCount: 0, organicCount: 0, replicantCount: 0, maxGeneration: 0, lifeCount: 0,
         recycledMatterCount: 0, latentTraceCount: 0, fertility: 0,
         relationsCount: 0, collectiveConsciousnessNodes: 0, culture: 0,
+        technology: 0, metaConsciousness: false, extinctionCycles: 0,
         currentCycle: 1, history: [], isSpectatorMode: false,
         lastNodes: 0, lastRelations: 0, significantEvents: [],
         campoLatente: [], events: [],
@@ -215,6 +221,8 @@ export class UniverseEngine {
     const nextCycle = this.state.currentCycle + 1;
     const history = this.state.history;
     const isSpectatorMode = this.state.isSpectatorMode;
+    const campoLatente = this.state.campoLatente;
+    const latentTraceCount = this.state.latentTraceCount;
     
     this.particles = this.initParticles();
     this.state = {
@@ -224,11 +232,12 @@ export class UniverseEngine {
       tick: 0, maxCurvature: 0, avgTemperature: 0,
       pairProductionCount: 0, annihilationCount: 0, fissionCount: 0,
       moleculeCount: 0, organicCount: 0, replicantCount: 0, maxGeneration: 0, lifeCount: 0,
-      recycledMatterCount: 0, latentTraceCount: 0, fertility: 0,
+      recycledMatterCount: 0, latentTraceCount: latentTraceCount, fertility: 0,
       relationsCount: 0, collectiveConsciousnessNodes: 0, culture: 0,
+      technology: 0, metaConsciousness: false, extinctionCycles: this.state.extinctionCycles,
       currentCycle: nextCycle, history: history, isSpectatorMode: isSpectatorMode,
       lastNodes: 0, lastRelations: 0, significantEvents: [],
-      campoLatente: [], events: [`Ciclo #${nextCycle} iniciado`],
+      campoLatente: campoLatente, events: [`Ciclo #${nextCycle} iniciado`],
       viewportX: 0, viewportY: 0, zoom: 1,
     };
   }
@@ -266,8 +275,32 @@ export class UniverseEngine {
       generation: 0,
       mentalModels: {},
       isCollectiveConscious: false,
+      knowledge: 0,
+      tools: 0,
       ...extra,
     };
+  }
+
+  private processExtinctions(tick: number) {
+    const activeParticles = this.particles.filter(p => !p.isLatent);
+    if (activeParticles.length === 0) return;
+
+    const avgEnergy = activeParticles.reduce((sum, p) => sum + p.energy, 0) / activeParticles.length;
+    const isScarce = avgEnergy < 0.1;
+    const isConflict = this.state.collectiveConsciousnessNodes > 200;
+
+    if ((isScarce || isConflict) && Math.random() < 0.05) {
+      this.state.extinctionCycles++;
+      this.state.events.push(`CICLO DE EXTINÇÃO INICIADO (#${this.state.extinctionCycles})`);
+      this.addSignificantEvent(0, 0, 'EXTINCTION', tick);
+
+      // Kill 80% of active particles
+      const toKill = activeParticles.sort(() => Math.random() - 0.5).slice(0, Math.floor(activeParticles.length * 0.8));
+      for (const p of toKill) {
+        this.morrer(p);
+      }
+      this.state.fertility += 10;
+    }
   }
 
   private processChemistry(tick: number) {
@@ -326,12 +359,6 @@ export class UniverseEngine {
   public morrer(entidade: Particle) {
     const regiao = { x: entidade.x, y: entidade.y };
     
-    // Libera matéria (aumenta Dormant na região)
-    const novasParticulas = Math.floor(entidade.weight * 0.7);
-    for(let i = 0; i < novasParticulas; i++) {
-        this.criarParticulaDormente(regiao);
-    }
-    
     // Libera energia (aumenta temperatura)
     const gridKey = `${Math.floor(entidade.x / GRID_SIZE)},${Math.floor(entidade.y / GRID_SIZE)}`;
     const region = this.energyGrid.get(gridKey);
@@ -343,15 +370,20 @@ export class UniverseEngine {
     this.state.campoLatente.push({
         posicao: regiao,
         genoma: entidade.id, // Using id as placeholder for genoma
-        experiencias: entidade.latentTraces || [],
+        experiencias: { knowledge: entidade.knowledge, tools: entidade.tools, traces: entidade.latentTraces },
         timestamp: this.state.tick
     });
     
-    // Remove entidade ATIVA
-    this.particles = this.particles.filter(p => p.id !== entidade.id);
-    this.state.recycledMatterCount += novasParticulas;
+    // Torna a entidade latente em vez de remover
+    entidade.isLatent = true;
+    entidade.knowledge = 0;
+    entidade.tools = 0;
+    entidade.energy = 0.1;
+    entidade.isCollectiveConscious = false;
+    entidade.mentalModels = {};
+    
+    this.state.recycledMatterCount++;
     this.state.latentTraceCount++;
-    this.state.events.push(`Morte na região ${regiao.x.toFixed(0)},${regiao.y.toFixed(0)} → ${novasParticulas} novas partículas dormentes`);
   }
 
   private criarParticulaDormente(posicao: { x: number, y: number }) {
@@ -393,6 +425,7 @@ export class UniverseEngine {
     // 2. Second-order Consciousness and Collective Consciousness
     let nodes = 0;
     let relations = 0;
+    let totalKnowledge = 0;
     for (const p of this.particles) {
         if (p.isLatent) continue;
         
@@ -401,6 +434,11 @@ export class UniverseEngine {
             const other = this.particles.find(p => p.id === id);
             if (other && other.mentalModels[p.id]) {
                 mutualModels++;
+                // Transmissible Culture: exchange knowledge
+                const diff = other.knowledge - p.knowledge;
+                if (diff > 0) {
+                    p.knowledge += diff * 0.05; // learn from other
+                }
             }
         }
         relations += mutualModels;
@@ -412,12 +450,26 @@ export class UniverseEngine {
                 this.addSignificantEvent(p.x, p.y, 'EMERGENCE', tick);
             }
             nodes++;
+            p.knowledge += 0.01; // generate knowledge
+            
+            // Emergent Technology
+            if (this.state.culture > 0.5 && Math.random() < 0.01) {
+                p.tools++;
+                this.state.technology++;
+                if (Math.random() < 0.05) {
+                    this.state.events.push(`Ferramenta criada por ${p.id.slice(0,4)}`);
+                    this.addSignificantEvent(p.x, p.y, 'TECH', tick);
+                }
+            }
         } else {
             p.isCollectiveConscious = false;
         }
+        totalKnowledge += p.knowledge;
     }
     this.state.collectiveConsciousnessNodes = nodes;
     this.state.relationsCount = relations / 2; // Each relation counted twice
+    const activeCount = this.particles.filter(p => !p.isLatent).length || 1;
+    this.state.culture = totalKnowledge / activeCount;
     
     // First Contact detection
     const collectiveNodes = this.particles.filter(p => p.isCollectiveConscious);
@@ -430,9 +482,34 @@ export class UniverseEngine {
                 if (Math.random() < 0.01) { // Throttle events
                     this.state.events.push(`Primeiro contato entre grupos: ${p1.id.slice(0,4)} e ${p2.id.slice(0,4)}`);
                     this.addSignificantEvent((p1.x + p2.x)/2, (p1.y + p2.y)/2, 'CONTACT', tick);
+                    // Exchange culture
+                    const avgK = (p1.knowledge + p2.knowledge) / 2;
+                    p1.knowledge = avgK;
+                    p2.knowledge = avgK;
                 }
             }
         }
+    }
+
+    // Natural Migration
+    if (nodes > 100 && Math.random() < 0.05) {
+        // Find a latent particle far away
+        const latent = this.particles.find(p => p.isLatent);
+        if (latent) {
+            latent.isLatent = false;
+            latent.knowledge = this.state.culture;
+            latent.tools = 1;
+            latent.isCollectiveConscious = true;
+            this.state.events.push(`Migração natural ativou nova região`);
+            this.addSignificantEvent(latent.x, latent.y, 'MIGRATION', tick);
+        }
+    }
+    
+    // Meta-consciousness
+    if (this.state.culture > 0.9 && this.state.technology > 1000 && !this.state.metaConsciousness) {
+        this.state.metaConsciousness = true;
+        this.state.events.push(`META-CONSCIÊNCIA ATINGIDA: A SIMULAÇÃO FOI DESCOBERTA`);
+        this.addSignificantEvent(0, 0, 'META_CONSCIOUSNESS', tick);
     }
 
     // Highlights detection
@@ -1064,6 +1141,7 @@ export class UniverseEngine {
     this.processChemistry(tick);
     this.processReplication(tick);
     this.processMetabolism(tick);
+    this.processExtinctions(tick);
 
     // ── 9. POPULATION FLOOR ─────────────────────────────────────────
     if (this.particles.filter(p => !p.isLatent).length < MIN_POPULATION) {
@@ -1071,11 +1149,23 @@ export class UniverseEngine {
       if (anchor) {
         for (let e = 0; e < 10; e++) {
           const a = (e/10)*Math.PI*2, spd = 1+Math.random();
+          let extra: Partial<Particle> = {};
+          if (this.state.campoLatente.length > 0 && Math.random() < 0.5) {
+            const trace = this.state.campoLatente.pop()!;
+            const exp = trace.experiencias || {};
+            extra = { 
+              knowledge: exp.knowledge || 0, 
+              tools: exp.tools || 0, 
+              latentTraces: exp.traces || [] 
+            };
+            this.state.latentTraceCount--;
+            this.state.events.push(`Nova vida emergiu de traços antigos`);
+          }
           this.particles.push(this.newParticle(
             `rb-${tick}-${e}`,
             anchor.x+Math.cos(a)*30, anchor.y+Math.sin(a)*30,
             Math.cos(a)*spd, Math.sin(a)*spd,
-            0.8, this.makeCharge(), false, anchor.color, tick
+            0.8, this.makeCharge(), false, anchor.color, tick, extra
           ));
         }
       }

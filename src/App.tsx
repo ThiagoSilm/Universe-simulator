@@ -460,6 +460,30 @@ export default function App() {
                   <span className="text-orange-400">{lazyMetrics.calculandoPct}%</span>
                 </div>
               </div>
+
+              <div className="border-t border-white/5 pt-3 space-y-1.5">
+                <div className="flex justify-between text-[9px]">
+                  <span className="opacity-40">Cultura Transmissível:</span>
+                  <span className="text-blue-400 font-bold">{(state?.culture || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-[9px]">
+                  <span className="opacity-40">Tecnologia Emergente:</span>
+                  <span className="text-cyan-400 font-bold">{state?.technology || 0} TECH</span>
+                </div>
+                <div className="flex justify-between text-[9px]">
+                  <span className="opacity-40">Memória Cósmica:</span>
+                  <span className="text-purple-400 font-bold">{state?.latentTraceCount || 0} traços</span>
+                </div>
+                <div className="flex justify-between text-[9px]">
+                  <span className="opacity-40">Ciclos de Extinção:</span>
+                  <span className="text-red-400 font-bold">{state?.extinctionCycles || 0}</span>
+                </div>
+                {state?.metaConsciousness && (
+                  <div className="text-[10px] text-center font-bold text-yellow-400 animate-pulse mt-2 border border-yellow-500/30 py-1 bg-yellow-500/10 rounded">
+                    META-CONSCIÊNCIA ATINGIDA
+                  </div>
+                )}
+              </div>
               
               <button 
                 onClick={() => {
