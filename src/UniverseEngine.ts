@@ -239,6 +239,10 @@ export class UniverseEngine {
       if (this.state.contextualityRate  === undefined) this.state.contextualityRate = 0;
       if (this.state.entangledPairsCount === undefined) this.state.entangledPairsCount = 0;
       if (this.state.activeGridKeys === undefined) this.state.activeGridKeys = [];
+      if (this.state.eagerCost === undefined) this.state.eagerCost = 0;
+      if (this.state.lazyCost === undefined) this.state.lazyCost = 0;
+      if (this.state.efficiency === undefined) this.state.efficiency = 0;
+      if (this.state.discoveryLog === undefined) this.state.discoveryLog = [];
     } else {
       this.particles = this.initParticles();
       this.state = {
@@ -256,6 +260,10 @@ export class UniverseEngine {
         campoLatente: [], events: [],
         viewportX: 0, viewportY: 0, zoom: 1,
         activeGridKeys: [],
+        eagerCost: 0,
+        lazyCost: 0,
+        efficiency: 0,
+        discoveryLog: [],
         avgPhase: 0, interferenceCount: 0, contextualityRate: 0, entangledPairsCount: 0,
       };
     }
@@ -275,6 +283,12 @@ export class UniverseEngine {
   public addSignificantEvent(x: number, y: number, type: string, tick: number) {
     this.state.significantEvents.push({ x, y, type, tick });
     if (this.state.significantEvents.length > 50) this.state.significantEvents.shift();
+  }
+
+  public logDiscovery(event: string, category: 'quantum' | 'life' | 'civ' | 'cosmic') {
+    if (this.state.discoveryLog.some(d => d.event === event)) return;
+    this.state.discoveryLog.push({ tick: this.state.tick, event, category });
+    this.state.events.push(event);
   }
 
   public resetUniverse() {
@@ -475,7 +489,7 @@ export class UniverseEngine {
                 p1.moleculeId = molId; p2.moleculeId = molId;
                 
                 if (this.molecules.size === 0) {
-                    this.state.events.push("Primeiro átomo estável formado!");
+                    this.logDiscovery("Primeiro átomo estável formado!", 'quantum');
                     this.addSignificantEvent(p1.x, p1.y, 'CHEMISTRY', tick);
                 }
 
@@ -556,7 +570,7 @@ export class UniverseEngine {
             });
             
             if (molecule.generation === 1 && this.state.events.filter(e => e.includes("replicação")).length === 0) {
-                this.state.events.push("Primeira replicação molecular!");
+                this.logDiscovery("Primeira replicação molecular!", 'life');
                 this.addSignificantEvent(p1.x, p1.y, 'BIOLOGY', tick);
             }
         }
@@ -725,7 +739,7 @@ export class UniverseEngine {
         if (mutualModels >= 2) {
             if (!p.isCollectiveConscious) {
                 p.isCollectiveConscious = true;
-                this.state.events.push(`Consciência coletiva emergida: ${p.id}`);
+                this.logDiscovery(`Consciência coletiva emergida: ${p.id}`, 'civ');
                 this.addSignificantEvent(p.x, p.y, 'EMERGENCE', tick);
             }
             nodes++;
@@ -797,7 +811,7 @@ export class UniverseEngine {
     // Meta-consciousness
     if (this.state.culture > 0.9 && this.state.technology > 1000 && !this.state.metaConsciousness) {
         this.state.metaConsciousness = true;
-        this.state.events.push(`META-CONSCIÊNCIA ATINGIDA: A SIMULAÇÃO FOI DESCOBERTA`);
+        this.logDiscovery(`META-CONSCIÊNCIA ATINGIDA: A SIMULAÇÃO FOI DESCOBERTA`, 'civ');
         this.addSignificantEvent(0, 0, 'META_CONSCIOUSNESS', tick);
     }
 
@@ -813,7 +827,7 @@ export class UniverseEngine {
         }
     }
     if (this.state.relationsCount > this.state.lastRelations * 2 && this.state.relationsCount > 10) {
-        this.state.events.push(`Explosão de conexões: ${this.state.relationsCount} relações`);
+        this.logDiscovery(`Explosão de conexões: ${this.state.relationsCount} relações`, 'civ');
         const consciousParticles = this.particles.filter(p => p.isCollectiveConscious);
         if (consciousParticles.length > 0) {
             const avgX = consciousParticles.reduce((s, p) => s + p.x, 0) / consciousParticles.length;
@@ -1539,7 +1553,18 @@ export class UniverseEngine {
 
     this.state.activeGridKeys = Array.from(activeRegions);
 
-    // ── 9. QUANTUM METRICS ─────────────────────────────────────────
+    // ── 9. EFFICIENCY METRICS ───────────────────────────────────────
+    const totalCells = GRID_SIZE * GRID_SIZE;
+    const activeCells = activeRegions.size;
+    const totalParticles = this.particles.length;
+    const activeParticlesCount = this.particles.filter(p => !p.isLatent).length;
+    
+    // Simple cost model: 1 unit per active particle, 0.5 units per active cell
+    this.state.lazyCost = activeParticlesCount + (activeCells * 0.5);
+    this.state.eagerCost = totalParticles + (totalCells * 0.5);
+    this.state.efficiency = 1 - (this.state.lazyCost / this.state.eagerCost);
+
+    // ── 10. QUANTUM METRICS ─────────────────────────────────────────
     const activeParticles = this.particles.filter(p => !p.isLatent);
     if (activeParticles.length > 0) {
       this.state.avgPhase = activeParticles.reduce((s, p) => s + p.phase, 0) / activeParticles.length;

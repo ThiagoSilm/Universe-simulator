@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Zap, Activity, Brain, Orbit, RefreshCw, Info, Layers, Cpu, Thermometer, Atom, Sigma,
-  Link, Heart, TrendingUp, Globe, Share2, Network, Eye, Wind, Circle, Database, X
+  Link, Heart, TrendingUp, Globe, Share2, Network, Eye, Wind, Circle, Database, X, Beaker, Clock
 } from 'lucide-react';
 import { UniverseEngine, PersistentState, GRID_SIZE } from './UniverseEngine';
 import { LazyDocumentary } from './LazyDocumentary';
@@ -50,14 +50,11 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
   const spectatorTarget = state.isSpectatorMode ? { x: state.viewportX, y: state.viewportY, zoom: state.zoom } : undefined;
   const { toX, toY, scale } = computeTransform(particles, w, h, spectatorTarget);
 
-  // ── Layer -1: Latent Grid Visualization ───────────────────────────
-  if (latentMode && state.activeGridKeys) {
+  // ── Layer -1: Heatmap (Active vs Latent) ───────────────────────────
+  if (state.activeGridKeys) {
     ctx.save();
     const activeKeys = new Set(state.activeGridKeys);
-    // Draw a subtle grid of all "known" regions
-    // We'll just draw the active ones as highlighted and others as dim
-    // To keep it performant, we only draw near the particles
-    const visibleGridRange = 20; 
+    const visibleGridRange = 25; 
     const centerX = spectatorTarget ? spectatorTarget.x : particles.reduce((s, p) => s + p.x, 0) / particles.length;
     const centerY = spectatorTarget ? spectatorTarget.y : particles.reduce((s, p) => s + p.y, 0) / particles.length;
     const gx0 = Math.floor(centerX / GRID_SIZE) - visibleGridRange;
@@ -73,11 +70,13 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
         if (isActive) {
           ctx.strokeStyle = 'rgba(255, 100, 0, 0.15)';
           ctx.strokeRect(x, y, size, size);
-          ctx.fillStyle = 'rgba(255, 100, 0, 0.03)';
+          ctx.fillStyle = 'rgba(255, 100, 0, 0.04)';
           ctx.fillRect(x, y, size, size);
-        } else {
-          ctx.strokeStyle = 'rgba(50, 50, 100, 0.05)';
+        } else if (latentMode) {
+          ctx.strokeStyle = 'rgba(50, 50, 100, 0.08)';
           ctx.strokeRect(x, y, size, size);
+          ctx.fillStyle = 'rgba(50, 50, 100, 0.02)';
+          ctx.fillRect(x, y, size, size);
         }
       }
     }
@@ -361,6 +360,23 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
     ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI*2); ctx.fill();
   }
   ctx.restore();
+
+  // ── Layer 7: Selection Highlight ──────────────────────────────────
+  if (state.selectedParticleId) {
+    const p = particles.find(p => p.id === state.selectedParticleId);
+    if (p && !p.isLatent) {
+      const x = toX(p.x), y = toY(p.y);
+      const size = Math.max(2, (2 + p.level*1.2 + p.weight*0.12)*scale);
+      ctx.save();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 2]);
+      ctx.beginPath();
+      ctx.arc(x, y, size * 6, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -382,19 +398,26 @@ export default function App() {
   const [selectedParticleId, setSelectedParticleId] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [latentMode, setLatentMode] = useState(false);
-  const [activeTab, setActiveTab] = useState<'quantum' | 'life' | 'civ' | 'cosmic'>('quantum');
+  const [activeTab, setActiveTab] = useState<'quantum' | 'life' | 'civ' | 'cosmic' | 'log'>('quantum');
+  const [scientistMode, setScientistMode] = useState(false);
   const [showNarrative, setShowNarrative] = useState(true);
+  const [selectedParticle, setSelectedParticle] = useState<Particle | null>(null);
   const [prevStats, setPrevStats] = useState<Record<string, number>>({});
   const requestRef = useRef<number>(0);
 
   const getNarrative = () => {
     if (!state) return "";
-    if (state.metaConsciousness) return "A simulação atingiu o ponto de singularidade. A consciência coletiva agora observa o observador.";
-    if (state.culture > 50) return "Uma civilização galáctica está em pleno florescimento, moldando a realidade através da cultura e tecnologia.";
-    if (state.culture > 10) return "A cultura emerge como uma força dominante, conectando mentes em uma rede de significado.";
-    if (state.lifeCount > 100) return "A vida prospera em diversos nichos, a replicação molecular atingiu uma escala planetária.";
-    if (state.moleculeCount > 50) return "A química complexa está preparando o terreno para a emergência da vida biológica.";
-    if (state.entropy < 0.5) return "A matéria está se organizando em estruturas complexas sob a influência da gravidade e forças nucleares.";
+    const { metaConsciousness, culture, lifeCount, moleculeCount, entropy, coherence, technology, relationsCount } = state;
+
+    if (metaConsciousness) return "A simulação atingiu o ponto de singularidade. A consciência coletiva agora observa o observador.";
+    if (technology > 80) return "A tecnologia transcende a matéria. Civilizações manipulam as leis fundamentais para sustentar sua existência.";
+    if (culture > 50) return "Uma civilização galáctica está em pleno florescimento, moldando a realidade através da cultura e tecnologia.";
+    if (relationsCount > 100) return "Uma rede complexa de interações sociais emerge, criando uma inteligência coletiva distribuída.";
+    if (lifeCount > 100) return "A vida prospera em diversos nichos, a replicação molecular atingiu uma escala planetária.";
+    if (moleculeCount > 50) return "A química complexa está preparando o terreno para a emergência da vida biológica.";
+    if (coherence > 0.8) return "A ordem quântica é absoluta. O universo ressoa em uma harmonia perfeita de fases.";
+    if (entropy < 0.5) return "A matéria está se organizando em estruturas complexas sob a influência da gravidade e forças nucleares.";
+    
     return "O universo está em seus estágios primordiais, onde flutuações quânticas dão origem à primeira matéria.";
   };
 
@@ -541,15 +564,20 @@ export default function App() {
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-              <h1 className="text-xs uppercase tracking-[0.3em] font-bold opacity-80">
-                Lazy Universe Observer
+              <h1 className="text-xl uppercase tracking-[0.3em] font-black">
+                Cosmos Emergente
               </h1>
             </div>
             <p className="text-[10px] opacity-30 uppercase tracking-widest">
-              each particle is its own observer · freedom through physics
+              Lazy Universe Observer · each particle is its own observer
             </p>
           </div>
           <div className="flex gap-3 pointer-events-auto">
+            <button onClick={() => setScientistMode(!scientistMode)}
+              className={`p-2 border transition-colors rounded-sm ${scientistMode ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'border-white/10 hover:bg-white/10'}`}
+              title="Scientist Mode — Detailed metrics and formulas">
+              <Beaker size={13} />
+            </button>
             <button onClick={() => setLatentMode(!latentMode)}
               className={`p-2 border transition-colors rounded-sm ${latentMode ? 'bg-orange-500/20 border-orange-500 text-orange-400' : 'border-white/10 hover:bg-white/10'}`}
               title="Toggle Latent Mode — See unobserved regions">
@@ -607,7 +635,7 @@ export default function App() {
               {/* Tabbed Metrics */}
               <div className="pt-2 border-t border-white/5">
                 <div className="flex justify-between mb-3 bg-white/5 p-1 rounded">
-                  {(['quantum', 'life', 'civ', 'cosmic'] as const).map(tab => (
+                  {(['quantum', 'life', 'civ', 'cosmic', 'log'] as const).map(tab => (
                     <button
                       key={tab}
                       onClick={() => setActiveTab(tab)}
@@ -621,48 +649,96 @@ export default function App() {
                 <div className="space-y-3 min-h-[160px]">
                   {activeTab === 'quantum' && (
                     <div className="space-y-2">
-                      <Metric label="Coherence" value={state?.coherence ?? 0} icon={<Layers size={11}/>} color="text-emerald-400" pct trend={getTrend(state?.coherence, prevStats.coherence)} tooltip="Ordem global da fase quântica. Alta coerência permite interferência construtiva." />
+                      <Metric 
+                        label="Coherence" 
+                        value={state?.coherence ?? 0} 
+                        icon={<Layers size={11}/>} 
+                        color="text-emerald-400" 
+                        pct 
+                        trend={getTrend(state?.coherence, prevStats.coherence)} 
+                        tooltip="Ordem global da fase quântica. Alta coerência permite interferência construtiva e estabilidade de estruturas." 
+                        formula="Σ|ψ_i|² / N"
+                        range="0.0 (Caos) - 1.0 (Cristalino)"
+                        scientistMode={scientistMode}
+                      />
                       <div className="grid grid-cols-2 gap-2">
-                        <Stat label="Interferência" value={state?.interferenceCount ?? 0} icon={<Sigma size={10}/>} color="text-cyan-400" tooltip="Número de eventos de interferência quântica no último tick." />
-                        <Stat label="Emaranhados" value={state?.entangledPairsCount ?? 0} icon={<Link size={10}/>} color="text-purple-400" tooltip="Pares de partículas com estados correlacionados instantaneamente." />
-                        <Stat label="Fase Média" value={(state?.avgPhase ?? 0).toFixed(2)} icon={<Orbit size={10}/>} color="text-indigo-400" tooltip="Média das fases quânticas (radianos) das partículas ativas." />
-                        <Stat label="Contexto" value={(state?.contextualityRate ?? 0).toFixed(2)} icon={<Info size={10}/>} color="text-yellow-400" tooltip="Taxa de viés contextual nas medições (Kochen-Specker)." />
+                        <Stat label="Interferência" value={state?.interferenceCount ?? 0} icon={<Sigma size={10}/>} color="text-cyan-400" tooltip="Eventos de superposição de ondas. Essencial para a formação de ligações químicas." range="Típico: 1000-20000" scientistMode={scientistMode} />
+                        <Stat label="Emaranhados" value={state?.entangledPairsCount ?? 0} icon={<Link size={10}/>} color="text-purple-400" tooltip="Pares de partículas com estados correlacionados. Base para a consciência coletiva." range="Cresce com a complexidade" scientistMode={scientistMode} />
+                        <Stat label="Fase Média" value={(state?.avgPhase ?? 0).toFixed(2)} icon={<Orbit size={10}/>} color="text-indigo-400" tooltip="Média das fases quânticas. Determina se a interferência é construtiva ou destrutiva." range="0 - 2π (π = Destrutiva)" scientistMode={scientistMode} />
+                        <Stat label="Contexto" value={(state?.contextualityRate ?? 0).toFixed(2)} icon={<Info size={10}/>} color="text-yellow-400" tooltip="Taxa de viés contextual. Mede o quanto o universo é influenciado pelo ato de observar." range="0.0 - 1.0" scientistMode={scientistMode} />
                       </div>
                     </div>
                   )}
 
                   {activeTab === 'life' && (
                     <div className="space-y-2">
-                      <Metric label="Fertilidade" value={state?.fertility ?? 0} icon={<Activity size={11}/>} color="text-orange-400" trend={getTrend(state?.fertility, prevStats.fertility)} tooltip="Potencial de replicação e evolução biológica baseado em reciclagem de energia." />
+                      <Metric 
+                        label="Fertilidade" 
+                        value={state?.fertility ?? 0} 
+                        icon={<Activity size={11}/>} 
+                        color="text-orange-400" 
+                        trend={getTrend(state?.fertility, prevStats.fertility)} 
+                        tooltip="Capacidade do ambiente de sustentar vida. Depende de densidade orgânica e reciclagem de matéria." 
+                        formula="(OrgDensity * 10) + (Recycle * 5)"
+                        range="> 5.0 (Bio-favorável)"
+                        scientistMode={scientistMode}
+                      />
                       <div className="grid grid-cols-2 gap-2">
-                        <Stat label="Moléculas" value={state?.moleculeCount ?? 0} icon={<Atom size={10}/>} color="text-emerald-300" tooltip="Total de estruturas moleculares estáveis." />
-                        <Stat label="Orgânicas" value={state?.organicCount ?? 0} icon={<Zap size={10}/>} color="text-emerald-500" tooltip="Moléculas complexas com potencial biológico." />
-                        <Stat label="Vida" value={state?.lifeCount ?? 0} icon={<Heart size={10}/>} color="text-violet-400" tooltip="Partículas em estado metabólico ativo." />
-                        <Stat label="Gerações" value={state?.maxGeneration ?? 0} icon={<TrendingUp size={10}/>} color="text-violet-600" tooltip="Maior linhagem de replicação alcançada." />
+                        <Stat label="Moléculas" value={state?.moleculeCount ?? 0} icon={<Atom size={10}/>} color="text-emerald-300" tooltip="Estruturas químicas estáveis." scientistMode={scientistMode} />
+                        <Stat label="Orgânicas" value={state?.organicCount ?? 0} icon={<Zap size={10}/>} color="text-emerald-500" tooltip="Moléculas complexas baseadas em carbono." scientistMode={scientistMode} />
+                        <Stat label="Replicantes" value={state?.replicantCount ?? 0} icon={<RefreshCw size={10}/>} color="text-violet-400" tooltip="Moléculas capazes de auto-cópia." scientistMode={scientistMode} />
+                        <Stat label="Vida" value={state?.lifeCount ?? 0} icon={<Heart size={10}/>} color="text-red-400" tooltip="Partículas com metabolismo ativo." scientistMode={scientistMode} />
                       </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'log' && (
+                    <div className="space-y-0 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
+                      {state?.discoveryLog && state.discoveryLog.length > 0 ? (
+                        state.discoveryLog.slice().reverse().map((d, i) => (
+                          <div key={i} className="flex gap-3 p-2 border-b border-white/5 last:border-0 group hover:bg-white/5 transition-colors">
+                            <div className="flex flex-col items-center gap-1 mt-1">
+                              <div className="w-1 h-1 rounded-full bg-orange-500/50" />
+                              <div className="w-[1px] flex-1 bg-white/10" />
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-1.5">
+                                  <Clock size={10} className="text-orange-400 opacity-60" />
+                                  <span className="text-[8px] uppercase tracking-widest font-bold text-white/40">{d.category}</span>
+                                </div>
+                                <span className="text-[8px] font-mono text-white/20">T+{d.tick}</span>
+                              </div>
+                              <p className="text-[10px] text-zinc-300 leading-snug italic">"{d.message || d.event}"</p>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8 opacity-20 text-[9px]">Nenhuma descoberta registrada ainda...</div>
+                      )}
                     </div>
                   )}
 
                   {activeTab === 'civ' && (
                     <div className="space-y-2">
-                      <Metric label="Cultura" value={state?.culture ?? 0} icon={<Globe size={11}/>} color="text-orange-300" trend={getTrend(state?.culture, prevStats.culture)} tooltip="Acúmulo de informação compartilhada entre consciências." />
+                      <Metric label="Cultura" value={state?.culture ?? 0} icon={<Globe size={11}/>} color="text-orange-300" trend={getTrend(state?.culture, prevStats.culture)} tooltip="Acúmulo de informação compartilhada entre consciências." scientistMode={scientistMode} />
                       <div className="grid grid-cols-2 gap-2">
-                        <Stat label="Relações" value={state?.relationsCount ?? 0} icon={<Share2 size={10}/>} color="text-blue-300" tooltip="Conexões significativas entre mentes." />
-                        <Stat label="Nós" value={state?.collectiveConsciousnessNodes ?? 0} icon={<Network size={10}/>} color="text-violet-300" tooltip="Número de mentes integradas na rede coletiva." />
-                        <Stat label="Tecnologia" value={state?.technology ?? 0} icon={<Cpu size={10}/>} color="text-cyan-400" tooltip="Nível de manipulação da realidade física." />
-                        <Stat label="Conscious" value={state?.consciousnessCount ?? 0} icon={<Eye size={10}/>} color="text-violet-400" tooltip="Total de observadores individuais." />
+                        <Stat label="Relações" value={state?.relationsCount ?? 0} icon={<Share2 size={10}/>} color="text-blue-300" tooltip="Conexões significativas entre mentes." scientistMode={scientistMode} />
+                        <Stat label="Nós" value={state?.collectiveConsciousnessNodes ?? 0} icon={<Network size={10}/>} color="text-violet-300" tooltip="Número de mentes integradas na rede coletiva." scientistMode={scientistMode} />
+                        <Stat label="Tecnologia" value={state?.technology ?? 0} icon={<Cpu size={10}/>} color="text-cyan-400" tooltip="Nível de manipulação da realidade física." scientistMode={scientistMode} />
+                        <Stat label="Conscious" value={state?.consciousnessCount ?? 0} icon={<Eye size={10}/>} color="text-violet-400" tooltip="Total de observadores individuais." scientistMode={scientistMode} />
                       </div>
                     </div>
                   )}
 
                   {activeTab === 'cosmic' && (
                     <div className="space-y-2">
-                      <Metric label="Entropia" value={state?.entropy ?? 1} icon={<Wind size={11}/>} color="text-gray-400" pct trend={getTrend(state?.entropy, prevStats.entropy)} tooltip="Medida de desordem e informação perdida no universo." />
+                      <Metric label="Entropia" value={state?.entropy ?? 1} icon={<Wind size={11}/>} color="text-gray-400" pct trend={getTrend(state?.entropy, prevStats.entropy)} tooltip="Medida de desordem e informação perdida no universo." scientistMode={scientistMode} />
                       <div className="grid grid-cols-2 gap-2">
-                        <Stat label="Curvatura" value={state?.maxCurvature ?? 0} icon={<Circle size={10}/>} color="text-indigo-400" tooltip="Distorção máxima do espaço-tempo causada pela massa." />
-                        <Stat label="Temperatura" value={state?.avgTemperature ?? 0} icon={<Thermometer size={10}/>} color="text-red-400" tooltip="Energia cinética média das partículas ativas." />
-                        <Stat label="Informação" value={Math.round(state?.totalInformation ?? 0)} icon={<Database size={10}/>} color="text-blue-500" tooltip="Conteúdo total de bits/energia processados pela simulação." />
-                        <Stat label="Pares" value={state?.pairProductionCount ?? 0} icon={<RefreshCw size={10}/>} color="text-orange-500" tooltip="Total de pares matéria-antimatter criados a partir de energia pura." />
+                        <Stat label="Curvatura" value={state?.maxCurvature ?? 0} icon={<Circle size={10}/>} color="text-indigo-400" tooltip="Distorção máxima do espaço-tempo causada pela massa." scientistMode={scientistMode} />
+                        <Stat label="Temperatura" value={state?.avgTemperature ?? 0} icon={<Thermometer size={10}/>} color="text-red-400" tooltip="Energia cinética média das partículas ativas." scientistMode={scientistMode} />
+                        <Stat label="Informação" value={Math.round(state?.totalInformation ?? 0)} icon={<Database size={10}/>} color="text-blue-500" tooltip="Conteúdo total de bits/energia processados pela simulação." scientistMode={scientistMode} />
+                        <Stat label="Pares" value={state?.pairProductionCount ?? 0} icon={<RefreshCw size={10}/>} color="text-orange-500" tooltip="Total de pares matéria-antimatter criados a partir de energia pura." scientistMode={scientistMode} />
                       </div>
                     </div>
                   )}
@@ -670,9 +746,14 @@ export default function App() {
               </div>
 
               <div className="border-t border-white/5 pt-3 space-y-1.5">
-                <div className="flex justify-between text-[9px]">
-                  <span className="opacity-40">Eficiência lazy:</span>
-                  <span className="text-emerald-400 font-bold">{lazyMetrics.economy}</span>
+                <div className="group relative flex justify-between text-[9px]">
+                  <span className="opacity-40">Eficiência Lazy:</span>
+                  <span className="text-emerald-400 font-bold">{(state?.efficiency ?? 0 * 100).toFixed(1)}%</span>
+                  <Tooltip 
+                    content="Economia de processamento ao não calcular regiões não observadas." 
+                    formula="1 - (LazyCost / EagerCost)" 
+                    range={`Custo Eager: ${Math.round(state?.eagerCost ?? 0)} | Lazy: ${Math.round(state?.lazyCost ?? 0)}`}
+                  />
                 </div>
               </div>
               
@@ -830,7 +911,15 @@ export default function App() {
           >
             <div className="bg-black/80 backdrop-blur-md border border-white/10 rounded-2xl p-6 shadow-2xl pointer-events-auto">
               <div className="flex justify-between items-start mb-2">
-                <h3 className="text-xs font-mono text-white/40 uppercase tracking-widest">Estado da Existência</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-mono text-white/40 uppercase tracking-widest">Estado da Existência</h3>
+                  <Tooltip 
+                    content="Frase gerada dinamicamente com base no estado atual do cosmos (complexidade, vida, tecnologia)."
+                    className="text-[10px] opacity-40 hover:opacity-100 transition-opacity"
+                  >
+                    <Info size={10} />
+                  </Tooltip>
+                </div>
                 <button onClick={() => setShowNarrative(false)} className="text-white/20 hover:text-white/60 transition-colors">
                   <X size={14} />
                 </button>
@@ -861,8 +950,22 @@ function getTrend(current: number | undefined, prev: number | undefined): 'up' |
   return 'neutral';
 }
 
-function Metric({ label, value, icon, color, pct, trend, tooltip }: {
-  label: string; value: number | string; icon: React.ReactNode; color: string; pct?: boolean; trend?: 'up' | 'down' | 'neutral'; tooltip?: string;
+function Tooltip({ content, formula, range }: { content: string; formula?: string; range?: string }) {
+  return (
+    <div className="absolute left-0 -top-16 z-50 w-56 p-2.5 bg-black/95 border border-white/15 rounded-lg shadow-2xl text-[9px] leading-relaxed opacity-0 group-hover:opacity-100 pointer-events-none transition-all transform translate-y-2 group-hover:translate-y-0">
+      <div className="text-white/90 font-medium mb-1">{content}</div>
+      {range && <div className="text-emerald-400/80 mb-1 italic">Ref: {range}</div>}
+      {formula && (
+        <div className="mt-1.5 pt-1.5 border-t border-white/10 font-mono text-[8px] text-white/40">
+          {formula}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Metric({ label, value, icon, color, pct, trend, tooltip, formula, range }: {
+  label: string; value: number | string; icon: React.ReactNode; color: string; pct?: boolean; trend?: 'up' | 'down' | 'neutral'; tooltip?: string; formula?: string; range?: string;
 }) {
   const n       = typeof value === 'string' ? parseFloat(value) : value;
   const display = pct ? `${(n*100).toFixed(1)}%` : (typeof value === 'number' ? value.toFixed(2) : value);
@@ -887,18 +990,13 @@ function Metric({ label, value, icon, color, pct, trend, tooltip }: {
         />
       </div>
 
-      {/* Tooltip Overlay */}
-      {tooltip && (
-        <div className="absolute left-0 -top-12 z-50 w-48 p-2 bg-black/90 border border-white/10 rounded-lg text-[9px] text-white/70 opacity-0 group-hover:opacity-100 pointer-events-none transition-all transform translate-y-2 group-hover:translate-y-0 shadow-2xl">
-          {tooltip}
-        </div>
-      )}
+      {tooltip && <Tooltip content={tooltip} formula={formula} range={range} />}
     </div>
   );
 }
 
-function Stat({ label, value, icon, color, tooltip }: {
-  label: string; value: number | string; icon: React.ReactNode; color: string; tooltip?: string;
+function Stat({ label, value, icon, color, tooltip, formula, range }: {
+  label: string; value: number | string; icon: React.ReactNode; color: string; tooltip?: string; formula?: string; range?: string;
 }) {
   return (
     <div className="group relative space-y-0.5">
@@ -907,12 +1005,7 @@ function Stat({ label, value, icon, color, tooltip }: {
       </div>
       <div className={`text-lg font-light tracking-tighter ${color}`}>{value}</div>
 
-      {/* Tooltip Overlay */}
-      {tooltip && (
-        <div className="absolute left-0 -top-10 z-50 w-40 p-1.5 bg-black/95 border border-white/10 rounded shadow-2xl text-[8px] text-white/70 opacity-0 group-hover:opacity-100 pointer-events-none transition-all transform translate-y-1 group-hover:translate-y-0">
-          {tooltip}
-        </div>
-      )}
+      {tooltip && <Tooltip content={tooltip} formula={formula} range={range} />}
     </div>
   );
 }

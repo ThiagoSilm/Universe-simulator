@@ -107,6 +107,14 @@ export interface UniverseState {
   metaConsciousness: boolean;
   extinctionCycles: number;
   
+  // Efficiency metrics
+  eagerCost: number;
+  lazyCost: number;
+  efficiency: number;
+  
+  // Discovery & History
+  discoveryLog: { tick: number, event: string, category: 'quantum' | 'life' | 'civ' | 'cosmic' }[];
+  
   campoLatente: LatentInformation[];
   events: string[];
 
