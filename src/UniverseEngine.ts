@@ -10,7 +10,7 @@ const CLUSTER_COUNT          = 24;
 const CLUSTER_RADIUS         = 350;
 const UNIVERSE_RADIUS        = 60000;
 
-const GRID_SIZE              = 60;
+export const GRID_SIZE              = 60;
 
 // Forces
 const C                      = 40;       // speed of light
@@ -114,6 +114,8 @@ export class UniverseEngine {
   private energyGrid: Map<string, RegionData> = new Map();
   private molecules:  Map<string, Molecule>   = new Map();
   public  particles:  Particle[];
+  public get energyGridMap() { return this.energyGrid; }
+  public get moleculesMap() { return this.molecules; }
 
   // Lazy metrics
   public temperature: VariavelInfinita;
@@ -282,6 +284,7 @@ export class UniverseEngine {
       isCollectiveConscious: false,
       knowledge: 0,
       tools: 0,
+      age: 0,
       ...extra,
     };
   }
@@ -737,6 +740,20 @@ export class UniverseEngine {
   public step(): UniverseState {
     const tick = ++this.state.tick;
 
+    // Optimization: Pre-calculate active regions to skip empty ones
+    const activeRegions = new Set<string>();
+    for (const [key, region] of this.energyGrid) {
+      // More aggressive active region check: only regions with significant activity or recent activity
+      if (region.energy > 0.02 || region.temperature > 0.02 || region.curvature > 0.02 || (tick - region.lastActiveTick < 5)) {
+        activeRegions.add(key);
+      } else if (tick % 60 === 0) {
+        // Occasionally cleanup very old/dead regions to save memory
+        if (tick - region.lastActiveTick > 500 && region.energy < 0.001 && region.temperature < 0.001) {
+          this.energyGrid.delete(key);
+        }
+      }
+    }
+
     // ── 1. BUILD GRIDS — active particles curve spacetime. ─────────
     //    Dormant particles are unobserved: they don't emit a classical
     //    gravitational field. They exist in quantum superposition.
@@ -793,8 +810,9 @@ export class UniverseEngine {
     }
 
     // ── 3. TEMPERATURE DIFFUSION ────────────────────────────────────
-    for (const [key, region] of this.energyGrid) {
-      if (region.temperature < 0.001) continue;
+    for (const key of activeRegions) {
+      const region = this.energyGrid.get(key);
+      if (!region || region.temperature < 0.001) continue;
       const [gx, gy] = key.split(',').map(Number);
       const diffuse  = region.temperature * TEMP_DIFFUSE;
       for (const [ddx, ddy] of [[1,0],[-1,0],[0,1],[0,-1]] as [number,number][]) {
@@ -804,11 +822,10 @@ export class UniverseEngine {
     }
 
     // ── 4. PAIR PRODUCTION — energy → matter + antimatter ──────────
-    //    In hot enough regions, thermal energy spontaneously creates
-    //    particle/antiparticle pairs. Energy is conserved.
     let pairCount = 0;
-    for (const [key, region] of this.energyGrid) {
-      if (region.temperature < PAIR_TEMP_THRESHOLD) continue;
+    for (const key of activeRegions) {
+      const region = this.energyGrid.get(key);
+      if (!region || region.temperature < PAIR_TEMP_THRESHOLD) continue;
       if (Math.random() > PAIR_PROB_PER_REGION) continue;
       const [gx, gy] = key.split(',').map(Number);
       const cx = gx*GRID_SIZE + GRID_SIZE/2, cy = gy*GRID_SIZE + GRID_SIZE/2;
@@ -921,12 +938,22 @@ export class UniverseEngine {
     for (const p1 of this.particles) {
       if (toKill.has(p1.id)) continue;
 
+      const gx = Math.floor(p1.x/GRID_SIZE);
+      const gy = Math.floor(p1.y/GRID_SIZE);
+      const gridKey = `${gx},${gy}`;
+      const region = this.getRegion(gx, gy);
+
       // ── DORMANT PATH — O(1); no nested loops ─────────────────────
       //    In quantum superposition: only geodesic drift + wave growth
       if (p1.isLatent) {
-        const gx = Math.floor(p1.x/GRID_SIZE), gy = Math.floor(p1.y/GRID_SIZE);
-        const r  = this.getRegion(gx, gy);
-        const tf = 1 / (1 + r.curvature * TIME_DILATION_STR);
+        // Even more lazy: if region is totally dead and particle is slow, skip movement entirely
+        if (!activeRegions.has(gridKey) && Math.abs(p1.vx) < 0.001 && Math.abs(p1.vy) < 0.001) {
+          // Still age the particle slightly
+          p1.age += 0.1;
+          continue;
+        }
+
+        const tf = 1 / (1 + region.curvature * TIME_DILATION_STR);
         const nc = [
           this.getRegion(gx-1,gy).curvature, this.getRegion(gx+1,gy).curvature,
           this.getRegion(gx,gy-1).curvature, this.getRegion(gx,gy+1).curvature,
@@ -936,18 +963,31 @@ export class UniverseEngine {
         p1.x  += p1.vx * tf * 0.3;
         p1.y  += p1.vy * tf * 0.3;
         p1.vx *= 0.995; p1.vy *= 0.995;
+        
         // De Broglie: in isolation, wave packet spreads
         const p_mag = Math.sqrt(p1.vx**2+p1.vy**2) * p1.weight;
         p1.waveRadius = Math.min(WAVE_INITIAL*2, WAVE_INITIAL / (1 + p_mag*HBAR_INV));
+        
+        // Chance to wake up if energy is high
+        if (region.energy > 0.9 && Math.random() < 0.005) p1.isLatent = false;
         continue;
       }
 
       // ── ACTIVE PATH ──────────────────────────────────────────────
-      const gx     = Math.floor(p1.x/GRID_SIZE);
-      const gy     = Math.floor(p1.y/GRID_SIZE);
-      const region = this.getRegion(gx, gy);
       region.lastActiveTick = tick;
       const tf = 1 / (1 + region.curvature * TIME_DILATION_STR);
+
+      // Throttled interaction: only check neighbors every few ticks if moving slowly
+      const speed2 = p1.vx**2 + p1.vy**2;
+      const shouldSkipInteraction = speed2 < 0.1 && (tick + p1.weight * 100) % 4 !== 0;
+      
+      if (shouldSkipInteraction) {
+        // Basic movement only
+        p1.x += p1.vx * tf;
+        p1.y += p1.vy * tf;
+        p1.vx *= 0.99; p1.vy *= 0.99;
+        continue;
+      }
 
       // a. Complexity maintenance cost
       if (p1.isCollapsed) {

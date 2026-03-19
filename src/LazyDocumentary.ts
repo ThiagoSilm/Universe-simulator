@@ -23,24 +23,30 @@ export class LazyDocumentary {
     const particles = this.universe.particles;
     const totalEntidades = particles.length;
     
-    // Filtra partículas que "valem a pena" (não latentes e com atividade recente)
-    const entidadesAtivas = particles.filter(p => !p.isLatent);
+    // Use pre-calculated counts if possible, or do a single pass
+    let latentCount = 0;
+    for (const p of particles) {
+      if (p.isLatent) latentCount++;
+    }
+    const activeCount = totalEntidades - latentCount;
     
     // Simula a economia baseada no que NÃO está sendo calculado (latentes)
-    this.economia = 1 - (entidadesAtivas.length / (totalEntidades || 1));
+    this.economia = 1 - (activeCount / (totalEntidades || 1));
     
     // Captura eventos significativos (baseado no histórico de eventos do motor)
-    const eventosRecentes = this.universe.state.events.slice(-5).map(text => ({
-      text,
-      importancia: Math.random(), // Simulação de importância
-      timestamp: this.universe.state.tick
-    })).filter(e => e.importancia > this.LIMIAR);
+    const eventosRecentes = this.universe.state.events.length > 0 
+      ? this.universe.state.events.slice(-3).map(text => ({
+          text,
+          importancia: 0.6 + Math.random() * 0.4, // High importance for recent events
+          timestamp: this.universe.state.tick
+        }))
+      : [];
 
     return {
       eventos: eventosRecentes,
       economia: `${(this.economia * 100).toFixed(2)}% economizado`,
-      latentesPct: (particles.filter(p => p.isLatent).length / (totalEntidades || 1) * 100).toFixed(2),
-      calculandoPct: (entidadesAtivas.length / (totalEntidades || 1) * 100).toFixed(2)
+      latentesPct: (latentCount / (totalEntidades || 1) * 100).toFixed(2),
+      calculandoPct: (activeCount / (totalEntidades || 1) * 100).toFixed(2)
     };
   }
 

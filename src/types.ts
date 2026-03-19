@@ -36,6 +36,7 @@ export interface Particle {
   isCollectiveConscious: boolean;
   knowledge: number;
   tools: number;
+  age: number;
 }
 
 export interface Molecule {
@@ -97,12 +98,6 @@ export interface UniverseState {
   
   campoLatente: LatentInformation[];
   events: string[];
-
-  // Cosmology metrics
-  scaleFactor: number;
-  hubbleRate: number;
-  horizon: number;
-  phase: 'expansion' | 'collapse';
 
   // legacy
   viewportX: number;

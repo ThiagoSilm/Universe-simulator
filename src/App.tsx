@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Zap, Activity, Brain, Orbit, RefreshCw, Info, Layers, Cpu, Thermometer, Atom, Sigma } from 'lucide-react';
-import { UniverseEngine, PersistentState } from './UniverseEngine';
+import { UniverseEngine, PersistentState, GRID_SIZE } from './UniverseEngine';
 import { LazyDocumentary } from './LazyDocumentary';
 import { UniverseState, Particle } from './types';
 
@@ -37,7 +37,7 @@ function computeTransform(particles: Particle[], w: number, h: number, spectator
   };
 }
 
-function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, state: UniverseState) {
+function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, state: UniverseState, engine: UniverseEngine) {
   const { particles } = state;
   if (particles.length === 0) return;
 
@@ -46,6 +46,45 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
 
   const spectatorTarget = state.isSpectatorMode ? { x: state.viewportX, y: state.viewportY, zoom: state.zoom } : undefined;
   const { toX, toY, scale } = computeTransform(particles, w, h, spectatorTarget);
+
+  // ── Layer 0: Energy Grid (Economy/Entropy) ──────────────────────────
+  const grid = engine.energyGridMap;
+  if (grid && scale > 0.001) {
+    ctx.save();
+    const viewW = w / scale;
+    const viewH = h / scale;
+    // Approximate viewport in world coordinates
+    const viewX = state.viewportX - viewW / 2;
+    const viewY = state.viewportY - viewH / 2;
+
+    for (const [key, region] of grid) {
+      if (region.energy < 0.05 && region.temperature < 0.05) continue;
+      
+      const [gx, gy] = key.split(',').map(Number);
+      const wx = gx * GRID_SIZE;
+      const wy = gy * GRID_SIZE;
+      
+      // Basic culling
+      if (wx < viewX - GRID_SIZE || wx > viewX + viewW + GRID_SIZE || 
+          wy < viewY - GRID_SIZE || wy > viewY + viewH + GRID_SIZE) continue;
+
+      const x = toX(wx), y = toY(wy);
+      const s = GRID_SIZE * scale;
+      
+      const energyAlpha = Math.min(0.15, region.energy * 0.1);
+      const tempAlpha = Math.min(0.15, region.temperature * 0.1);
+      
+      if (energyAlpha > 0.01) {
+        ctx.fillStyle = `rgba(0, 150, 255, ${energyAlpha})`;
+        ctx.fillRect(x, y, s, s);
+      }
+      if (tempAlpha > 0.01) {
+        ctx.fillStyle = `rgba(255, 100, 0, ${tempAlpha})`;
+        ctx.fillRect(x, y, s, s);
+      }
+    }
+    ctx.restore();
+  }
 
   // ── Layer 1: gravitational field glow ──────────────────────────────
   ctx.save();
@@ -394,7 +433,7 @@ export default function App() {
     const canvas = canvasRef.current;
     if (canvas) {
       const ctx = canvas.getContext('2d');
-      if (ctx) renderUniverse(ctx, canvas.width, canvas.height, newState);
+      if (ctx && engineRef.current) renderUniverse(ctx, canvas.width, canvas.height, newState, engineRef.current);
     }
     requestRef.current = requestAnimationFrame(animate);
   }, []);
