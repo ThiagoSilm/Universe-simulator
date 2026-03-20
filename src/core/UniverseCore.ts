@@ -153,6 +153,11 @@ export class UniverseCore {
   private readonly MUTATION_RATE_PHYSICAL = 0.05;
   private readonly MUTATION_RATE_MEMORY = 0.3;
 
+  // Entropy Constants
+  private readonly ENTROPY_COST_BASE = 0.001;
+  private readonly ENTROPY_DENSITY_FACTOR = 0.0005;
+  private readonly TRACE_DECAY_RATE = 0.05;
+
   constructor(seed: number = Math.random(), initialParticles: number = 5000) {
     this.seed = seed;
     this.initialize(initialParticles);
@@ -312,6 +317,17 @@ export class UniverseCore {
         const neighbors = qt.query(p.x, p.y, 500); // Reduced range
         totalCandidatesFound += neighbors.length;
         
+        // --- Entropy Law: Cost of Information Maintenance ---
+        const density = neighbors.length;
+        const entropyCost = this.ENTROPY_COST_BASE + (density * this.ENTROPY_DENSITY_FACTOR);
+        p.energy -= entropyCost;
+        
+        // Trace Decay: Information fades faster in dense environments
+        if (density > 5 && p.traces.length > 0) {
+          p.traces = p.traces.filter(() => Math.random() > this.TRACE_DECAY_RATE);
+        }
+        // ----------------------------------------------------
+
         if (neighbors.length > 1) {
           this.calculateForce(p, neighbors);
           this.decisionsPerTick++;
