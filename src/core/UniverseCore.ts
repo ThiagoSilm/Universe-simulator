@@ -34,17 +34,20 @@ class Quadtree {
   private centerY: number;
   private size: number;
   private capacity: number = 4;
+  private depth: number;
+  private maxDepth: number = 12;
 
-  constructor(x: number, y: number, size: number) {
+  constructor(x: number, y: number, size: number, depth: number = 0) {
     this.centerX = x;
     this.centerY = y;
     this.size = size;
+    this.depth = depth;
   }
 
   public insert(p: ParticleCore): boolean {
     if (!this.contains(p.x, p.y)) return false;
 
-    if (this.particles.length < this.capacity && this.children.length === 0) {
+    if (this.particles.length < this.capacity || this.depth >= this.maxDepth) {
       this.particles.push(p);
       return true;
     }
@@ -69,11 +72,12 @@ class Quadtree {
 
   private subdivide() {
     const s = this.size / 2;
+    const d = this.depth + 1;
     this.children = [
-      new Quadtree(this.centerX - s, this.centerY - s, s),
-      new Quadtree(this.centerX + s, this.centerY - s, s),
-      new Quadtree(this.centerX - s, this.centerY + s, s),
-      new Quadtree(this.centerX + s, this.centerY + s, s)
+      new Quadtree(this.centerX - s, this.centerY - s, s, d),
+      new Quadtree(this.centerX + s, this.centerY - s, s, d),
+      new Quadtree(this.centerX - s, this.centerY + s, s, d),
+      new Quadtree(this.centerX + s, this.centerY + s, s, d)
     ];
 
     for (const p of this.particles) {
@@ -202,72 +206,78 @@ export class UniverseCore {
     for (const p of this.activeParticles) {
       // 1. Cosmological Expansion (Λ)
       // Space expands, pushing particles away from center
-      p.x *= (1 + this.LAMBDA);
-      p.y *= (1 + this.LAMBDA);
+      if (!p.isBlackHole) {
+        p.x *= (1 + this.LAMBDA);
+        p.y *= (1 + this.LAMBDA);
+      }
 
       // 2. Tempo Próprio & Relatividade (c)
       p.age++;
       
-      // Cap velocity at c
-      const speedSq = p.vx * p.vx + p.vy * p.vy;
-      if (speedSq > this.C * this.C) {
-        const speed = Math.sqrt(speedSq);
-        p.vx = (p.vx / speed) * this.C;
-        p.vy = (p.vy / speed) * this.C;
+      if (!p.isBlackHole) {
+        // Cap velocity at c
+        const speedSq = p.vx * p.vx + p.vy * p.vy;
+        if (speedSq > this.C * this.C) {
+          const speed = Math.sqrt(speedSq);
+          p.vx = (p.vx / speed) * this.C;
+          p.vy = (p.vy / speed) * this.C;
+        }
+
+        p.x += p.vx;
+        p.y += p.vy;
+        
+        // Boundary check (Universe Horizon)
+        const horizon = 50000 + this.tickCount * this.LAMBDA * 100;
+        if (Math.abs(p.x) > horizon) { p.vx *= -1; p.x = Math.sign(p.x) * horizon; }
+        if (Math.abs(p.y) > horizon) { p.vy *= -1; p.y = Math.sign(p.y) * horizon; }
       }
 
-      p.x += p.vx;
-      p.y += p.vy;
-      
-      // Boundary check (Universe Horizon)
-      const horizon = 50000 + this.tickCount * this.LAMBDA * 100;
-      if (Math.abs(p.x) > horizon) { p.vx *= -1; p.x = Math.sign(p.x) * horizon; }
-      if (Math.abs(p.y) > horizon) { p.vy *= -1; p.y = Math.sign(p.y) * horizon; }
-
       // 3. Auto-observação (h)
-      this.selfObserve(p);
+      // Singularities are points of silence, they don't self-observe
+      if (!p.isBlackHole) {
+        this.selfObserve(p);
+      }
 
       // 4. Busca Local Ativa (G & Planck Length)
-      const neighbors = qt.query(p.x, p.y, 2000);
-      totalCandidatesFound += neighbors.length;
-      
-      if (neighbors.length > 1) {
-        this.activeLocalSearch(p, neighbors);
-        this.decisionsPerTick++;
-      } else {
-        p.energy -= 0.005;
+      // Singularities don't search, they only attract
+      if (!p.isBlackHole) {
+        const neighbors = qt.query(p.x, p.y, 2000);
+        totalCandidatesFound += neighbors.length;
+        
+        if (neighbors.length > 1) {
+          this.activeLocalSearch(p, neighbors);
+          this.decisionsPerTick++;
+        } else {
+          p.energy -= 0.005;
+        }
       }
 
       // 5. Planck Temperature Check
       if (p.energy > this.PLANCK_TEMP) {
         p.energy = this.PLANCK_TEMP;
-        // High energy fragmentation simulation
-        p.vx *= 1.2;
-        p.vy *= 1.2;
+        if (!p.isBlackHole) {
+          p.vx *= 1.2;
+          p.vy *= 1.2;
+        }
       }
 
       // 6. Singularity / Schwarzschild Collapse
-      // A particle collapses into a singularity if its mass-density exceeds the Schwarzschild limit
-      // or if its information density exceeds the Bekenstein limit.
       const rs = (2 * this.G * p.mass) / (this.C * this.C);
       if (!p.isBlackHole && (p.traces.length >= this.BEKENSTEIN_LIMIT || rs > this.PLANCK_LENGTH)) {
         p.isBlackHole = true; 
         p.energy = 0;
         p.vx = 0;
         p.vy = 0;
-        // A singularity is a point of silence; it no longer "exists" as a particle
-        // but remains as a gravitational anchor.
-      }
-
-      if (p.isBlackHole) {
-        p.vx = 0;
-        p.vy = 0;
+        p.traces = []; // Information is collapsed
       }
 
       this.activeTracesCount += p.traces.length;
 
       // Energy death or inactivity
-      if (p.energy <= 0 || (this.tickCount - p.lastActiveTick > 1000)) {
+      // Absorbed particles (isBound) or exhausted particles go to sleep
+      if (p.isBound || p.energy <= 0) {
+        if (!p.isBlackHole) toSleep.push(p);
+      } else if (this.tickCount - p.lastActiveTick > 1000 && !p.isBlackHole) {
         toSleep.push(p);
       }
     }
@@ -308,7 +318,7 @@ export class UniverseCore {
   }
 
   private activeLocalSearch(p: ParticleCore, neighbors: ParticleCore[]) {
-    const candidates = neighbors.filter(n => n.id !== p.id);
+    const candidates = neighbors.filter(n => n.id !== p.id).slice(0, 10);
     if (candidates.length === 0) return;
 
     const affinities = candidates.map(n => {
@@ -359,6 +369,9 @@ export class UniverseCore {
         // Information is "absorbed" by the singularity
         selected.particle.traces.push({ targetId: p.id, affinity: 1, tick: this.tickCount });
         if (selected.particle.traces.length > this.BEKENSTEIN_LIMIT) selected.particle.traces.shift();
+        
+        // Singularity mass increases slightly by absorbing the particle
+        selected.particle.mass += p.mass * 0.1; 
         
         p.traces = [];
         return;
@@ -417,6 +430,9 @@ export class UniverseCore {
     for (let i = 0; i < this.particles.length; i++) {
       const p = this.particles[i];
       
+      // Absorbed particles cannot be observed
+      if (p.isBound) continue;
+
       if (p.isLatent) {
         const dt = this.tickCount - p.lastActiveTick;
         const predictedX = p.x + p.vx * dt;
@@ -444,9 +460,17 @@ export class UniverseCore {
   }
 
   public getSnapshot() {
+    // Lazy Snapshot: Only send active particles and a stable subset of latent ones
+    // This significantly reduces worker postMessage overhead and main thread rendering load.
+    const active = Array.from(this.activeParticles);
+    
+    // We send a 10% sample of latent particles to maintain the "quantum background" visual
+    // without the cost of 5000 objects.
+    const sampledLatent = this.particles.filter((p, i) => p.isLatent && i % 10 === 0);
+    
     return {
       tick: this.tickCount,
-      particles: this.particles.map(p => ({ ...p })),
+      particles: [...active, ...sampledLatent].map(p => ({ ...p })),
       activeCount: this.activeParticles.size,
       totalCount: this.particles.length,
       metrics: {
