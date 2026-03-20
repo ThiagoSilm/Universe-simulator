@@ -284,7 +284,7 @@ export class UniverseCore {
         totalCandidatesFound += neighbors.length;
         
         if (neighbors.length > 1) {
-          this.activeLocalSearch(p, neighbors);
+          this.calculateForce(p, neighbors);
           this.decisionsPerTick++;
         } else {
           p.energy -= 0.005;
@@ -407,7 +407,7 @@ export class UniverseCore {
 
   private calculateForce(p: ParticleCore, neighbors: ParticleCore[]): { fx: number; fy: number } {
     const candidates = neighbors.filter(n => n.id !== p.id).slice(0, 10);
-    if (candidates.length === 0) return;
+    if (candidates.length === 0) return { fx: 0, fy: 0 };
 
     const affinities = candidates.map(n => {
       const dx = n.x - p.x;
@@ -456,43 +456,23 @@ export class UniverseCore {
       }
     }
 
-    // Apply Gravity & Interaction
-    const force = selected.gravity;
-    
-    if (selected.particle.isBlackHole) {
-      const rs = (2 * this.G * selected.particle.weight) / (this.C * this.C);
-      // Horizon of Events: If too close to a singularity, it is absorbed
-      if (selected.dist < rs) {
-        p.energy = 0;
-        p.vx = 0;
-        p.vy = 0;
-        p.isBound = true;
-        // Information is "absorbed" by the singularity
-        selected.particle.traces.push({ targetId: p.id, affinity: 1, tick: this.tickCount });
-        if (selected.particle.traces.length > this.BEKENSTEIN_LIMIT) selected.particle.traces.shift();
-        
-        // Singularity mass increases slightly by absorbing the particle
-        selected.particle.weight += p.weight * 0.1; 
-        
-        p.traces = [];
-        return;
-      }
-    }
-
-    p.vx += (selected.dx / selected.dist) * force;
-    p.vy += (selected.dy / selected.dist) * force;
-
     // Information exchange
     p.traces.push({ 
-      targetId: selected.particle.id, 
-      affinity: selected.affinity, 
-      tick: this.tickCount 
+      targetId: selected.particle.id,
+      affinity: selected.affinity,
+      tick: this.tickCount
     });
     if (p.traces.length > this.BEKENSTEIN_LIMIT) p.traces.shift();
     
     // Energy exchange (Quanta)
     p.energy = Math.min(this.PLANCK_TEMP, p.energy + this.H);
     p.lastActiveTick = this.tickCount;
+
+    // Return force vector
+    return {
+      fx: (selected.dx / selected.dist) * selected.gravity,
+      fy: (selected.dy / selected.dist) * selected.gravity
+    };
   }
 
   private wakeUp(p: ParticleCore) {
