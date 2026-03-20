@@ -19,6 +19,7 @@ export interface Particle {
   charge: number;            // electromagnetic charge: -1 | 0 | +1
   // State flags
   isBound: boolean;          // in a nuclear bound state (atom analogue)
+  isBlackHole?: boolean;     // collapsed state
   latentTraces?: LatentTrace[];
   entangledWith?: string | null; // Quantum entanglement partner ID
   isDarkMatter?: boolean;    // Interacts only gravitationally
@@ -162,6 +163,8 @@ export interface UniverseState {
   avgCandidates: number;
   totalSelfEnergy: number;
   activeTracesCount: number;
+  blackHoleCount: number;
+  horizonSize: number;
 }
 
 export interface CycleHistory {

@@ -70,6 +70,8 @@ export class ObserverLayer {
     avgCandidates: 0,
     totalSelfEnergy: 0,
     activeTracesCount: 0,
+    blackHoleCount: 0,
+    horizonSize: 0,
   };
 
   constructor(savedState?: any) {
@@ -111,21 +113,29 @@ export class ObserverLayer {
     let maxLvl = 1;
     let chrgd = 0;
     let bnd = 0;
+    let bhCount = 0;
+    let totalVel = 0;
     
     // As métricas são calculadas apenas sobre o que está ATIVO (Lazy)
     // Se o worker já nos deu o activeCount, não precisamos contar de novo!
     for (const p of particles) {
       if (!p.isLatent) {
-        tempSum += p.vx * p.vx + p.vy * p.vy;
+        const vel = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+        totalVel += vel;
+        tempSum += vel * vel;
         const curv = Math.abs(p.vx || 0) + Math.abs(p.vy || 0);
         if (curv > maxCurv) maxCurv = curv;
         if (p.level > maxLvl) maxLvl = p.level;
         if (p.charge !== 0) chrgd++;
         if (p.isBound) bnd++;
+        if (p.isBlackHole) bhCount++;
       }
     }
 
     this.metrics.avgTemperature = tempSum / (activeCount || 1);
+    this.metrics.avgTimeDilation = totalVel / (activeCount * 50 || 1); // Normalized to C=50
+    this.metrics.blackHoleCount = bhCount;
+    this.metrics.horizonSize = 50000 + snapshot.tick * 0.0001 * 100;
     this.metrics.lazyCost = activeCount;
     this.metrics.eagerCost = totalCount;
     this.metrics.efficiency = 100 - (activeCount / (totalCount || 1)) * 100;

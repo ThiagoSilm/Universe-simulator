@@ -21,6 +21,8 @@ import {
   Eye,
   Wind,
   Circle,
+  CircleDot,
+  Expand,
   Database,
   X,
   Beaker,
@@ -91,6 +93,7 @@ function renderUniverse(
   const { particles } = state;
   if (particles.length === 0) return;
 
+  // ── Layer 1: Background & Horizon ──────────────────────────────────
   ctx.fillStyle = "#050505";
   ctx.fillRect(0, 0, w, h);
 
@@ -103,6 +106,17 @@ function renderUniverse(
     h,
     spectatorTarget,
   );
+
+  // Universe Horizon Visualization
+  const horizon = 50000 + state.tick * 0.0001 * 100;
+  ctx.save();
+  ctx.strokeStyle = "rgba(255, 50, 50, 0.1)";
+  ctx.lineWidth = 2;
+  ctx.setLineDash([20, 20]);
+  ctx.beginPath();
+  ctx.arc(toX(0), toY(0), horizon * scale, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 
   // ── Layer -1: Heatmap (Active vs Latent) ───────────────────────────
   if (state.activeGridKeys) {
@@ -311,6 +325,30 @@ function renderUniverse(
       ctx.moveTo(x, y);
       ctx.lineTo(x + nx * len, y + ny * len);
       ctx.stroke();
+    }
+
+    // Black Hole Visualization
+    if (p.isBlackHole) {
+      const bhSize = size * 4;
+      ctx.save();
+      // Event Horizon
+      const grad = ctx.createRadialGradient(x, y, bhSize * 0.5, x, y, bhSize * 2);
+      grad.addColorStop(0, "rgba(0, 0, 0, 1)");
+      grad.addColorStop(0.5, "rgba(20, 0, 40, 0.8)");
+      grad.addColorStop(1, "transparent");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, bhSize * 2, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Accretion Disk (faint)
+      ctx.strokeStyle = "rgba(255, 150, 50, 0.3)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(x, y, bhSize * 3, bhSize * 0.8, p.phase, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+      continue; // Don't draw regular particle core
     }
 
     // Core with charge color
@@ -1040,6 +1078,33 @@ export default function App() {
                           color="text-purple-400"
                           tooltip="Total de memórias de interação (traces) atualmente em processamento."
                           range="Memória de curto prazo"
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Buracos Negros"
+                          value={state?.blackHoleCount ?? 0}
+                          icon={<CircleDot size={10} />}
+                          color="text-red-500"
+                          tooltip="Colapsos gravitacionais por excesso de informação (Bekenstein) ou massa."
+                          range="Singularidades"
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Horizonte (Ly)"
+                          value={(state?.horizonSize ?? 0).toFixed(0)}
+                          icon={<Expand size={10} />}
+                          color="text-rose-400"
+                          tooltip="Raio do universo observável. Expande com Λ."
+                          range="Causalidade"
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Dilatação Méd."
+                          value={(state?.avgTimeDilation ?? 0).toFixed(3)}
+                          icon={<Clock size={10} />}
+                          color="text-blue-300"
+                          tooltip="Média da dilatação temporal (v/c). 1.0 = Velocidade da luz."
+                          range="Relatividade"
                           scientistMode={scientistMode}
                         />
                       </div>

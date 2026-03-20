@@ -23,6 +23,8 @@ export interface ParticleCore {
   element: 'H' | 'C' | 'O' | 'N';
   generation: number;
   traces: ParticleTrace[];
+  isBlackHole: boolean;
+  isBound: boolean;
 }
 
 class Quadtree {
@@ -121,6 +123,15 @@ export class UniverseCore {
   private activeParticles: Set<ParticleCore> = new Set();
   private cosmicMemory: Map<string, ParticleTrace[]> = new Map();
   private seed: number;
+
+  // Fundamental Constants
+  private readonly C = 50; // Speed of light (pixels/tick)
+  private readonly H = 0.05; // Planck constant (energy/phase quantum)
+  private readonly G = 0.1; // Gravitational constant
+  private readonly LAMBDA = 0.0001; // Cosmological constant (expansion rate)
+  private readonly PLANCK_LENGTH = 2; // Minimum distance
+  private readonly PLANCK_TEMP = 1000; // Maximum energy
+  private readonly BEKENSTEIN_LIMIT = 20; // Max traces/information per particle
   
   // Metrics for ObserverLayer
   public decisionsPerTick: number = 0;
@@ -150,21 +161,23 @@ export class UniverseCore {
         id: `p-${i}`,
         x: (nextR() - 0.5) * 60000,
         y: (nextR() - 0.5) * 60000,
-        vx: (nextR() - 0.5) * 2,
-        vy: (nextR() - 0.5) * 2,
+        vx: (nextR() - 0.5) * 5,
+        vy: (nextR() - 0.5) * 5,
         mass: nextR() * 2 + 0.1,
         charge,
         isLatent: true,
         lastActiveTick: 0,
         age: 0,
         energy: 1.0,
-        phase: nextR() * Math.PI * 2,
+        phase: Math.floor((nextR() * Math.PI * 2) / this.H) * this.H,
         amplitude: nextR(),
         level: 1,
         weight: nextR() * 5,
         element,
         generation: 0,
         traces: [],
+        isBlackHole: false,
+        isBound: false,
       };
       this.particles.push(p);
     }
@@ -181,123 +194,186 @@ export class UniverseCore {
     const toWake: ParticleCore[] = [];
 
     // Rebuild Quadtree for active particles
-    const qt = new Quadtree(0, 0, 35000);
+    const qt = new Quadtree(0, 0, 100000); // Expanded for cosmological growth
     for (const p of this.activeParticles) {
       qt.insert(p);
     }
 
     for (const p of this.activeParticles) {
-      // 1. Tempo Próprio: Avançar baseado no tick individual
+      // 1. Cosmological Expansion (Λ)
+      // Space expands, pushing particles away from center
+      p.x *= (1 + this.LAMBDA);
+      p.y *= (1 + this.LAMBDA);
+
+      // 2. Tempo Próprio & Relatividade (c)
       p.age++;
+      
+      // Cap velocity at c
+      const speedSq = p.vx * p.vx + p.vy * p.vy;
+      if (speedSq > this.C * this.C) {
+        const speed = Math.sqrt(speedSq);
+        p.vx = (p.vx / speed) * this.C;
+        p.vy = (p.vy / speed) * this.C;
+      }
+
       p.x += p.vx;
       p.y += p.vy;
       
-      if (Math.abs(p.x) > 30000) p.vx *= -1;
-      if (Math.abs(p.y) > 30000) p.vy *= -1;
+      // Boundary check (Universe Horizon)
+      const horizon = 50000 + this.tickCount * this.LAMBDA * 100;
+      if (Math.abs(p.x) > horizon) { p.vx *= -1; p.x = Math.sign(p.x) * horizon; }
+      if (Math.abs(p.y) > horizon) { p.vy *= -1; p.y = Math.sign(p.y) * horizon; }
 
-      // 2. Auto-observação: Motor de existência
+      // 3. Auto-observação (h)
       this.selfObserve(p);
 
-      // 3. Busca Local Ativa
-      const neighbors = qt.query(p.x, p.y, 1000);
+      // 4. Busca Local Ativa (G & Planck Length)
+      const neighbors = qt.query(p.x, p.y, 2000);
       totalCandidatesFound += neighbors.length;
       
-      if (neighbors.length > 1) { // neighbors includes self
+      if (neighbors.length > 1) {
         this.activeLocalSearch(p, neighbors);
         this.decisionsPerTick++;
       } else {
-        // Se não encontrar ninguém, consome energia extra
         p.energy -= 0.005;
+      }
+
+      // 5. Planck Temperature Check
+      if (p.energy > this.PLANCK_TEMP) {
+        p.energy = this.PLANCK_TEMP;
+        // High energy fragmentation simulation
+        p.vx *= 1.2;
+        p.vy *= 1.2;
+      }
+
+      // 6. Bekenstein / Black Hole Collapse
+      // If a particle has too much information (traces) or mass, it might collapse
+      if (!p.isBlackHole && (p.traces.length >= this.BEKENSTEIN_LIMIT || p.mass > 50)) {
+        // Simple collapse condition: high density of traces or mass
+        p.isBlackHole = true;
+        p.mass *= 2; // Increase mass density
+        p.energy = 0; // Black holes are "cold" in terms of kinetic energy
+        p.vx = 0;
+        p.vy = 0;
+      }
+
+      if (p.isBlackHole) {
+        // Black hole "eats" nearby particles in activeLocalSearch
+        p.vx = 0;
+        p.vy = 0;
       }
 
       this.activeTracesCount += p.traces.length;
 
-      // Se energia chegar a zero, volta a dormant
-      if (p.energy <= 0 || (this.tickCount - p.lastActiveTick > 500)) {
+      // Energy death or inactivity
+      if (p.energy <= 0 || (this.tickCount - p.lastActiveTick > 1000)) {
         toSleep.push(p);
       }
     }
 
     this.avgCandidates = this.decisionsPerTick > 0 ? totalCandidatesFound / this.decisionsPerTick : 0;
 
-    // Spontaneous wake-up (background noise)
-    if (this.tickCount % 50 === 0 && this.activeParticles.size < 200) {
+    // Background noise wake-up
+    if (this.tickCount % 50 === 0 && this.activeParticles.size < 300) {
       const randomParticle = this.particles[Math.floor(Math.random() * this.particles.length)];
       if (randomParticle.isLatent) {
         toWake.push(randomParticle);
       }
     }
 
-    for (const p of toWake) {
-      this.wakeUp(p);
-    }
-
-    for (const p of toSleep) {
-      this.sleep(p);
-    }
+    for (const p of toWake) this.wakeUp(p);
+    for (const p of toSleep) this.sleep(p);
   }
 
   private selfObserve(p: ParticleCore) {
-    // Colapsa estado interno e consome energia
-    const cost = 0.001 * (1 + Math.sin(p.phase));
+    // Quantized energy consumption (h)
+    const cost = this.H * (1 + Math.sin(p.phase));
     p.energy -= cost;
     this.totalSelfEnergy += cost;
     
-    // Evolução da fase quântica própria
-    p.phase = (p.phase + 0.05) % (Math.PI * 2);
-    
-    // Amplitude oscila com a fase, representando a "presença" quântica
+    // Quantized phase evolution (h)
+    p.phase = (p.phase + this.H) % (Math.PI * 2);
     p.amplitude = 0.5 + 0.5 * Math.cos(p.phase);
     
-    // Retém informação: posição e fase são inerentes, mas podemos registrar um "log" interno
+    // Bekenstein Limit Check (Information capacity)
     if (p.age % 100 === 0) {
       p.traces.push({ targetId: 'self', affinity: 1, tick: this.tickCount });
-      if (p.traces.length > 10) p.traces.shift();
+      if (p.traces.length > this.BEKENSTEIN_LIMIT) {
+        p.traces.shift();
+        // Information overflow leads to slight energy loss
+        p.energy -= this.H;
+      }
     }
   }
 
   private activeLocalSearch(p: ParticleCore, neighbors: ParticleCore[]) {
-    // Calcular afinidade e escolher probabilisticamente
     const candidates = neighbors.filter(n => n.id !== p.id);
     if (candidates.length === 0) return;
 
     const affinities = candidates.map(n => {
-      const dx = p.x - n.x;
-      const dy = p.y - n.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+      const dx = n.x - p.x;
+      const dy = n.y - p.y;
+      const distSq = dx * dx + dy * dy;
+      const dist = Math.sqrt(distSq);
       
-      // Afinidade baseada em distância, fase e carga
+      // Planck Length Enforcement
+      const effectiveDist = Math.max(this.PLANCK_LENGTH, dist);
+      
+      // Gravity (G)
+      const gravity = (this.G * p.mass * n.mass) / (effectiveDist * effectiveDist);
+      
+      // Quantum Affinity (h)
       const phaseDiff = Math.cos(p.phase - n.phase);
       const chargeMatch = p.charge !== n.charge ? 1.5 : 0.5;
-      const affinity = (1 / (dist + 1)) * (1 + phaseDiff) * chargeMatch;
       
-      return { particle: n, affinity };
+      const affinity = (gravity + (1 / (effectiveDist + 1))) * (1 + phaseDiff) * chargeMatch;
+      
+      return { particle: n, affinity, gravity, dx, dy, dist: effectiveDist };
     });
 
-    // Escolha probabilística (Roleta)
+    // Probabilistic selection
     const totalAffinity = affinities.reduce((sum, a) => sum + a.affinity, 0);
     let r = Math.random() * totalAffinity;
-    let selected = affinities[0].particle;
+    let selected = affinities[0];
     
     for (const a of affinities) {
       r -= a.affinity;
       if (r <= 0) {
-        selected = a.particle;
+        selected = a;
         break;
       }
     }
 
-    // Registrar interação
-    p.traces.push({ targetId: selected.id, affinity: totalAffinity / candidates.length, tick: this.tickCount });
-    if (p.traces.length > 10) p.traces.shift();
+    // Apply Gravity & Interaction
+    const force = selected.gravity;
     
-    // Ganho de energia por interação bem sucedida
-    p.energy = Math.min(1.5, p.energy + 0.01);
+    if (selected.particle.isBlackHole) {
+      // Horizon of Events: If too close to a black hole, get trapped
+      if (selected.dist < this.PLANCK_LENGTH * 5) {
+        p.energy = 0;
+        p.vx = 0;
+        p.vy = 0;
+        p.isBound = true;
+        // Information is "lost" to the black hole
+        p.traces = [];
+        return;
+      }
+    }
+
+    p.vx += (selected.dx / selected.dist) * force;
+    p.vy += (selected.dy / selected.dist) * force;
+
+    // Information exchange
+    p.traces.push({ 
+      targetId: selected.particle.id, 
+      affinity: selected.affinity, 
+      tick: this.tickCount 
+    });
+    if (p.traces.length > this.BEKENSTEIN_LIMIT) p.traces.shift();
+    
+    // Energy exchange (Quanta)
+    p.energy = Math.min(this.PLANCK_TEMP, p.energy + this.H);
     p.lastActiveTick = this.tickCount;
-    
-    // Influência mútua simples
-    p.vx += (selected.vx - p.vx) * 0.01;
-    p.vy += (selected.vy - p.vy) * 0.01;
   }
 
   private wakeUp(p: ParticleCore) {
@@ -395,7 +471,9 @@ export class UniverseCore {
         phase: p.phase,
         amplitude: p.amplitude,
         level: p.level,
-        weight: p.weight
+        weight: p.weight,
+        isBlackHole: p.isBlackHole,
+        isBound: p.isBound
       }))
     };
   }
@@ -424,6 +502,8 @@ export class UniverseCore {
         p.amplitude = trace.amplitude ?? 1.0;
         p.level = trace.level ?? 1;
         p.weight = trace.weight ?? 1.0;
+        p.isBlackHole = trace.isBlackHole ?? false;
+        p.isBound = trace.isBound ?? false;
         if (!p.isLatent) {
           this.activeParticles.add(p);
         }
