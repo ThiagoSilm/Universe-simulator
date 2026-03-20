@@ -26,6 +26,8 @@ import {
   Beaker,
   Clock,
   Lock,
+  Users,
+  History as HistoryIcon,
 } from "lucide-react";
 import { ObserverLayer, PersistentState, GRID_SIZE } from "./ObserverLayer";
 import { LazyDocumentary } from "./LazyDocumentary";
@@ -576,8 +578,8 @@ export default function App() {
   const [latentMode, setLatentMode] = useState(false);
   const latentModeRef = useRef(false);
   const [activeTab, setActiveTab] = useState<
-    "quantum" | "life" | "civ" | "cosmic" | "log"
-  >("quantum");
+    "core" | "quantum" | "life" | "civ" | "cosmic" | "log"
+  >("core");
   const [isObserving, setIsObserving] = useState(false);
   const isObservingRef = useRef(false);
   const [scientistMode, setScientistMode] = useState(false);
@@ -715,7 +717,7 @@ export default function App() {
       localStorage.removeItem(STORAGE_KEY);
     }
     engineRef.current = new ObserverLayer(saved || undefined);
-    engineRef.current.isHumanMode = isObservingRef.current;
+    engineRef.current.isObserving = isObservingRef.current;
     engineRef.current.onStateUpdate = (newState) => {
       setState(newState);
       
@@ -781,7 +783,7 @@ export default function App() {
       return;
     }
     
-    engineRef.current.isHumanMode = isObservingRef.current;
+    engineRef.current.isObserving = isObservingRef.current;
     engineRef.current.step();
 
     // If not in observing mode, we skip all expensive UI updates and rendering
@@ -976,7 +978,7 @@ export default function App() {
               {/* Tabbed Metrics */}
               <div className="pt-2 border-t border-white/5">
                 <div className="flex justify-between mb-3 bg-white/5 p-1 rounded">
-                  {(["quantum", "life", "civ", "cosmic", "log"] as const).map(
+                  {(["core", "quantum", "life", "civ", "cosmic", "log"] as const).map(
                     (tab) => (
                       <button
                         key={tab}
@@ -990,6 +992,60 @@ export default function App() {
                 </div>
 
                 <div className="space-y-3 min-h-[160px]">
+                  {activeTab === "core" && (
+                    <div className="space-y-2">
+                      <Metric
+                        label="Eficiência Lazy"
+                        value={state?.efficiency ?? 0}
+                        icon={<Zap size={11} />}
+                        color="text-emerald-400"
+                        pct
+                        tooltip="Porcentagem de partículas latentes (não processadas). Quanto maior, mais eficiente é a simulação."
+                        formula="100 - (Active / Total) * 100"
+                        range="90% - 99% (Ideal)"
+                        scientistMode={scientistMode}
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <Stat
+                          label="Decisões/Tick"
+                          value={state?.decisionsPerTick ?? 0}
+                          icon={<Brain size={10} />}
+                          color="text-cyan-400"
+                          tooltip="Número de partículas que realizaram busca local e tomaram decisões de interação."
+                          range="Atividade real do core"
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Candidatos Méd."
+                          value={(state?.avgCandidates ?? 0).toFixed(1)}
+                          icon={<Users size={10} />}
+                          color="text-blue-400"
+                          tooltip="Média de vizinhos encontrados via Quadtree para cada decisão."
+                          range="Densidade local"
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Energia Auto"
+                          value={(state?.totalSelfEnergy ?? 0).toFixed(3)}
+                          icon={<Activity size={10} />}
+                          color="text-yellow-400"
+                          tooltip="Energia total consumida pelo mecanismo de auto-observação (motor de existência)."
+                          range="Custo de existir"
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Traços Ativos"
+                          value={state?.activeTracesCount ?? 0}
+                          icon={<HistoryIcon size={10} />}
+                          color="text-purple-400"
+                          tooltip="Total de memórias de interação (traces) atualmente em processamento."
+                          range="Memória de curto prazo"
+                          scientistMode={scientistMode}
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   {activeTab === "quantum" && (
                     <div className="space-y-2">
                       <Metric

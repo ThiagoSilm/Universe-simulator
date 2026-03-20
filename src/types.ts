@@ -47,6 +47,9 @@ export interface Particle {
   // Relativity & Photons
   isPhoton?: boolean;
   properTime?: number;
+
+  // Cosmic Memory Traces
+  traces?: { targetId: string; affinity: number; tick: number }[];
 }
 
 export interface Molecule {
@@ -153,6 +156,12 @@ export interface UniverseState {
 
   // Visualization / Debug
   activeGridKeys: string[];
+
+  // Core Simulation Metrics
+  decisionsPerTick: number;
+  avgCandidates: number;
+  totalSelfEnergy: number;
+  activeTracesCount: number;
 }
 
 export interface CycleHistory {

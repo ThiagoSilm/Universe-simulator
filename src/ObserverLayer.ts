@@ -11,7 +11,7 @@ export interface PersistentState {
 export class ObserverLayer {
   private worker: Worker;
   private lastSnapshot: any = null;
-  public isHumanMode: boolean = false;
+  public isObserving: boolean = false;
   public onStateUpdate: (state: UniverseState) => void = () => {};
 
   public metrics = {
@@ -66,6 +66,10 @@ export class ObserverLayer {
     dormantCount: 0,
     chargedCount: 0,
     boundCount: 0,
+    decisionsPerTick: 0,
+    avgCandidates: 0,
+    totalSelfEnergy: 0,
+    activeTracesCount: 0,
   };
 
   constructor(savedState?: any) {
@@ -87,7 +91,7 @@ export class ObserverLayer {
   }
 
   public step() {
-    if (this.isHumanMode) {
+    if (this.isObserving) {
       // Pede o estado para o humano ver
       this.worker.postMessage({ type: 'GET_SNAPSHOT' });
     }
@@ -101,7 +105,7 @@ export class ObserverLayer {
   }
 
   private calculateMetrics(snapshot: any) {
-    const { particles, activeCount, totalCount } = snapshot;
+    const { particles, activeCount, totalCount, metrics: coreMetrics } = snapshot;
     let tempSum = 0;
     let maxCurv = 0;
     let maxLvl = 1;
@@ -131,6 +135,14 @@ export class ObserverLayer {
     this.metrics.dormantCount = totalCount - activeCount;
     this.metrics.chargedCount = chrgd;
     this.metrics.boundCount = bnd;
+
+    // Update from Core Metrics
+    if (coreMetrics) {
+      this.metrics.decisionsPerTick = coreMetrics.decisionsPerTick;
+      this.metrics.avgCandidates = coreMetrics.avgCandidates;
+      this.metrics.totalSelfEnergy = coreMetrics.totalSelfEnergy;
+      this.metrics.activeTracesCount = coreMetrics.activeTracesCount;
+    }
     
     // Simulação de métricas complexas baseadas na densidade de atividade
     this.metrics.coherence = Math.min(1, activeCount / 500);
