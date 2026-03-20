@@ -30,6 +30,8 @@ import {
   Lock,
   Users,
   History as HistoryIcon,
+  Map as MapIcon,
+  Maximize2,
 } from "lucide-react";
 import { ObserverLayer, PersistentState, GRID_SIZE } from "./ObserverLayer";
 import { LazyDocumentary } from "./LazyDocumentary";
@@ -596,8 +598,9 @@ export default function App() {
   const [latentMode, setLatentMode] = useState(false);
   const latentModeRef = useRef(false);
   const [activeTab, setActiveTab] = useState<
-    "core" | "quantum" | "life" | "civ" | "cosmic" | "log"
+    "core" | "quantum" | "life" | "civ" | "cosmic" | "horizon" | "log"
   >("core");
+  const [horizonRadius, setHorizonRadius] = useState(2000);
   const [isObserving, setIsObserving] = useState(false);
   const isObservingRef = useRef(false);
   const [scientistMode, setScientistMode] = useState(false);
@@ -678,7 +681,7 @@ export default function App() {
     mousePosRef.current = { x, y };
     
     // Telescópio Cósmico: Observar localmente
-    engineRef.current.observeAt(universeX, universeY, 1500 / scale);
+    engineRef.current.observeAt(universeX, universeY, horizonRadius / scale);
   };
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -996,7 +999,7 @@ export default function App() {
               {/* Tabbed Metrics */}
               <div className="pt-2 border-t border-white/5">
                 <div className="flex justify-between mb-3 bg-white/5 p-1 rounded">
-                  {(["core", "quantum", "life", "civ", "cosmic", "log"] as const).map(
+                  {(["core", "quantum", "life", "civ", "cosmic", "horizon", "log"] as const).map(
                     (tab) => (
                       <button
                         key={tab}
@@ -1355,6 +1358,98 @@ export default function App() {
                           icon={<Orbit size={10} />}
                           color="text-zinc-400"
                           tooltip="Contribuição dos fótons para a expansão acelerada do universo."
+                          scientistMode={scientistMode}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === "horizon" && (
+                    <div className="space-y-3">
+                      <div className="p-2 bg-white/5 rounded border border-white/10">
+                        <div className="flex items-center gap-2 mb-2 text-rose-400">
+                          <Expand size={14} />
+                          <span className="text-[10px] font-bold uppercase tracking-wider">Horizonte de Observação</span>
+                        </div>
+                        <p className="text-[9px] text-white/50 leading-relaxed mb-3">
+                          "O universo não precisa calcular o que está além do seu olhar."
+                          A lazy evaluation espacial permite que você pule para qualquer ponto sem percorrer o caminho.
+                        </p>
+                        
+                        <div className="space-y-4">
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[8px] text-white/40 uppercase">
+                              <span>Raio do Horizonte</span>
+                              <span>{Math.round(horizonRadius)} Ly</span>
+                            </div>
+                            <input 
+                              type="range" 
+                              min="500" 
+                              max="10000" 
+                              step="100"
+                              value={horizonRadius}
+                              onChange={(e) => setHorizonRadius(Number(e.target.value))}
+                              className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-rose-500"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[8px] text-white/40 uppercase">
+                              <span>Escala (Zoom)</span>
+                              <span>{state?.zoom?.toFixed(4)}x</span>
+                            </div>
+                            <input 
+                              type="range" 
+                              min="-10" 
+                              max="1" 
+                              step="0.1"
+                              value={Math.log10(state?.zoom || 0.01)}
+                              onChange={(e) => engineRef.current?.setZoom(Math.pow(10, Number(e.target.value)))}
+                              className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 pt-2">
+                            <button 
+                              onClick={() => {
+                                const x = (Math.random() - 0.5) * 100000;
+                                const y = (Math.random() - 0.5) * 100000;
+                                engineRef.current?.teleport(x, y);
+                              }}
+                              className="flex items-center justify-center gap-2 py-2 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 rounded transition-all group"
+                            >
+                              <Zap size={12} className="text-rose-400 group-hover:scale-110 transition-transform" />
+                              <span className="text-[9px] font-bold uppercase text-rose-100">Salto Quântico</span>
+                            </button>
+                            
+                            <button 
+                              onClick={() => {
+                                engineRef.current?.setSpectatorMode(!state?.isSpectatorMode);
+                              }}
+                              className={`flex items-center justify-center gap-2 py-2 border rounded transition-all ${state?.isSpectatorMode ? "bg-blue-500/20 border-blue-500/50" : "bg-white/5 border-white/10 hover:bg-white/10"}`}
+                            >
+                              <Eye size={12} className={state?.isSpectatorMode ? "text-blue-400" : "text-white/40"} />
+                              <span className="text-[9px] font-bold uppercase text-white/80">
+                                {state?.isSpectatorMode ? "Modo Espectador" : "Modo Automático"}
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <Stat
+                          label="Viewport X"
+                          value={Math.round(state?.viewportX ?? 0)}
+                          icon={<MapIcon size={10} />}
+                          color="text-rose-300"
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Viewport Y"
+                          value={Math.round(state?.viewportY ?? 0)}
+                          icon={<MapIcon size={10} />}
+                          color="text-rose-300"
                           scientistMode={scientistMode}
                         />
                       </div>

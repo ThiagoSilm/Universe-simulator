@@ -106,6 +106,21 @@ export class ObserverLayer {
     });
   }
 
+  public teleport(x: number, y: number) {
+    this.metrics.viewportX = x;
+    this.metrics.viewportY = y;
+    this.metrics.isSpectatorMode = true;
+    this.observeAt(x, y, 2000 / this.metrics.zoom);
+  }
+
+  public setZoom(zoom: number) {
+    this.metrics.zoom = Math.max(0.0001, Math.min(10, zoom));
+  }
+
+  public setSpectatorMode(enabled: boolean) {
+    this.metrics.isSpectatorMode = enabled;
+  }
+
   private calculateMetrics(snapshot: any) {
     const { particles, activeCount, totalCount, metrics: coreMetrics } = snapshot;
     let tempSum = 0;
