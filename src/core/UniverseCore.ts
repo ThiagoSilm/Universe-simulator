@@ -25,6 +25,7 @@ export interface ParticleCore {
   isBlackHole: boolean;
   isBound: boolean;
   potentialHistories: { x: number; y: number; vx: number; vy: number }[];
+  positionHistory: { x: number; y: number; tick: number }[];
 }
 
 class Quadtree {
@@ -184,6 +185,7 @@ export class UniverseCore {
         isBlackHole: false,
         isBound: false,
         potentialHistories: [],
+        positionHistory: [],
       };
       // Initialize potential histories
       for (let j = 0; j < 3; j++) {
@@ -239,6 +241,10 @@ export class UniverseCore {
       // 2. Tempo Próprio & Relatividade (c)
       p.age++;
       
+      // Store position history
+      p.positionHistory.push({ x: p.x, y: p.y, tick: this.tickCount });
+      if (p.positionHistory.length > 100) p.positionHistory.shift(); // Keep last 100 ticks
+
       if (!p.isBlackHole) {
         // Cap velocity at c
         const speedSq = p.vx * p.vx + p.vy * p.vy;
@@ -357,7 +363,8 @@ export class UniverseCore {
         traces: [],
         isBlackHole: false,
         isBound: false,
-        potentialHistories: []
+        potentialHistories: [],
+        positionHistory: []
       };
       for (let j = 0; j < 3; j++) {
         p.potentialHistories.push({
@@ -399,7 +406,24 @@ export class UniverseCore {
     const affinities = candidates.map(n => {
       const dx = n.x - p.x;
       const dy = n.y - p.y;
-      const distSq = dx * dx + dy * dy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      // Causal Delay: Look up position at t - dist/c
+      const delay = Math.floor(dist / this.C);
+      const targetTick = this.tickCount - delay;
+      
+      // Find the latest position at or before targetTick
+      let delayedPos = { x: n.x, y: n.y };
+      for (let i = n.positionHistory.length - 1; i >= 0; i--) {
+        if (n.positionHistory[i].tick <= targetTick) {
+          delayedPos = { x: n.positionHistory[i].x, y: n.positionHistory[i].y };
+          break;
+        }
+      }
+      
+      const ddx = delayedPos.x - p.x;
+      const ddy = delayedPos.y - p.y;
+      const distSq = ddx * ddx + ddy * ddy;
       
       // Gravity (G) with Softening
       const gravity = Math.min((this.G * p.weight * n.weight) / (distSq + this.EPS), 10.0);
@@ -410,7 +434,7 @@ export class UniverseCore {
       
       const affinity = (gravity + (1 / (Math.sqrt(distSq) + 1))) * (1 + phaseDiff) * chargeMatch;
       
-      return { particle: n, affinity, gravity, dx, dy, dist: Math.sqrt(distSq) };
+      return { particle: n, affinity, gravity, dx: ddx, dy: ddy, dist: Math.sqrt(distSq) };
     });
 
     // Probabilistic selection
