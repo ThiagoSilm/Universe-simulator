@@ -148,6 +148,11 @@ export class UniverseCore {
   public activeTracesCount: number = 0;
   public recentEvents: string[] = [];
 
+  // Mitosis Constants
+  private readonly MITOSIS_THRESHOLD = 50.0;
+  private readonly MUTATION_RATE_PHYSICAL = 0.05;
+  private readonly MUTATION_RATE_MEMORY = 0.3;
+
   constructor(seed: number = Math.random(), initialParticles: number = 5000) {
     this.seed = seed;
     this.initialize(initialParticles);
@@ -201,6 +206,30 @@ export class UniverseCore {
         });
       }
       this.particles.push(p);
+    }
+  }
+
+  private performMitosis(p: ParticleCore) {
+    // 1. Dissolve parent
+    this.particles = this.particles.filter(part => part.id !== p.id);
+    this.activeParticles.delete(p);
+    
+    // 2. Create two children
+    for (let i = 0; i < 2; i++) {
+      const child: ParticleCore = {
+        ...p,
+        id: `p-${this.tickCount}-${i}`, // Unique ID
+        weight: p.weight / 2,
+        energy: p.energy / 2,
+        generation: p.generation + 1,
+        // Mutation
+        charge: p.charge + (Math.random() < this.MUTATION_RATE_PHYSICAL ? (Math.random() > 0.5 ? 1 : -1) : 0),
+        phase: p.phase + (Math.random() - 0.5) * this.MUTATION_RATE_PHYSICAL,
+        // Lazy Copy of Traces
+        traces: p.traces.filter(() => Math.random() > this.MUTATION_RATE_MEMORY)
+      };
+      this.particles.push(child);
+      this.activeParticles.add(child);
     }
   }
 
@@ -300,7 +329,12 @@ export class UniverseCore {
         }
       }
 
-      // 6. Singularity / Schwarzschild Collapse
+      // 6. Mitosis Check
+      if (!p.isBlackHole && p.energy > this.MITOSIS_THRESHOLD) {
+        this.performMitosis(p);
+      }
+
+      // 7. Singularity / Schwarzschild Collapse
       const rs = (2 * this.G * p.weight) / (this.C * this.C);
       if (!p.isBlackHole && (p.traces.length >= this.BEKENSTEIN_LIMIT || rs > this.PLANCK_LENGTH)) {
         p.isBlackHole = true; 
