@@ -865,79 +865,85 @@ export default function App() {
               </h1>
             </div>
             <p className="text-[10px] opacity-30 uppercase tracking-widest">
-              Lazy Universe Observer · each particle is its own observer
+              Lazy Universe Observer · cada partícula é seu próprio observador
             </p>
           </div>
           <div className="flex flex-col items-end gap-3 pointer-events-auto">
-            <button
-              onClick={() => setHumanMode(!humanMode)}
-              className={`flex items-center gap-2 px-4 py-2 border rounded-md transition-all ${
-                humanMode
-                  ? "bg-red-500/20 border-red-500/50 text-red-400"
-                  : "bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
-              }`}
-            >
-              {humanMode ? (
-                <>
-                  <Eye size={14} />
-                  <span className="text-xs font-bold uppercase tracking-wider">Modo Demonstração para Humanos</span>
-                </>
-              ) : (
-                <>
-                  <Lock size={14} />
-                  <span className="text-xs font-bold uppercase tracking-wider">Modo Universo Real</span>
-                </>
-              )}
-            </button>
-            <div className={`flex gap-3 transition-opacity duration-1000 ${!humanMode ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
+            <div className="flex gap-3">
               <button
-                onClick={() => setScientistMode(!scientistMode)}
-                className={`p-2 border transition-colors rounded-sm ${scientistMode ? "bg-blue-500/20 border-blue-500 text-blue-400" : "border-white/10 hover:bg-white/10"}`}
-                title="Scientist Mode — Detailed metrics and formulas"
+                onClick={() => setHumanMode(!humanMode)}
+                className={`group relative flex items-center gap-2 px-4 py-2 border rounded-md transition-all ${
+                  humanMode
+                    ? "bg-red-500/20 border-red-500/50 text-red-400"
+                    : "bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
+                }`}
               >
-                <Beaker size={13} />
-              </button>
-              <button
-                onClick={() => setLatentMode(!latentMode)}
-                className={`p-2 border transition-colors rounded-sm ${latentMode ? "bg-orange-500/20 border-orange-500 text-orange-400" : "border-white/10 hover:bg-white/10"}`}
-                title="Toggle Latent Mode — See unobserved regions"
-              >
-                <Layers size={13} />
+                {humanMode ? (
+                  <>
+                    <Eye size={14} />
+                    <span className="text-xs font-bold uppercase tracking-wider">Desativar Espectador</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock size={14} />
+                    <span className="text-xs font-bold uppercase tracking-wider">Ativar Espectador</span>
+                    <div className="absolute top-full right-0 mt-2 w-48 p-2 bg-black/90 border border-white/10 rounded text-[9px] text-white/60 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                      Custo: Aumenta o processamento ao forçar o colapso de onda em todo o campo de visão.
+                    </div>
+                  </>
+                )}
               </button>
               <button
                 onClick={() => initEngine(true)}
-                className="p-2 border border-white/10 hover:bg-red-500/80 transition-colors rounded-sm"
-                title="Reset — Big Bang"
+                className="p-2 border border-white/10 hover:bg-red-500/80 transition-colors rounded-md text-white/60 hover:text-white"
+                title="Reiniciar — Big Bang"
               >
-                <RefreshCw size={13} className="rotate-45" />
-              </button>
-              <button
-                onClick={() => setShowInfo(!showInfo)}
-                className="p-2 border border-white/10 hover:bg-white/10 transition-colors rounded-sm"
-              >
-                <Info size={13} />
+                <RefreshCw size={14} className="rotate-45" />
               </button>
             </div>
           </div>
         </header>
 
-        <AnimatePresence>
-          {!humanMode && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 2 }}
-              className="absolute inset-0 flex items-center justify-center pointer-events-none"
-            >
-              <p className="text-white/20 font-mono text-xs tracking-widest uppercase">
-                Universo rodando em lazy puro. Nada está sendo calculado desnecessariamente.
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <div className="flex-1 flex flex-col items-center justify-center pointer-events-none">
+          <AnimatePresence mode="wait">
+            {!humanMode ? (
+              <motion.div
+                key="real-mode"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="text-center space-y-4"
+              >
+                <p className="text-xl font-serif italic text-white/60 max-w-lg">
+                  "{getNarrative()}"
+                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                  <p className="text-[10px] font-mono tracking-[0.2em] uppercase text-emerald-500/60">
+                    Evoluindo em lazy puro
+                  </p>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="spectator-mode"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute top-24 left-1/2 -translate-x-1/2"
+              >
+                <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/20 rounded-full">
+                  <div className="w-1 h-1 bg-red-500 rounded-full animate-ping" />
+                  <p className="text-[9px] font-mono tracking-widest uppercase text-red-400">
+                    Observação humana: lazy comprometida
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
-        <div className={`transition-opacity duration-1000 ${!humanMode ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
+        <div className={`transition-all duration-1000 ${!humanMode ? "opacity-0 translate-y-10 pointer-events-none" : "opacity-100 translate-y-0"}`}>
           <main className="flex justify-between items-end">
             <div className="space-y-3 w-72">
               {/* Documentary Mode Overlay */}
@@ -964,7 +970,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Narrative Log */}
               <div className="bg-white/5 p-2 rounded text-[9px] text-zinc-300 italic border-l-2 border-orange-500/50">
                 {state?.events && state.events.length > 0 ? (
                   <p>"{state.events[state.events.length - 1]}"</p>
@@ -1346,55 +1351,59 @@ export default function App() {
           </div>
 
           <div className="text-right space-y-3">
-            <div className="space-y-1">
-              <div className="text-[9px] opacity-30 uppercase tracking-widest">
-                Tick
-              </div>
-              <div className="flex items-baseline gap-2 justify-end">
-                <div className="text-2xl font-light tabular-nums tracking-tighter">
-                  {String(state?.tick ?? 0).padStart(10, "0")}
+            {humanMode && (
+              <>
+                <div className="space-y-1">
+                  <div className="text-[9px] opacity-30 uppercase tracking-widest">
+                    Tick
+                  </div>
+                  <div className="flex items-baseline gap-2 justify-end">
+                    <div className="text-2xl font-light tabular-nums tracking-tighter">
+                      {String(state?.tick ?? 0).padStart(10, "0")}
+                    </div>
+                    <div className="text-[8px] text-emerald-500/50 border border-emerald-500/20 px-1 rounded-[2px] animate-pulse">
+                      LIVE
+                    </div>
+                  </div>
                 </div>
-                <div className="text-[8px] text-emerald-500/50 border border-emerald-500/20 px-1 rounded-[2px] animate-pulse">
-                  LIVE
+                <div className="space-y-1">
+                  <div className="text-[9px] opacity-30 uppercase tracking-widest">
+                    Max Curvature
+                  </div>
+                  <div className="text-xl font-light tracking-tighter text-amber-400">
+                    {state?.maxCurvature?.toFixed(3) ?? 0}
+                  </div>
                 </div>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div className="text-[9px] opacity-30 uppercase tracking-widest">
-                Max Curvature
-              </div>
-              <div className="text-xl font-light tracking-tighter text-amber-400">
-                {state?.maxCurvature?.toFixed(3) ?? 0}
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div className="text-[9px] opacity-30 uppercase tracking-widest">
-                Particle Count
-              </div>
-              <div className="text-xl font-light tracking-tighter text-amber-400">
-                {state?.particleCount ?? 0}
-              </div>
-            </div>
-            <div className="flex flex-col items-end gap-1">
-              <div className="flex gap-[2px]">
-                {Array.from({ length: 14 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={`w-[3px] h-4 rounded-[1px] transition-colors duration-300 ${
-                      i < (state?.coherence ?? 0) * 14
-                        ? "bg-white/70"
-                        : "bg-white/8"
-                    }`}
-                  />
-                ))}
-              </div>
-              <div className="text-[8px] opacity-20 uppercase tracking-[0.2em]">
-                Structural Integrity
-              </div>
-            </div>
+                <div className="space-y-1">
+                  <div className="text-[9px] opacity-30 uppercase tracking-widest">
+                    Particle Count
+                  </div>
+                  <div className="text-xl font-light tracking-tighter text-amber-400">
+                    {state?.particleCount ?? 0}
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <div className="flex gap-[2px]">
+                    {Array.from({ length: 14 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={`w-[3px] h-4 rounded-[1px] transition-colors duration-300 ${
+                          i < (state?.coherence ?? 0) * 14
+                            ? "bg-white/70"
+                            : "bg-white/8"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <div className="text-[8px] opacity-20 uppercase tracking-[0.2em]">
+                    Structural Integrity
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Epistemological Panel */}
-            {selectedParticleId &&
+            {humanMode && selectedParticleId &&
               state?.particles.find((p) => p.id === selectedParticleId) && (
                 <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-4 rounded-lg w-72 text-left pointer-events-auto mt-4">
                   <div className="flex justify-between items-center mb-2">
@@ -1525,7 +1534,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Narrative Overlay */}
+      {/* Narrative Overlay (only in human mode) */}
       <AnimatePresence>
         {showNarrative && humanMode && (
           <motion.div
