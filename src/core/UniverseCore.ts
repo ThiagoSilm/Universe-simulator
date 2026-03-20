@@ -26,6 +26,8 @@ export interface ParticleCore {
   isBound: boolean;
   potentialHistories: { x: number; y: number; vx: number; vy: number }[];
   positionHistory: { x: number; y: number; tick: number }[];
+  ax: number;
+  ay: number;
 }
 
 class Quadtree {
@@ -186,6 +188,8 @@ export class UniverseCore {
         isBound: false,
         potentialHistories: [],
         positionHistory: [],
+        ax: 0,
+        ay: 0,
       };
       // Initialize potential histories
       for (let j = 0; j < 3; j++) {
@@ -364,7 +368,9 @@ export class UniverseCore {
         isBlackHole: false,
         isBound: false,
         potentialHistories: [],
-        positionHistory: []
+        positionHistory: [],
+        ax: 0,
+        ay: 0
       };
       for (let j = 0; j < 3; j++) {
         p.potentialHistories.push({
@@ -399,7 +405,7 @@ export class UniverseCore {
     }
   }
 
-  private activeLocalSearch(p: ParticleCore, neighbors: ParticleCore[]) {
+  private calculateForce(p: ParticleCore, neighbors: ParticleCore[]): { fx: number; fy: number } {
     const candidates = neighbors.filter(n => n.id !== p.id).slice(0, 10);
     if (candidates.length === 0) return;
 
