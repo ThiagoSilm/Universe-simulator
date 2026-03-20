@@ -10,7 +10,7 @@ export interface ParticleCore {
   y: number;
   vx: number;
   vy: number;
-  mass: number;
+  weight: number;
   charge: number;
   isLatent: boolean;
   lastActiveTick: number;
@@ -19,12 +19,12 @@ export interface ParticleCore {
   phase: number;
   amplitude: number;
   level: number;
-  weight: number;
   element: 'H' | 'C' | 'O' | 'N';
   generation: number;
   traces: ParticleTrace[];
   isBlackHole: boolean;
   isBound: boolean;
+  potentialHistories: { x: number; y: number; vx: number; vy: number }[];
 }
 
 class Quadtree {
@@ -168,7 +168,7 @@ export class UniverseCore {
         y: (nextR() - 0.5) * 60000,
         vx: (nextR() - 0.5) * 5,
         vy: (nextR() - 0.5) * 5,
-        mass: nextR() * 2 + 0.1,
+        weight: nextR() * 5 + 0.1,
         charge,
         isLatent: true,
         lastActiveTick: 0,
@@ -177,13 +177,22 @@ export class UniverseCore {
         phase: Math.floor((nextR() * Math.PI * 2) / this.H) * this.H,
         amplitude: nextR(),
         level: 1,
-        weight: nextR() * 5,
         element,
         generation: 0,
         traces: [],
         isBlackHole: false,
         isBound: false,
+        potentialHistories: [],
       };
+      // Initialize potential histories
+      for (let j = 0; j < 3; j++) {
+        p.potentialHistories.push({
+          x: p.x + (nextR() - 0.5) * 100,
+          y: p.y + (nextR() - 0.5) * 100,
+          vx: p.vx + (nextR() - 0.5) * 2,
+          vy: p.vy + (nextR() - 0.5) * 2
+        });
+      }
       this.particles.push(p);
     }
   }
@@ -197,6 +206,20 @@ export class UniverseCore {
 
     const toSleep: ParticleCore[] = [];
     const toWake: ParticleCore[] = [];
+
+    // 0. Lazy Path Integral for Latent Particles
+    // Latent particles evolve their potential histories without collapsing
+    for (const p of this.particles) {
+      if (p.isLatent && !p.isBound) {
+        for (const history of p.potentialHistories) {
+          history.x += history.vx;
+          history.y += history.vy;
+          // Subtle drift in potential velocities
+          history.vx += (Math.random() - 0.5) * 0.1;
+          history.vy += (Math.random() - 0.5) * 0.1;
+        }
+      }
+    }
 
     // Rebuild Quadtree for active particles
     const qt = new Quadtree(0, 0, 100000); // Expanded for cosmological growth
@@ -263,7 +286,7 @@ export class UniverseCore {
       }
 
       // 6. Singularity / Schwarzschild Collapse
-      const rs = (2 * this.G * p.mass) / (this.C * this.C);
+      const rs = (2 * this.G * p.weight) / (this.C * this.C);
       if (!p.isBlackHole && (p.traces.length >= this.BEKENSTEIN_LIMIT || rs > this.PLANCK_LENGTH)) {
         p.isBlackHole = true; 
         p.energy = 0;
@@ -283,6 +306,11 @@ export class UniverseCore {
       }
     }
 
+    // 7. On-demand Generation beyond the horizon
+    if (this.activeParticles.size < 500 && this.particles.length < 10000) {
+      this.generateBeyondHorizon(10);
+    }
+
     this.avgCandidates = this.decisionsPerTick > 0 ? totalCandidatesFound / this.decisionsPerTick : 0;
 
     // Background noise wake-up
@@ -295,6 +323,47 @@ export class UniverseCore {
 
     for (const p of toWake) this.wakeUp(p);
     for (const p of toSleep) this.sleep(p);
+  }
+
+  private generateBeyondHorizon(count: number) {
+    const horizon = 50000 + this.tickCount * this.LAMBDA * 100;
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = horizon + Math.random() * 5000;
+      const x = Math.cos(angle) * dist;
+      const y = Math.sin(angle) * dist;
+      
+      const p: ParticleCore = {
+        id: `p-gen-${this.tickCount}-${i}`,
+        x, y,
+        vx: -Math.cos(angle) * 2, // Moving towards center
+        vy: -Math.sin(angle) * 2,
+        weight: Math.random() * 5 + 0.1,
+        charge: Math.random() < 0.5 ? 1 : -1,
+        isLatent: true,
+        lastActiveTick: this.tickCount,
+        age: 0,
+        energy: 1.0,
+        phase: Math.random() * Math.PI * 2,
+        amplitude: Math.random(),
+        level: 1,
+        element: 'H',
+        generation: 0,
+        traces: [],
+        isBlackHole: false,
+        isBound: false,
+        potentialHistories: []
+      };
+      for (let j = 0; j < 3; j++) {
+        p.potentialHistories.push({
+          x: p.x + (Math.random() - 0.5) * 100,
+          y: p.y + (Math.random() - 0.5) * 100,
+          vx: p.vx + (Math.random() - 0.5) * 2,
+          vy: p.vy + (Math.random() - 0.5) * 2
+        });
+      }
+      this.particles.push(p);
+    }
   }
 
   private selfObserve(p: ParticleCore) {
@@ -332,7 +401,7 @@ export class UniverseCore {
       const effectiveDist = Math.max(this.PLANCK_LENGTH, dist);
       
       // Gravity (G)
-      const gravity = (this.G * p.mass * n.mass) / (effectiveDist * effectiveDist);
+      const gravity = (this.G * p.weight * n.weight) / (effectiveDist * effectiveDist);
       
       // Quantum Affinity (h)
       const phaseDiff = Math.cos(p.phase - n.phase);
@@ -360,7 +429,7 @@ export class UniverseCore {
     const force = selected.gravity;
     
     if (selected.particle.isBlackHole) {
-      const rs = (2 * this.G * selected.particle.mass) / (this.C * this.C);
+      const rs = (2 * this.G * selected.particle.weight) / (this.C * this.C);
       // Horizon of Events: If too close to a singularity, it is absorbed
       if (selected.dist < rs) {
         p.energy = 0;
@@ -372,7 +441,7 @@ export class UniverseCore {
         if (selected.particle.traces.length > this.BEKENSTEIN_LIMIT) selected.particle.traces.shift();
         
         // Singularity mass increases slightly by absorbing the particle
-        selected.particle.mass += p.mass * 0.1; 
+        selected.particle.weight += p.weight * 0.1; 
         
         p.traces = [];
         return;
@@ -401,6 +470,15 @@ export class UniverseCore {
       p.lastActiveTick = this.tickCount;
       p.energy = 1.0;
       
+      // Lazy Path Integral Collapse: Choose one potential history
+      if (p.potentialHistories.length > 0) {
+        const chosen = p.potentialHistories[Math.floor(Math.random() * p.potentialHistories.length)];
+        p.x = chosen.x;
+        p.y = chosen.y;
+        p.vx = chosen.vx;
+        p.vy = chosen.vy;
+      }
+
       // Recuperar traços da Memória Cósmica
       const savedTraces = this.cosmicMemory.get(p.id);
       if (savedTraces) {
@@ -414,6 +492,11 @@ export class UniverseCore {
   private sleep(p: ParticleCore) {
     if (!p.isLatent) {
       p.isLatent = true;
+      
+      // Absolute Conservation: Transform into latent traces
+      // Instead of deleting, we ensure the particle remains in the system
+      // but in a lower energy state, contributing to the "background"
+      p.energy = 0.01; 
       
       // Compactar e salvar traços na Memória Cósmica
       if (p.traces.length > 0) {
@@ -435,16 +518,14 @@ export class UniverseCore {
       if (p.isBound) continue;
 
       if (p.isLatent) {
-        const dt = this.tickCount - p.lastActiveTick;
-        const predictedX = p.x + p.vx * dt;
-        const predictedY = p.y + p.vy * dt;
-        
-        const dx = predictedX - x;
-        const dy = predictedY - y;
-        
-        if (dx * dx + dy * dy <= r2) {
-          p.x = predictedX;
-          p.y = predictedY;
+        // Quantum Observation: Check potential histories
+        const inRange = p.potentialHistories.some(h => {
+          const dx = h.x - x;
+          const dy = h.y - y;
+          return dx * dx + dy * dy <= r2;
+        });
+
+        if (inRange) {
           this.wakeUp(p);
           observedCount++;
         }
@@ -477,7 +558,10 @@ export class UniverseCore {
     
     return {
       tick: this.tickCount,
-      particles: [...active, ...sampledLatent].map(p => ({ ...p })),
+      particles: [...active, ...sampledLatent].map(p => {
+        const { potentialHistories, ...rest } = p;
+        return { ...rest };
+      }),
       activeCount: this.activeParticles.size,
       totalCount: this.particles.length,
       metrics: {
@@ -511,7 +595,8 @@ export class UniverseCore {
         level: p.level,
         weight: p.weight,
         isBlackHole: p.isBlackHole,
-        isBound: p.isBound
+        isBound: p.isBound,
+        potentialHistories: p.potentialHistories
       }))
     };
   }
@@ -542,6 +627,7 @@ export class UniverseCore {
         p.weight = trace.weight ?? 1.0;
         p.isBlackHole = trace.isBlackHole ?? false;
         p.isBound = trace.isBound ?? false;
+        p.potentialHistories = trace.potentialHistories ?? [];
         if (!p.isLatent) {
           this.activeParticles.add(p);
         }

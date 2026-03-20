@@ -21,6 +21,7 @@ export interface Particle {
   isBound: boolean;          // in a nuclear bound state (atom analogue)
   isBlackHole?: boolean;     // collapsed state
   latentTraces?: LatentTrace[];
+  potentialHistories?: { x: number; y: number; vx: number; vy: number }[];
   entangledWith?: string | null; // Quantum entanglement partner ID
   isDarkMatter?: boolean;    // Interacts only gravitationally
   
