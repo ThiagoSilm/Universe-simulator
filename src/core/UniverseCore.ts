@@ -51,22 +51,48 @@ export class UniverseCore {
   public tick() {
     this.tickCount++;
     
-    // Lazy de verdade: só avança o que está acordado
     const toSleep: ParticleCore[] = [];
+    const toWake: ParticleCore[] = [];
     
+    // 1. Avançar partículas ativas e detectar colisões/proximidade
     for (const p of this.activeParticles) {
       p.x += p.vx;
       p.y += p.vy;
-      p.lastActiveTick = this.tickCount;
       
-      // Lógica física simplificada para partículas ativas
-      // Exemplo: atração/repulsão básica
+      // Limites do universo (bounce)
+      if (Math.abs(p.x) > 30000) p.vx *= -1;
+      if (Math.abs(p.y) > 30000) p.vy *= -1;
+
+      // Propagação: se uma partícula ativa passar perto de uma latente, acorda ela
+      // Para performance, fazemos isso apenas ocasionalmente ou com raio pequeno
+      if (this.tickCount % 5 === 0) {
+        for (const other of this.particles) {
+          if (other.isLatent) {
+            const dx = p.x - other.x;
+            const dy = p.y - other.y;
+            if (dx * dx + dy * dy < 40000) { // Raio de 200 para acordar
+              toWake.push(other);
+            }
+          }
+        }
+      }
       
-      if (this.tickCount - p.lastActiveTick > 100) {
+      // Se ficar muito tempo sem interação ou observação, dorme
+      if (this.tickCount - p.lastActiveTick > 300) {
         toSleep.push(p);
       }
     }
     
+    // 2. Acordar partículas
+    for (const p of toWake) {
+      if (p.isLatent) {
+        p.isLatent = false;
+        p.lastActiveTick = this.tickCount;
+        this.activeParticles.add(p);
+      }
+    }
+
+    // 3. Dormir partículas
     for (const p of toSleep) {
       p.isLatent = true;
       this.activeParticles.delete(p);
@@ -111,7 +137,9 @@ export class UniverseCore {
   public getSnapshot() {
     return {
       tick: this.tickCount,
-      particles: this.particles.map(p => ({ ...p }))
+      particles: this.particles.map(p => ({ ...p })),
+      activeCount: this.activeParticles.size,
+      totalCount: this.particles.length
     };
   }
 }

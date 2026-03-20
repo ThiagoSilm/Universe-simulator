@@ -84,6 +84,7 @@ function renderUniverse(
   engine: ObserverLayer,
   latentMode: boolean,
   selectedParticleId: string | null,
+  mousePos: { x: number; y: number } | null,
 ) {
   const { particles } = state;
   if (particles.length === 0) return;
@@ -105,13 +106,13 @@ function renderUniverse(
   if (state.activeGridKeys) {
     ctx.save();
     const activeKeys = new Set(state.activeGridKeys);
-    const visibleGridRange = 25;
+    const visibleGridRange = 35;
     const centerX = spectatorTarget
       ? spectatorTarget.x
-      : particles.reduce((s, p) => s + p.x, 0) / particles.length;
+      : particles.reduce((s, p) => s + p.x, 0) / (particles.length || 1);
     const centerY = spectatorTarget
       ? spectatorTarget.y
-      : particles.reduce((s, p) => s + p.y, 0) / particles.length;
+      : particles.reduce((s, p) => s + p.y, 0) / (particles.length || 1);
     const gx0 = Math.floor(centerX / GRID_SIZE) - visibleGridRange;
     const gy0 = Math.floor(centerY / GRID_SIZE) - visibleGridRange;
 
@@ -124,20 +125,45 @@ function renderUniverse(
         const size = GRID_SIZE * scale;
 
         if (isActive) {
-          ctx.strokeStyle = "rgba(255, 100, 0, 0.15)";
+          ctx.strokeStyle = "rgba(255, 100, 0, 0.1)";
           ctx.strokeRect(x, y, size, size);
-          ctx.fillStyle = "rgba(255, 100, 0, 0.04)";
+          ctx.fillStyle = "rgba(255, 100, 0, 0.02)";
           ctx.fillRect(x, y, size, size);
         } else if (latentMode) {
-          ctx.strokeStyle = "rgba(50, 50, 100, 0.08)";
+          ctx.strokeStyle = "rgba(50, 50, 100, 0.05)";
           ctx.strokeRect(x, y, size, size);
-          ctx.fillStyle = "rgba(50, 50, 100, 0.02)";
+          ctx.fillStyle = "rgba(50, 50, 100, 0.01)";
           ctx.fillRect(x, y, size, size);
         }
       }
     }
     ctx.restore();
   }
+
+  // ── Layer 0: Fog of War / Quantum Mist ───────────────────────────
+  // Desenha uma névoa sobre áreas não observadas
+  ctx.save();
+  ctx.globalCompositeOperation = 'source-over';
+  const activeParticles = particles.filter(p => !p.isLatent);
+  
+  // Se não houver partículas ativas, o universo está em "névoa total"
+  if (activeParticles.length < particles.length * 0.05) {
+    ctx.fillStyle = "rgba(5, 5, 15, 0.4)";
+    ctx.fillRect(0, 0, w, h);
+    
+    // Adiciona ruído quântico
+    for (let i = 0; i < 20; i++) {
+        const rx = Math.random() * w;
+        const ry = Math.random() * h;
+        const rs = Math.random() * 100 * scale;
+        const grad = ctx.createRadialGradient(rx, ry, 0, rx, ry, rs);
+        grad.addColorStop(0, "rgba(100, 100, 255, 0.05)");
+        grad.addColorStop(1, "transparent");
+        ctx.fillStyle = grad;
+        ctx.fillRect(rx - rs, ry - rs, rs * 2, rs * 2);
+    }
+  }
+  ctx.restore();
 
   // ── Layer 0.5: Cosmic Memory (Latent Information) ──────────────────
   if (state.campoLatente && state.campoLatente.length > 0) {
@@ -488,6 +514,36 @@ function renderUniverse(
       ctx.restore();
     }
   }
+
+  // ── Layer 8: Fog of War / Cosmic Telescope ────────────────────────
+  ctx.save();
+  const holeRadius = 250;
+  const fogOpacity = 0.8;
+  
+  if (mousePos) {
+    const grad = ctx.createRadialGradient(mousePos.x, mousePos.y, holeRadius * 0.4, mousePos.x, mousePos.y, holeRadius);
+    grad.addColorStop(0, 'rgba(5, 5, 5, 0)');
+    grad.addColorStop(1, `rgba(5, 5, 5, ${fogOpacity})`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+    
+    // Telescope UI
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.arc(mousePos.x, mousePos.y, holeRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    // Coordinates
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.font = '10px monospace';
+    ctx.fillText(`OBSERVING: ${Math.floor(mousePos.x)}, ${Math.floor(mousePos.y)}`, mousePos.x + 10, mousePos.y - 10);
+  } else {
+    ctx.fillStyle = `rgba(5, 5, 5, ${fogOpacity})`;
+    ctx.fillRect(0, 0, w, h);
+  }
+  ctx.restore();
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -497,6 +553,7 @@ function renderUniverse(
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<ObserverLayer | null>(null);
+  const mousePosRef = useRef<{ x: number; y: number } | null>(null);
   const lazyDocRef = useRef<LazyDocumentary | null>(null);
   const [state, setState] = useState<UniverseState | null>(null);
   const stateRef = useRef<UniverseState | null>(null);
@@ -576,17 +633,44 @@ export default function App() {
     return "O universo está em seus estágios primordiais, onde flutuações quânticas dão origem à primeira matéria.";
   };
 
-  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!canvasRef.current || !state) return;
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current || !engineRef.current || !stateRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    const spectatorTarget = state.isSpectatorMode
-      ? { x: state.viewportX, y: state.viewportY, zoom: state.zoom }
+    const spectatorTarget = stateRef.current.isSpectatorMode
+      ? { x: stateRef.current.viewportX, y: stateRef.current.viewportY, zoom: stateRef.current.zoom }
+      : undefined;
+    
+    const { toX, toY, scale } = computeTransform(
+      stateRef.current.particles,
+      canvasRef.current.width,
+      canvasRef.current.height,
+      spectatorTarget,
+    );
+
+    // Inverter a transformação para obter coordenadas do universo
+    const universeX = (x - canvasRef.current.width / 2) / scale + (spectatorTarget?.x ?? 0);
+    const universeY = (y - canvasRef.current.height / 2) / scale + (spectatorTarget?.y ?? 0);
+    
+    mousePosRef.current = { x, y };
+    
+    // Telescópio Cósmico: Observar localmente
+    engineRef.current.observeAt(universeX, universeY, 1500 / scale);
+  };
+
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current || !stateRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const spectatorTarget = stateRef.current.isSpectatorMode
+      ? { x: stateRef.current.viewportX, y: stateRef.current.viewportY, zoom: stateRef.current.zoom }
       : undefined;
     const { toX, toY, scale } = computeTransform(
-      state.particles,
+      stateRef.current.particles,
       canvasRef.current.width,
       canvasRef.current.height,
       spectatorTarget,
@@ -595,7 +679,7 @@ export default function App() {
     let closest: Particle | null = null;
     let minDist = 20;
 
-    for (const p of state.particles) {
+    for (const p of stateRef.current.particles) {
       if (p.isLatent) continue;
       const dx = toX(p.x) - x;
       const dy = toY(p.y) - y;
@@ -743,6 +827,7 @@ export default function App() {
             engineRef.current,
             latentModeRef.current,
             selectedParticleIdRef.current,
+            mousePosRef.current,
           );
       }
     }
@@ -754,11 +839,10 @@ export default function App() {
     return () => cancelAnimationFrame(requestRef.current);
   }, [animate]);
 
-  const p = state?.particles ?? [];
-  const maxLevel = Math.max(1, ...p.map((q) => q.level));
-  const dormant = p.filter((q) => q.isLatent).length;
-  const charged = p.filter((q) => q.charge !== 0).length;
-  const bound = p.filter((q) => q.isBound && !q.isLatent).length;
+  const maxLevel = state?.maxLevel ?? 1;
+  const dormant = state?.dormantCount ?? 0;
+  const charged = state?.chargedCount ?? 0;
+  const bound = state?.boundCount ?? 0;
 
   return (
     <div className="relative w-full h-screen bg-[#050505] text-white overflow-hidden font-mono">
@@ -767,6 +851,7 @@ export default function App() {
         width={typeof window !== "undefined" ? window.innerWidth : 800}
         height={typeof window !== "undefined" ? window.innerHeight : 600}
         onClick={handleCanvasClick}
+        onMouseMove={handleMouseMove}
         className="absolute inset-0 z-0 cursor-crosshair"
       />
 
@@ -1188,14 +1273,14 @@ export default function App() {
 
               <div className="border-t border-white/5 pt-3 space-y-1.5">
                 <div className="group relative flex justify-between text-[9px]">
-                  <span className="opacity-40">Eficiência Lazy:</span>
-                  <span className="text-emerald-400 font-bold">
-                    {(state?.efficiency ?? 0 * 100).toFixed(1)}%
+                  <span className="opacity-40 uppercase tracking-tighter">Eficiência Lazy:</span>
+                  <span className="text-emerald-400 font-bold font-mono">
+                    {(state?.efficiency ?? 0).toFixed(1)}%
                   </span>
                   <Tooltip
-                    content="Economia de processamento ao não calcular regiões não observadas."
-                    formula="1 - (LazyCost / EagerCost)"
-                    range={`Custo Eager: ${Math.round(state?.eagerCost ?? 0)} | Lazy: ${Math.round(state?.lazyCost ?? 0)}`}
+                    content="Economia de processamento ao não calcular regiões não observadas (Lazy Evaluation)."
+                    formula="100 - (Active / Total) * 100"
+                    range={`Custo Real: ${Math.round(state?.lazyCost ?? 0)} | Custo Teórico: ${Math.round(state?.eagerCost ?? 0)}`}
                   />
                 </div>
               </div>

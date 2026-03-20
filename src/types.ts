@@ -116,6 +116,10 @@ export interface UniverseState {
   eagerCost: number;
   lazyCost: number;
   efficiency: number;
+  maxLevel: number;
+  dormantCount: number;
+  chargedCount: number;
+  boundCount: number;
   
   // Relativity & Photons
   photonCount: number;

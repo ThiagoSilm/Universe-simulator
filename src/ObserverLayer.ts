@@ -62,6 +62,10 @@ export class ObserverLayer {
     efficiency: 0,
     maxCurvature: 0,
     particleCount: 0,
+    maxLevel: 1,
+    dormantCount: 0,
+    chargedCount: 0,
+    boundCount: 0,
   };
 
   constructor(savedState?: any) {
@@ -70,7 +74,7 @@ export class ObserverLayer {
     this.worker.onmessage = (e) => {
       if (e.data.type === 'SNAPSHOT') {
         this.lastSnapshot = e.data.payload;
-        this.calculateMetrics(this.lastSnapshot.particles);
+        this.calculateMetrics(this.lastSnapshot);
         this.onStateUpdate(this.getState());
       }
     };
@@ -84,37 +88,57 @@ export class ObserverLayer {
 
   public step() {
     if (this.isHumanMode) {
-      // Força observação na área visível (isso é o que custa caro!)
-      this.worker.postMessage({ 
-        type: 'OBSERVE', 
-        payload: { x: this.metrics.viewportX, y: this.metrics.viewportY, radius: 2000 / this.metrics.zoom } 
-      });
-      
       // Pede o estado para o humano ver
       this.worker.postMessage({ type: 'GET_SNAPSHOT' });
     }
   }
 
-  private calculateMetrics(particles: any[]) {
+  public observeAt(x: number, y: number, radius: number = 1000) {
+    this.worker.postMessage({ 
+      type: 'OBSERVE', 
+      payload: { x, y, radius } 
+    });
+  }
+
+  private calculateMetrics(snapshot: any) {
+    const { particles, activeCount, totalCount } = snapshot;
     let tempSum = 0;
-    let activeCount = 0;
     let maxCurv = 0;
+    let maxLvl = 1;
+    let chrgd = 0;
+    let bnd = 0;
     
+    // As métricas são calculadas apenas sobre o que está ATIVO (Lazy)
+    // Se o worker já nos deu o activeCount, não precisamos contar de novo!
     for (const p of particles) {
       if (!p.isLatent) {
         tempSum += p.vx * p.vx + p.vy * p.vy;
-        activeCount++;
         const curv = Math.abs(p.vx || 0) + Math.abs(p.vy || 0);
         if (curv > maxCurv) maxCurv = curv;
+        if (p.level > maxLvl) maxLvl = p.level;
+        if (p.charge !== 0) chrgd++;
+        if (p.isBound) bnd++;
       }
     }
 
     this.metrics.avgTemperature = tempSum / (activeCount || 1);
     this.metrics.lazyCost = activeCount;
-    this.metrics.eagerCost = particles.length;
-    this.metrics.efficiency = 100 - (activeCount / (particles.length || 1)) * 100;
+    this.metrics.eagerCost = totalCount;
+    this.metrics.efficiency = 100 - (activeCount / (totalCount || 1)) * 100;
     this.metrics.maxCurvature = maxCurv;
-    this.metrics.particleCount = particles.length;
+    this.metrics.particleCount = totalCount;
+    this.metrics.maxLevel = maxLvl;
+    this.metrics.dormantCount = totalCount - activeCount;
+    this.metrics.chargedCount = chrgd;
+    this.metrics.boundCount = bnd;
+    
+    // Simulação de métricas complexas baseadas na densidade de atividade
+    this.metrics.coherence = Math.min(1, activeCount / 500);
+    this.metrics.interferenceCount = Math.floor(activeCount * 1.5);
+    this.metrics.entangledPairsCount = Math.floor(activeCount / 10);
+    this.metrics.lifeCount = Math.floor(activeCount / 50);
+    this.metrics.culture = Math.min(100, activeCount / 20);
+    this.metrics.technology = Math.min(100, activeCount / 10);
   }
 
   public getState(): UniverseState {

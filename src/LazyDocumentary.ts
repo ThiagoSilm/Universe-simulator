@@ -21,21 +21,15 @@ export class LazyDocumentary {
   // Só processa o que VALE A PENA (Lazy Evaluation)
   capturarMomento() {
     const state = this.universe.getState();
-    const particles = state.particles;
-    const totalEntidades = particles.length;
-    
-    // Use pre-calculated counts if possible, or do a single pass
-    let latentCount = 0;
-    for (const p of particles) {
-      if (p.isLatent) latentCount++;
-    }
-    const activeCount = totalEntidades - latentCount;
+    const totalEntidades = state.particleCount || 0;
+    const activeCount = state.lazyCost || 0;
+    const latentCount = totalEntidades - activeCount;
     
     // Simula a economia baseada no que NÃO está sendo calculado (latentes)
-    this.economia = 1 - (activeCount / (totalEntidades || 1));
+    this.economia = state.efficiency / 100;
     
     // Captura eventos significativos (baseado no histórico de eventos do motor)
-    const eventosRecentes = state.events.length > 0 
+    const eventosRecentes = state.events && state.events.length > 0 
       ? state.events.slice(-3).map(text => ({
           text,
           importancia: 0.6 + Math.random() * 0.4, // High importance for recent events
