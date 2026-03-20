@@ -246,19 +246,20 @@ export class UniverseCore {
         p.vy *= 1.2;
       }
 
-      // 6. Bekenstein / Black Hole Collapse
-      // If a particle has too much information (traces) or mass, it might collapse
-      if (!p.isBlackHole && (p.traces.length >= this.BEKENSTEIN_LIMIT || p.mass > 50)) {
-        // Simple collapse condition: high density of traces or mass
-        p.isBlackHole = true;
-        p.mass *= 2; // Increase mass density
-        p.energy = 0; // Black holes are "cold" in terms of kinetic energy
+      // 6. Singularity / Schwarzschild Collapse
+      // A particle collapses into a singularity if its mass-density exceeds the Schwarzschild limit
+      // or if its information density exceeds the Bekenstein limit.
+      const rs = (2 * this.G * p.mass) / (this.C * this.C);
+      if (!p.isBlackHole && (p.traces.length >= this.BEKENSTEIN_LIMIT || rs > this.PLANCK_LENGTH)) {
+        p.isBlackHole = true; 
+        p.energy = 0;
         p.vx = 0;
         p.vy = 0;
+        // A singularity is a point of silence; it no longer "exists" as a particle
+        // but remains as a gravitational anchor.
       }
 
       if (p.isBlackHole) {
-        // Black hole "eats" nearby particles in activeLocalSearch
         p.vx = 0;
         p.vy = 0;
       }
@@ -348,13 +349,17 @@ export class UniverseCore {
     const force = selected.gravity;
     
     if (selected.particle.isBlackHole) {
-      // Horizon of Events: If too close to a black hole, get trapped
-      if (selected.dist < this.PLANCK_LENGTH * 5) {
+      const rs = (2 * this.G * selected.particle.mass) / (this.C * this.C);
+      // Horizon of Events: If too close to a singularity, it is absorbed
+      if (selected.dist < rs) {
         p.energy = 0;
         p.vx = 0;
         p.vy = 0;
         p.isBound = true;
-        // Information is "lost" to the black hole
+        // Information is "absorbed" by the singularity
+        selected.particle.traces.push({ targetId: p.id, affinity: 1, tick: this.tickCount });
+        if (selected.particle.traces.length > this.BEKENSTEIN_LIMIT) selected.particle.traces.shift();
+        
         p.traces = [];
         return;
       }

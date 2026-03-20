@@ -327,29 +327,9 @@ function renderUniverse(
       ctx.stroke();
     }
 
-    // Black Hole Visualization
-    if (p.isBlackHole) {
-      const bhSize = size * 4;
-      ctx.save();
-      // Event Horizon
-      const grad = ctx.createRadialGradient(x, y, bhSize * 0.5, x, y, bhSize * 2);
-      grad.addColorStop(0, "rgba(0, 0, 0, 1)");
-      grad.addColorStop(0.5, "rgba(20, 0, 40, 0.8)");
-      grad.addColorStop(1, "transparent");
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(x, y, bhSize * 2, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Accretion Disk (faint)
-      ctx.strokeStyle = "rgba(255, 150, 50, 0.3)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.ellipse(x, y, bhSize * 3, bhSize * 0.8, p.phase, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-      continue; // Don't draw regular particle core
-    }
+    // Singularities (Black Holes) are not rendered directly
+    // They are points of silence, visible only by their effects on neighbors
+    if (p.isBlackHole) continue;
 
     // Core with charge color
     let bodyColor = (p.color || "rgba(255,255,255,0.2)").replace("0.2)", "0.5)");
