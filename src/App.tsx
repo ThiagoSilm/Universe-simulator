@@ -300,7 +300,8 @@ function renderUniverse(
       const nx = -p.vx / spd,
         ny = -p.vy / spd;
       const g = ctx.createLinearGradient(x, y, x + nx * len, y + ny * len);
-      g.addColorStop(0, p.color.replace("0.2)", "0.4)"));
+      const color = p.color || "rgba(255,255,255,0.2)";
+      g.addColorStop(0, color.replace("0.2)", "0.4)"));
       g.addColorStop(1, "transparent");
       ctx.strokeStyle = g;
       ctx.lineWidth = size;
@@ -311,7 +312,7 @@ function renderUniverse(
     }
 
     // Core with charge color
-    let bodyColor = p.color.replace("0.2)", "0.5)");
+    let bodyColor = (p.color || "rgba(255,255,255,0.2)").replace("0.2)", "0.5)");
     if (p.isDarkMatter) {
       bodyColor = "rgba(120, 0, 200, 0.15)"; // faint purple for dark matter
     } else {
@@ -1454,19 +1455,19 @@ export default function App() {
                         <div className="pt-2 border-t border-white/5 flex justify-between text-[9px]">
                           <span className="opacity-40">Amplitude:</span>
                           <span className="text-white">
-                            {p.amplitude.toFixed(3)}
+                            {(p.amplitude ?? 0).toFixed(3)}
                           </span>
                         </div>
                         <div className="flex justify-between text-[9px]">
                           <span className="opacity-40">Fase:</span>
                           <span className="text-white">
-                            {((p.phase * 180) / Math.PI).toFixed(1)}°
+                            {(((p.phase ?? 0) * 180) / Math.PI).toFixed(1)}°
                           </span>
                         </div>
                         <div className="flex justify-between text-[9px]">
                           <span className="opacity-40">Viés de Contexto:</span>
                           <span className="text-yellow-400">
-                            {p.contextualBias.toFixed(3)}
+                            {(p.contextualBias ?? 0).toFixed(3)}
                           </span>
                         </div>
                         <div className="flex justify-between text-[9px]">
