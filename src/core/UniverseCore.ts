@@ -134,6 +134,7 @@ export class UniverseCore {
   private readonly G = 0.02; // Reduced Gravitational constant
   private readonly LAMBDA = 0.0005; // Cosmological constant (expansion rate)
   private readonly PLANCK_LENGTH = 5; // Increased minimum distance for softening
+  private readonly EPS = 0.05; // Gravitational softening
   private readonly PLANCK_TEMP = 1000; // Maximum energy
   private readonly BEKENSTEIN_LIMIT = 20; // Max traces/information per particle
   
@@ -399,21 +400,17 @@ export class UniverseCore {
       const dx = n.x - p.x;
       const dy = n.y - p.y;
       const distSq = dx * dx + dy * dy;
-      const dist = Math.sqrt(distSq);
       
-      // Planck Length Enforcement
-      const effectiveDist = Math.max(this.PLANCK_LENGTH, dist);
-      
-      // Gravity (G)
-      const gravity = Math.min((this.G * p.weight * n.weight) / (effectiveDist * effectiveDist), 10.0);
+      // Gravity (G) with Softening
+      const gravity = Math.min((this.G * p.weight * n.weight) / (distSq + this.EPS), 10.0);
       
       // Quantum Affinity (h)
       const phaseDiff = Math.cos(p.phase - n.phase);
       const chargeMatch = p.charge !== n.charge ? 1.5 : 0.5;
       
-      const affinity = (gravity + (1 / (effectiveDist + 1))) * (1 + phaseDiff) * chargeMatch;
+      const affinity = (gravity + (1 / (Math.sqrt(distSq) + 1))) * (1 + phaseDiff) * chargeMatch;
       
-      return { particle: n, affinity, gravity, dx, dy, dist: effectiveDist };
+      return { particle: n, affinity, gravity, dx, dy, dist: Math.sqrt(distSq) };
     });
 
     // Probabilistic selection
