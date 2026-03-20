@@ -1,62 +1,117 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Zap, Activity, Brain, Orbit, RefreshCw, Info, Layers, Cpu, Thermometer, Atom, Sigma,
-  Link, Heart, TrendingUp, Globe, Share2, Network, Eye, Wind, Circle, Database, X, Beaker, Clock
-} from 'lucide-react';
-import { UniverseEngine, PersistentState, GRID_SIZE } from './UniverseEngine';
-import { LazyDocumentary } from './LazyDocumentary';
-import { UniverseState, Particle } from './types';
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  Zap,
+  Activity,
+  Brain,
+  Orbit,
+  RefreshCw,
+  Info,
+  Layers,
+  Cpu,
+  Thermometer,
+  Atom,
+  Sigma,
+  Link,
+  Heart,
+  TrendingUp,
+  Globe,
+  Share2,
+  Network,
+  Eye,
+  Wind,
+  Circle,
+  Database,
+  X,
+  Beaker,
+  Clock,
+  Lock,
+} from "lucide-react";
+import { ObserverLayer, PersistentState, GRID_SIZE } from "./ObserverLayer";
+import { LazyDocumentary } from "./LazyDocumentary";
+import { UniverseState, Particle } from "./types";
 
-const STORAGE_KEY = 'lazy_universe_state_v6';
+const STORAGE_KEY = "lazy_universe_state_v6";
 
 // ═══════════════════════════════════════════════════════════════════
 //  VISUALIZATION
 // ═══════════════════════════════════════════════════════════════════
 
-function computeTransform(particles: Particle[], w: number, h: number, spectatorTarget?: { x: number, y: number, zoom: number }) {
+function computeTransform(
+  particles: Particle[],
+  w: number,
+  h: number,
+  spectatorTarget?: { x: number; y: number; zoom: number },
+) {
   if (spectatorTarget) {
     const scale = spectatorTarget.zoom;
     const cx = spectatorTarget.x;
     const cy = spectatorTarget.y;
     return {
-      toX: (wx: number) => (wx-cx)*scale + w/2,
-      toY: (wy: number) => (wy-cy)*scale + h/2,
+      toX: (wx: number) => (wx - cx) * scale + w / 2,
+      toY: (wy: number) => (wy - cy) * scale + h / 2,
       scale,
     };
   }
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  let minX = Infinity,
+    maxX = -Infinity,
+    minY = Infinity,
+    maxY = -Infinity;
   for (const p of particles) {
-    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
-    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
   }
-  const pad = 48, rangeX = Math.max(500, maxX-minX), rangeY = Math.max(500, maxY-minY);
-  const cx = (minX+maxX)/2, cy = (minY+maxY)/2;
-  const scale = Math.min((w-pad*2)/rangeX, (h-pad*2)/rangeY);
+  const pad = 48,
+    rangeX = Math.max(500, maxX - minX),
+    rangeY = Math.max(500, maxY - minY);
+  const cx = (minX + maxX) / 2,
+    cy = (minY + maxY) / 2;
+  const scale = Math.min((w - pad * 2) / rangeX, (h - pad * 2) / rangeY);
   return {
-    toX: (wx: number) => (wx-cx)*scale + w/2,
-    toY: (wy: number) => (wy-cy)*scale + h/2,
+    toX: (wx: number) => (wx - cx) * scale + w / 2,
+    toY: (wy: number) => (wy - cy) * scale + h / 2,
     scale,
   };
 }
 
-function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, state: UniverseState, engine: UniverseEngine, latentMode: boolean) {
+function renderUniverse(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  state: UniverseState,
+  engine: ObserverLayer,
+  latentMode: boolean,
+  selectedParticleId: string | null,
+) {
   const { particles } = state;
   if (particles.length === 0) return;
 
-  ctx.fillStyle = '#050505';
+  ctx.fillStyle = "#050505";
   ctx.fillRect(0, 0, w, h);
 
-  const spectatorTarget = state.isSpectatorMode ? { x: state.viewportX, y: state.viewportY, zoom: state.zoom } : undefined;
-  const { toX, toY, scale } = computeTransform(particles, w, h, spectatorTarget);
+  const spectatorTarget = state.isSpectatorMode
+    ? { x: state.viewportX, y: state.viewportY, zoom: state.zoom }
+    : undefined;
+  const { toX, toY, scale } = computeTransform(
+    particles,
+    w,
+    h,
+    spectatorTarget,
+  );
 
   // ── Layer -1: Heatmap (Active vs Latent) ───────────────────────────
   if (state.activeGridKeys) {
     ctx.save();
     const activeKeys = new Set(state.activeGridKeys);
-    const visibleGridRange = 25; 
-    const centerX = spectatorTarget ? spectatorTarget.x : particles.reduce((s, p) => s + p.x, 0) / particles.length;
-    const centerY = spectatorTarget ? spectatorTarget.y : particles.reduce((s, p) => s + p.y, 0) / particles.length;
+    const visibleGridRange = 25;
+    const centerX = spectatorTarget
+      ? spectatorTarget.x
+      : particles.reduce((s, p) => s + p.x, 0) / particles.length;
+    const centerY = spectatorTarget
+      ? spectatorTarget.y
+      : particles.reduce((s, p) => s + p.y, 0) / particles.length;
     const gx0 = Math.floor(centerX / GRID_SIZE) - visibleGridRange;
     const gy0 = Math.floor(centerY / GRID_SIZE) - visibleGridRange;
 
@@ -64,18 +119,19 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
       for (let gy = gy0; gy < gy0 + visibleGridRange * 2; gy++) {
         const key = `${gx},${gy}`;
         const isActive = activeKeys.has(key);
-        const x = toX(gx * GRID_SIZE), y = toY(gy * GRID_SIZE);
+        const x = toX(gx * GRID_SIZE),
+          y = toY(gy * GRID_SIZE);
         const size = GRID_SIZE * scale;
-        
+
         if (isActive) {
-          ctx.strokeStyle = 'rgba(255, 100, 0, 0.15)';
+          ctx.strokeStyle = "rgba(255, 100, 0, 0.15)";
           ctx.strokeRect(x, y, size, size);
-          ctx.fillStyle = 'rgba(255, 100, 0, 0.04)';
+          ctx.fillStyle = "rgba(255, 100, 0, 0.04)";
           ctx.fillRect(x, y, size, size);
         } else if (latentMode) {
-          ctx.strokeStyle = 'rgba(50, 50, 100, 0.08)';
+          ctx.strokeStyle = "rgba(50, 50, 100, 0.08)";
           ctx.strokeRect(x, y, size, size);
-          ctx.fillStyle = 'rgba(50, 50, 100, 0.02)';
+          ctx.fillStyle = "rgba(50, 50, 100, 0.02)";
           ctx.fillRect(x, y, size, size);
         }
       }
@@ -87,7 +143,8 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
   if (state.campoLatente && state.campoLatente.length > 0) {
     ctx.save();
     for (const info of state.campoLatente) {
-      const x = toX(info.x), y = toY(info.y);
+      const x = toX(info.x),
+        y = toY(info.y);
       const size = Math.max(0.5, 0.8 * scale);
       ctx.fillStyle = `rgba(180, 180, 255, ${Math.min(0.15, 0.02 * info.intensity)})`;
       ctx.beginPath();
@@ -101,24 +158,28 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
   ctx.save();
   for (const p of particles) {
     if (p.isLatent || !p.isCollapsed) continue;
-    const isSing = p.id.startsWith('singularity');
+    const isSing = p.id.startsWith("singularity");
     if (!isSing && !p.isBound) continue; // Only show subtle glow for singularities or bound matter
 
-    const x = toX(p.x), y = toY(p.y);
+    const x = toX(p.x),
+      y = toY(p.y);
     const glowR = Math.max(4, (2 + p.level * 2 + p.weight * 0.1) * scale);
     const glow = ctx.createRadialGradient(x, y, 0, x, y, glowR);
-    
+
     if (isSing) {
-      glow.addColorStop(0, `rgba(160,80,255,${Math.min(0.15, 0.02 * p.level)})`);
-      glow.addColorStop(1, 'transparent');
+      glow.addColorStop(
+        0,
+        `rgba(160,80,255,${Math.min(0.15, 0.02 * p.level)})`,
+      );
+      glow.addColorStop(1, "transparent");
     } else {
       glow.addColorStop(0, `rgba(60,200,120,${Math.min(0.1, 0.01 * p.level)})`);
-      glow.addColorStop(1, 'transparent');
+      glow.addColorStop(1, "transparent");
     }
-    
+
     ctx.fillStyle = glow;
-    ctx.beginPath(); 
-    ctx.arc(x, y, glowR, 0, Math.PI * 2); 
+    ctx.beginPath();
+    ctx.arc(x, y, glowR, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
@@ -127,9 +188,12 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
   ctx.save();
   for (const p of particles) {
     if (!p.isLatent) continue;
-    const x = toX(p.x), y = toY(p.y);
-    ctx.fillStyle = 'rgba(70,70,90,0.22)';
-    ctx.beginPath(); ctx.arc(x, y, Math.max(0.4, 0.45*scale), 0, Math.PI*2); ctx.fill();
+    const x = toX(p.x),
+      y = toY(p.y);
+    ctx.fillStyle = "rgba(70,70,90,0.22)";
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(0.4, 0.45 * scale), 0, Math.PI * 2);
+    ctx.fill();
   }
   ctx.restore();
 
@@ -137,23 +201,25 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
   ctx.save();
   for (const p of particles) {
     if (p.isLatent || p.isCollapsed || p.charge !== 0) continue;
-    const spd2 = p.vx**2 + p.vy**2;
-    if (spd2 < 400) continue; 
-    const x = toX(p.x), y = toY(p.y);
+    const spd2 = p.vx ** 2 + p.vy ** 2;
+    if (spd2 < 400) continue;
+    const x = toX(p.x),
+      y = toY(p.y);
     const spd = Math.sqrt(spd2);
     const len = Math.min(8, spd) * scale * 2;
-    const nx = -p.vx/spd, ny = -p.vy/spd;
-    
-    ctx.strokeStyle = 'rgba(255,255,200,0.3)';
+    const nx = -p.vx / spd,
+      ny = -p.vy / spd;
+
+    ctx.strokeStyle = "rgba(255,255,200,0.3)";
     ctx.lineWidth = Math.max(0.3, 0.5 * scale);
-    ctx.beginPath(); 
-    ctx.moveTo(x, y); 
-    ctx.lineTo(x + nx * len, y + ny * len); 
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + nx * len, y + ny * len);
     ctx.stroke();
-    
-    ctx.fillStyle = 'rgba(255,255,220,0.6)';
-    ctx.beginPath(); 
-    ctx.arc(x, y, Math.max(0.4, 0.6 * scale), 0, Math.PI * 2); 
+
+    ctx.fillStyle = "rgba(255,255,220,0.6)";
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(0.4, 0.6 * scale), 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
@@ -162,59 +228,74 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
   ctx.save();
   for (const p of particles) {
     if (p.isLatent || p.isCollapsed) continue;
-    const spd2 = p.vx**2 + p.vy**2;
+    const spd2 = p.vx ** 2 + p.vy ** 2;
     if (spd2 >= 400 && p.charge === 0) continue; // handled above as photon
-    const x = toX(p.x), y = toY(p.y);
-    const size = Math.max(0.8, 1.0*scale);
+    const x = toX(p.x),
+      y = toY(p.y);
+    const size = Math.max(0.8, 1.0 * scale);
 
     // Wave radius cloud — quantum uncertainty
     const wr = (p.waveRadius || 0) * scale;
     if (wr > 1) {
       const grad = ctx.createRadialGradient(x, y, 0, x, y, wr);
       if (p.charge > 0) {
-        grad.addColorStop(0, 'rgba(255,120,60,0.08)');
-        grad.addColorStop(0.6, 'rgba(255,120,60,0.03)');
+        grad.addColorStop(0, "rgba(255,120,60,0.08)");
+        grad.addColorStop(0.6, "rgba(255,120,60,0.03)");
       } else if (p.charge < 0) {
-        grad.addColorStop(0, 'rgba(60,120,255,0.08)');
-        grad.addColorStop(0.6, 'rgba(60,120,255,0.03)');
+        grad.addColorStop(0, "rgba(60,120,255,0.08)");
+        grad.addColorStop(0.6, "rgba(60,120,255,0.03)");
       } else {
-        grad.addColorStop(0, 'rgba(120,180,255,0.06)');
-        grad.addColorStop(0.6, 'rgba(120,180,255,0.02)');
+        grad.addColorStop(0, "rgba(120,180,255,0.06)");
+        grad.addColorStop(0.6, "rgba(120,180,255,0.02)");
       }
-      grad.addColorStop(1, 'transparent');
+      grad.addColorStop(1, "transparent");
       ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(x, y, wr, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, y, wr, 0, Math.PI * 2);
+      ctx.fill();
 
       // Wave boundary circle
-      ctx.strokeStyle = p.charge === 0
-        ? 'rgba(120,180,255,0.1)'
-        : (p.charge > 0 ? 'rgba(255,120,60,0.12)' : 'rgba(60,120,255,0.12)');
+      ctx.strokeStyle =
+        p.charge === 0
+          ? "rgba(120,180,255,0.1)"
+          : p.charge > 0
+            ? "rgba(255,120,60,0.12)"
+            : "rgba(60,120,255,0.12)";
       ctx.lineWidth = 0.4;
-      ctx.beginPath(); ctx.arc(x, y, wr, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y, wr, 0, Math.PI * 2);
+      ctx.stroke();
     }
 
     // Velocity streak
     const spd = Math.sqrt(spd2);
     if (spd > 2.5 && scale > 0.0005) {
       const len = Math.min(10, spd) * scale * 2.5;
-      const nx = -p.vx/spd, ny = -p.vy/spd;
-      const g = ctx.createLinearGradient(x, y, x+nx*len, y+ny*len);
-      g.addColorStop(0, p.color.replace('0.2)', '0.4)'));
-      g.addColorStop(1, 'transparent');
-      ctx.strokeStyle = g; ctx.lineWidth = size;
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x+nx*len, y+ny*len); ctx.stroke();
+      const nx = -p.vx / spd,
+        ny = -p.vy / spd;
+      const g = ctx.createLinearGradient(x, y, x + nx * len, y + ny * len);
+      g.addColorStop(0, p.color.replace("0.2)", "0.4)"));
+      g.addColorStop(1, "transparent");
+      ctx.strokeStyle = g;
+      ctx.lineWidth = size;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + nx * len, y + ny * len);
+      ctx.stroke();
     }
 
     // Core with charge color
-    let bodyColor = p.color.replace('0.2)', '0.5)');
+    let bodyColor = p.color.replace("0.2)", "0.5)");
     if (p.isDarkMatter) {
-      bodyColor = 'rgba(120, 0, 200, 0.15)'; // faint purple for dark matter
+      bodyColor = "rgba(120, 0, 200, 0.15)"; // faint purple for dark matter
     } else {
-      if (p.charge > 0) bodyColor = 'rgba(255,150,80,0.55)';
-      if (p.charge < 0) bodyColor = 'rgba(80,130,255,0.55)';
+      if (p.charge > 0) bodyColor = "rgba(255,150,80,0.55)";
+      if (p.charge < 0) bodyColor = "rgba(80,130,255,0.55)";
     }
     ctx.fillStyle = bodyColor;
-    ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
   }
   ctx.restore();
 
@@ -223,7 +304,7 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
   const drawnLinks = new Set<string>();
   const particleMap = new Map<string, Particle>();
   const moleculeMap = new Map<string, Particle[]>();
-  
+
   for (const p of particles) {
     particleMap.set(p.id, p);
     if (p.moleculeId) {
@@ -237,7 +318,7 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
     if (p.entangledWith && !drawnLinks.has(p.id + p.entangledWith)) {
       const partner = particleMap.get(p.entangledWith);
       if (partner) {
-        ctx.strokeStyle = 'rgba(255, 100, 255, 0.15)';
+        ctx.strokeStyle = "rgba(255, 100, 255, 0.15)";
         ctx.lineWidth = Math.max(0.5, 0.5 * scale);
         ctx.setLineDash([5, 5]);
         ctx.beginPath();
@@ -249,14 +330,18 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
       }
     }
   }
-  
+
   // Molecule bonds
   for (const [molId, molParticles] of moleculeMap) {
     if (molParticles.length >= 2) {
       const p1 = molParticles[0];
       const p2 = molParticles[1];
-      const isOrganic = (p1.element === 'C' || p1.element === 'H') && (p2.element === 'C' || p2.element === 'H');
-      ctx.strokeStyle = isOrganic ? 'rgba(50, 255, 50, 0.6)' : 'rgba(200, 200, 200, 0.3)';
+      const isOrganic =
+        (p1.element === "C" || p1.element === "H") &&
+        (p2.element === "C" || p2.element === "H");
+      ctx.strokeStyle = isOrganic
+        ? "rgba(50, 255, 50, 0.6)"
+        : "rgba(200, 200, 200, 0.3)";
       ctx.lineWidth = Math.max(1, 1.5 * scale);
       ctx.setLineDash([]);
       ctx.beginPath();
@@ -272,61 +357,77 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
   ctx.save();
   for (const p of particles) {
     if (p.isLatent || !p.isCollapsed || p.isConscious) continue;
-    const x = toX(p.x), y = toY(p.y);
-    const isSing  = p.id.startsWith('singularity');
-    const size    = Math.max(1, (1.5 + p.level*0.8 + p.weight*0.1)*scale);
+    const x = toX(p.x),
+      y = toY(p.y);
+    const isSing = p.id.startsWith("singularity");
+    const size = Math.max(1, (1.5 + p.level * 0.8 + p.weight * 0.1) * scale);
 
     // Bound state glow (nuclear binding — green tint)
     if (p.isBound) {
-      ctx.strokeStyle = `rgba(60,220,120,${Math.min(0.7, 0.15*p.level+0.1)})`;
-      ctx.lineWidth   = Math.max(0.4, 0.5*scale);
+      ctx.strokeStyle = `rgba(60,220,120,${Math.min(0.7, 0.15 * p.level + 0.1)})`;
+      ctx.lineWidth = Math.max(0.4, 0.5 * scale);
       ctx.setLineDash([2, 2]);
-      ctx.beginPath(); ctx.arc(x, y, size*2.2, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y, size * 2.2, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.setLineDash([]);
     }
 
     // Level ring
     if (p.level > 1) {
-      ctx.strokeStyle = `rgba(255,255,255,${Math.min(0.5, 0.07*p.level)})`;
-      ctx.lineWidth   = Math.max(0.3, 0.4*scale);
-      ctx.beginPath(); ctx.arc(x, y, size*2, 0, Math.PI*2); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,255,255,${Math.min(0.5, 0.07 * p.level)})`;
+      ctx.lineWidth = Math.max(0.3, 0.4 * scale);
+      ctx.beginPath();
+      ctx.arc(x, y, size * 2, 0, Math.PI * 2);
+      ctx.stroke();
     }
 
     // Singularity halo
     if (isSing) {
-      ctx.strokeStyle = 'rgba(160,80,255,0.5)';
-      ctx.lineWidth   = Math.max(0.5, 0.6*scale);
+      ctx.strokeStyle = "rgba(160,80,255,0.5)";
+      ctx.lineWidth = Math.max(0.5, 0.6 * scale);
       ctx.setLineDash([3, 3]);
-      ctx.beginPath(); ctx.arc(x, y, size*4.5, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y, size * 4.5, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.setLineDash([]);
     }
 
     // Latent trace ring (stored information)
     if (p.latentTraces?.length) {
-      ctx.strokeStyle = `rgba(255,165,0,${Math.min(0.5, 0.04*p.latentTraces.length)})`;
-      ctx.lineWidth   = Math.max(0.3, 0.5*scale);
-      ctx.beginPath(); ctx.arc(x, y, size + Math.max(1.5, 2*scale), 0, Math.PI*2); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,165,0,${Math.min(0.5, 0.04 * p.latentTraces.length)})`;
+      ctx.lineWidth = Math.max(0.3, 0.5 * scale);
+      ctx.beginPath();
+      ctx.arc(x, y, size + Math.max(1.5, 2 * scale), 0, Math.PI * 2);
+      ctx.stroke();
     }
 
     // Charge indicator
     if (p.charge !== 0) {
-      ctx.strokeStyle = p.charge > 0 ? 'rgba(255,110,50,0.5)' : 'rgba(50,110,255,0.5)';
-      ctx.lineWidth   = Math.max(0.3, 0.35*scale);
-      ctx.beginPath(); ctx.arc(x, y, size*1.4, 0, Math.PI*2); ctx.stroke();
+      ctx.strokeStyle =
+        p.charge > 0 ? "rgba(255,110,50,0.5)" : "rgba(50,110,255,0.5)";
+      ctx.lineWidth = Math.max(0.3, 0.35 * scale);
+      ctx.beginPath();
+      ctx.arc(x, y, size * 1.4, 0, Math.PI * 2);
+      ctx.stroke();
     }
 
     // Spin indicator — tiny arc showing spin direction
     if (Math.abs(p.spin) > 0 && size > 1.5) {
-      const spinArc = p.spin > 0 ? [0, Math.PI] : [Math.PI, Math.PI*2];
-      ctx.strokeStyle = 'rgba(200,200,255,0.3)';
-      ctx.lineWidth = Math.max(0.2, 0.25*scale);
-      ctx.beginPath(); ctx.arc(x, y, size*0.7, spinArc[0], spinArc[1]); ctx.stroke();
+      const spinArc = p.spin > 0 ? [0, Math.PI] : [Math.PI, Math.PI * 2];
+      ctx.strokeStyle = "rgba(200,200,255,0.3)";
+      ctx.lineWidth = Math.max(0.2, 0.25 * scale);
+      ctx.beginPath();
+      ctx.arc(x, y, size * 0.7, spinArc[0], spinArc[1]);
+      ctx.stroke();
     }
 
     // Core
-    const bright = Math.min(255, 165+p.level*14);
-    ctx.fillStyle = `rgba(${bright},${bright},${bright},${Math.min(0.95, 0.5+p.level*0.06)})`;
-    ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI*2); ctx.fill();
+    const bright = Math.min(255, 165 + p.level * 14);
+    ctx.fillStyle = `rgba(${bright},${bright},${bright},${Math.min(0.95, 0.5 + p.level * 0.06)})`;
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
   }
   ctx.restore();
 
@@ -334,41 +435,51 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
   ctx.save();
   for (const p of particles) {
     if ((!p.isConscious && !p.isCollectiveConscious) || p.isLatent) continue;
-    const x = toX(p.x), y = toY(p.y);
-    const size = Math.max(2, (2 + p.level*1.2 + p.weight*0.12)*scale);
-    const hr = size*10;
-    const halo = ctx.createRadialGradient(x, y, size*0.5, x, y, hr);
-    
+    const x = toX(p.x),
+      y = toY(p.y);
+    const size = Math.max(2, (2 + p.level * 1.2 + p.weight * 0.12) * scale);
+    const hr = size * 10;
+    const halo = ctx.createRadialGradient(x, y, size * 0.5, x, y, hr);
+
     if (p.isCollectiveConscious) {
-      halo.addColorStop(0,    'rgba(255,255,255,0.7)');
-      halo.addColorStop(0.25, 'rgba(255,180,80,0.25)');
-      halo.addColorStop(1,    'transparent');
+      halo.addColorStop(0, "rgba(255,255,255,0.7)");
+      halo.addColorStop(0.25, "rgba(255,180,80,0.25)");
+      halo.addColorStop(1, "transparent");
     } else {
-      halo.addColorStop(0,    'rgba(255,255,255,0.55)');
-      halo.addColorStop(0.25, 'rgba(180,140,255,0.18)');
-      halo.addColorStop(1,    'transparent');
+      halo.addColorStop(0, "rgba(255,255,255,0.55)");
+      halo.addColorStop(0.25, "rgba(180,140,255,0.18)");
+      halo.addColorStop(1, "transparent");
     }
-    
+
     ctx.fillStyle = halo;
-    ctx.beginPath(); ctx.arc(x, y, hr, 0, Math.PI*2); ctx.fill();
-    
-    ctx.strokeStyle = p.isCollectiveConscious ? 'rgba(255,200,100,0.4)' : 'rgba(255,255,255,0.2)';
-    ctx.lineWidth   = Math.max(0.5, 0.7*scale);
-    ctx.beginPath(); ctx.arc(x, y, size*3, 0, Math.PI*2); ctx.stroke();
-    
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x, y, hr, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = p.isCollectiveConscious
+      ? "rgba(255,200,100,0.4)"
+      : "rgba(255,255,255,0.2)";
+    ctx.lineWidth = Math.max(0.5, 0.7 * scale);
+    ctx.beginPath();
+    ctx.arc(x, y, size * 3, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
   }
   ctx.restore();
 
   // ── Layer 7: Selection Highlight ──────────────────────────────────
-  if (state.selectedParticleId) {
-    const p = particles.find(p => p.id === state.selectedParticleId);
+  if (selectedParticleId) {
+    const p = particles.find((p) => p.id === selectedParticleId);
     if (p && !p.isLatent) {
-      const x = toX(p.x), y = toY(p.y);
-      const size = Math.max(2, (2 + p.level*1.2 + p.weight*0.12)*scale);
+      const x = toX(p.x),
+        y = toY(p.y);
+      const size = Math.max(2, (2 + p.level * 1.2 + p.weight * 0.12) * scale);
       ctx.save();
-      ctx.strokeStyle = '#fff';
+      ctx.strokeStyle = "#fff";
       ctx.lineWidth = 1;
       ctx.setLineDash([2, 2]);
       ctx.beginPath();
@@ -385,39 +496,79 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const engineRef = useRef<UniverseEngine | null>(null);
+  const engineRef = useRef<ObserverLayer | null>(null);
   const lazyDocRef = useRef<LazyDocumentary | null>(null);
   const [state, setState] = useState<UniverseState | null>(null);
-  const [lazyMetrics, setLazyMetrics] = useState({ 
-    economy: '0%', 
-    latentesPct: '0%', 
-    calculandoPct: '0%', 
-    event: 'None', 
-    nextScan: 0 
+  const [lazyMetrics, setLazyMetrics] = useState({
+    economy: "0%",
+    latentesPct: "0%",
+    calculandoPct: "0%",
+    event: "None",
+    nextScan: 0,
   });
-  const [selectedParticleId, setSelectedParticleId] = useState<string | null>(null);
+  const [selectedParticleId, setSelectedParticleId] = useState<string | null>(
+    null,
+  );
+  const selectedParticleIdRef = useRef<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [latentMode, setLatentMode] = useState(false);
-  const [activeTab, setActiveTab] = useState<'quantum' | 'life' | 'civ' | 'cosmic' | 'log'>('quantum');
+  const latentModeRef = useRef(false);
+  const [activeTab, setActiveTab] = useState<
+    "quantum" | "life" | "civ" | "cosmic" | "log"
+  >("quantum");
   const [scientistMode, setScientistMode] = useState(false);
   const [showNarrative, setShowNarrative] = useState(true);
-  const [selectedParticle, setSelectedParticle] = useState<Particle | null>(null);
+  const [humanMode, setHumanMode] = useState(false);
+  const humanModeRef = useRef(false);
+  const [selectedParticle, setSelectedParticle] = useState<Particle | null>(
+    null,
+  );
   const [prevStats, setPrevStats] = useState<Record<string, number>>({});
   const requestRef = useRef<number>(0);
 
+  // Sync refs with state
+  useEffect(() => {
+    selectedParticleIdRef.current = selectedParticleId;
+  }, [selectedParticleId]);
+
+  useEffect(() => {
+    latentModeRef.current = latentMode;
+  }, [latentMode]);
+
+  useEffect(() => {
+    humanModeRef.current = humanMode;
+  }, [humanMode]);
+
   const getNarrative = () => {
     if (!state) return "";
-    const { metaConsciousness, culture, lifeCount, moleculeCount, entropy, coherence, technology, relationsCount } = state;
+    const {
+      metaConsciousness,
+      culture,
+      lifeCount,
+      moleculeCount,
+      entropy,
+      coherence,
+      technology,
+      relationsCount,
+    } = state;
 
-    if (metaConsciousness) return "A simulação atingiu o ponto de singularidade. A consciência coletiva agora observa o observador.";
-    if (technology > 80) return "A tecnologia transcende a matéria. Civilizações manipulam as leis fundamentais para sustentar sua existência.";
-    if (culture > 50) return "Uma civilização galáctica está em pleno florescimento, moldando a realidade através da cultura e tecnologia.";
-    if (relationsCount > 100) return "Uma rede complexa de interações sociais emerge, criando uma inteligência coletiva distribuída.";
-    if (lifeCount > 100) return "A vida prospera em diversos nichos, a replicação molecular atingiu uma escala planetária.";
-    if (moleculeCount > 50) return "A química complexa está preparando o terreno para a emergência da vida biológica.";
-    if (coherence > 0.8) return "A ordem quântica é absoluta. O universo ressoa em uma harmonia perfeita de fases.";
-    if (entropy < 0.5) return "A matéria está se organizando em estruturas complexas sob a influência da gravidade e forças nucleares.";
-    
+    if (metaConsciousness)
+      return "A simulação atingiu o ponto de singularidade. A consciência coletiva agora observa o observador.";
+    if (technology > 80)
+      return "A tecnologia transcende a matéria. Civilizações manipulam as leis fundamentais para sustentar sua existência.";
+    if (culture > 50)
+      return "Uma civilização galáctica está em pleno florescimento, moldando a realidade através da cultura e tecnologia.";
+    if (relationsCount > 100)
+      return "Uma rede complexa de interações sociais emerge, criando uma inteligência coletiva distribuída.";
+    if (lifeCount > 100)
+      return "A vida prospera em diversos nichos, a replicação molecular atingiu uma escala planetária.";
+    if (moleculeCount > 50)
+      return "A química complexa está preparando o terreno para a emergência da vida biológica.";
+    if (coherence > 0.8)
+      return "A ordem quântica é absoluta. O universo ressoa em uma harmonia perfeita de fases.";
+    if (entropy < 0.5)
+      return "A matéria está se organizando em estruturas complexas sob a influência da gravidade e forças nucleares.";
+
     return "O universo está em seus estágios primordiais, onde flutuações quânticas dão origem à primeira matéria.";
   };
 
@@ -427,8 +578,15 @@ export default function App() {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    const spectatorTarget = state.isSpectatorMode ? { x: state.viewportX, y: state.viewportY, zoom: state.zoom } : undefined;
-    const { toX, toY, scale } = computeTransform(state.particles, canvasRef.current.width, canvasRef.current.height, spectatorTarget);
+    const spectatorTarget = state.isSpectatorMode
+      ? { x: state.viewportX, y: state.viewportY, zoom: state.zoom }
+      : undefined;
+    const { toX, toY, scale } = computeTransform(
+      state.particles,
+      canvasRef.current.width,
+      canvasRef.current.height,
+      spectatorTarget,
+    );
 
     let closest: Particle | null = null;
     let minDist = 20;
@@ -448,23 +606,27 @@ export default function App() {
   };
 
   const initEngine = useCallback((forceReset = false) => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
     let saved: PersistentState | null = null;
     if (!forceReset) {
       try {
         const item = localStorage.getItem(STORAGE_KEY);
-        console.log('Persistence: loading from localStorage', item ? 'found' : 'not found');
+        console.log(
+          "Persistence: loading from localStorage",
+          item ? "found" : "not found",
+        );
         if (item) {
           saved = JSON.parse(item);
-          console.log('Persistence: loaded successfully');
+          console.log("Persistence: loaded successfully");
         }
       } catch (e) {
-        console.error('Persistence: failed to load', e);
+        console.error("Persistence: failed to load", e);
       }
     } else {
       localStorage.removeItem(STORAGE_KEY);
     }
-    engineRef.current = new UniverseEngine(saved || undefined);
+    engineRef.current = new ObserverLayer(saved || undefined);
+    engineRef.current.isHumanMode = humanModeRef.current;
     lazyDocRef.current = new LazyDocumentary(engineRef.current);
     setState(engineRef.current.step());
   }, []);
@@ -473,37 +635,72 @@ export default function App() {
     const handleBeforeUnload = () => {
       if (engineRef.current) {
         try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(engineRef.current.getPersistentState()));
-          console.log('Persistence: saved on beforeunload');
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify(engineRef.current.getPersistentState()),
+          );
+          console.log("Persistence: saved on beforeunload");
         } catch (e) {
-          console.error('Persistence: failed to save on beforeunload', e);
+          console.error("Persistence: failed to save on beforeunload", e);
         }
       }
     };
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener("beforeunload", handleBeforeUnload);
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, []);
 
-  useEffect(() => { initEngine(); }, [initEngine]);
+  useEffect(() => {
+    initEngine();
+  }, [initEngine]);
 
   const animate = useCallback(() => {
-    if (!engineRef.current) { requestRef.current = requestAnimationFrame(animate); return; }
-    const newState = engineRef.current.step();
+    if (!engineRef.current) {
+      requestRef.current = requestAnimationFrame(animate);
+      return;
+    }
     
+    engineRef.current.isHumanMode = humanModeRef.current;
+    const newState = engineRef.current.step();
+
+    // If not in human mode, we skip all expensive UI updates and rendering
+    if (!humanModeRef.current) {
+      // Still save state occasionally
+      if (newState.tick % 120 === 0) {
+        try {
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify(engineRef.current.getPersistentState()),
+          );
+        } catch (_) {}
+      }
+      // Clear canvas to show it's "off"
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#050505";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+      }
+      requestRef.current = requestAnimationFrame(animate);
+      return;
+    }
+
     // Spectator Mode Camera
     if (newState.isSpectatorMode && newState.significantEvents.length > 0) {
-        const lastEvent = newState.significantEvents[newState.significantEvents.length - 1];
-        // Smooth pan to event
-        newState.viewportX += (lastEvent.x - newState.viewportX) * 0.05;
-        newState.viewportY += (lastEvent.y - newState.viewportY) * 0.05;
-        newState.zoom += (1.2 - newState.zoom) * 0.02;
+      const lastEvent =
+        newState.significantEvents[newState.significantEvents.length - 1];
+      // Smooth pan to event
+      newState.viewportX += (lastEvent.x - newState.viewportX) * 0.05;
+      newState.viewportY += (lastEvent.y - newState.viewportY) * 0.05;
+      newState.zoom += (1.2 - newState.zoom) * 0.02;
     } else if (newState.isSpectatorMode) {
-        // Default slow pan if no events
-        newState.viewportX += Math.sin(newState.tick * 0.01) * 2;
-        newState.viewportY += Math.cos(newState.tick * 0.01) * 2;
-        newState.zoom += (0.8 - newState.zoom) * 0.01;
+      // Default slow pan if no events
+      newState.viewportX += Math.sin(newState.tick * 0.01) * 2;
+      newState.viewportY += Math.cos(newState.tick * 0.01) * 2;
+      newState.zoom += (0.8 - newState.zoom) * 0.01;
     }
 
     if (newState.tick % 60 === 0) {
@@ -523,16 +720,29 @@ export default function App() {
 
     setState(newState);
     if (newState.tick % 120 === 0) {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(engineRef.current.getPersistentState())); }
-      catch (_) {}
+      try {
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify(engineRef.current.getPersistentState()),
+        );
+      } catch (_) {}
     }
     if (newState.tick % 10 === 0 && lazyDocRef.current) {
       setLazyMetrics(lazyDocRef.current.getMetrics());
     }
     const canvas = canvasRef.current;
     if (canvas) {
-      const ctx = canvas.getContext('2d');
-      if (ctx && engineRef.current) renderUniverse(ctx, canvas.width, canvas.height, newState, engineRef.current, latentMode);
+      const ctx = canvas.getContext("2d");
+      if (ctx && engineRef.current)
+        renderUniverse(
+          ctx,
+          canvas.width,
+          canvas.height,
+          newState,
+          engineRef.current,
+          latentModeRef.current,
+          selectedParticleIdRef.current,
+        );
     }
     requestRef.current = requestAnimationFrame(animate);
   }, []);
@@ -542,24 +752,23 @@ export default function App() {
     return () => cancelAnimationFrame(requestRef.current);
   }, [animate]);
 
-  const p   = state?.particles ?? [];
-  const maxLevel  = Math.max(1, ...p.map(q => q.level));
-  const dormant   = p.filter(q => q.isLatent).length;
-  const charged   = p.filter(q => q.charge !== 0).length;
-  const bound     = p.filter(q => q.isBound && !q.isLatent).length;
+  const p = state?.particles ?? [];
+  const maxLevel = Math.max(1, ...p.map((q) => q.level));
+  const dormant = p.filter((q) => q.isLatent).length;
+  const charged = p.filter((q) => q.charge !== 0).length;
+  const bound = p.filter((q) => q.isBound && !q.isLatent).length;
 
   return (
     <div className="relative w-full h-screen bg-[#050505] text-white overflow-hidden font-mono">
       <canvas
         ref={canvasRef}
-        width={typeof window !== 'undefined' ? window.innerWidth : 800}
-        height={typeof window !== 'undefined' ? window.innerHeight : 600}
+        width={typeof window !== "undefined" ? window.innerWidth : 800}
+        height={typeof window !== "undefined" ? window.innerHeight : 600}
         onClick={handleCanvasClick}
         className="absolute inset-0 z-0 cursor-crosshair"
       />
 
       <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-6 z-10">
-
         <header className="flex justify-between items-start">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -572,46 +781,98 @@ export default function App() {
               Lazy Universe Observer · each particle is its own observer
             </p>
           </div>
-          <div className="flex gap-3 pointer-events-auto">
-            <button onClick={() => setScientistMode(!scientistMode)}
-              className={`p-2 border transition-colors rounded-sm ${scientistMode ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'border-white/10 hover:bg-white/10'}`}
-              title="Scientist Mode — Detailed metrics and formulas">
-              <Beaker size={13} />
+          <div className="flex flex-col items-end gap-3 pointer-events-auto">
+            <button
+              onClick={() => setHumanMode(!humanMode)}
+              className={`flex items-center gap-2 px-4 py-2 border rounded-md transition-all ${
+                humanMode
+                  ? "bg-red-500/20 border-red-500/50 text-red-400"
+                  : "bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
+              }`}
+            >
+              {humanMode ? (
+                <>
+                  <Eye size={14} />
+                  <span className="text-xs font-bold uppercase tracking-wider">Modo Demonstração para Humanos</span>
+                </>
+              ) : (
+                <>
+                  <Lock size={14} />
+                  <span className="text-xs font-bold uppercase tracking-wider">Modo Universo Real</span>
+                </>
+              )}
             </button>
-            <button onClick={() => setLatentMode(!latentMode)}
-              className={`p-2 border transition-colors rounded-sm ${latentMode ? 'bg-orange-500/20 border-orange-500 text-orange-400' : 'border-white/10 hover:bg-white/10'}`}
-              title="Toggle Latent Mode — See unobserved regions">
-              <Layers size={13} />
-            </button>
-            <button onClick={() => initEngine(true)}
-              className="p-2 border border-white/10 hover:bg-red-500/80 transition-colors rounded-sm"
-              title="Reset — Big Bang">
-              <RefreshCw size={13} className="rotate-45" />
-            </button>
-            <button onClick={() => setShowInfo(!showInfo)}
-              className="p-2 border border-white/10 hover:bg-white/10 transition-colors rounded-sm">
-              <Info size={13} />
-            </button>
+            <div className={`flex gap-3 transition-opacity duration-1000 ${!humanMode ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
+              <button
+                onClick={() => setScientistMode(!scientistMode)}
+                className={`p-2 border transition-colors rounded-sm ${scientistMode ? "bg-blue-500/20 border-blue-500 text-blue-400" : "border-white/10 hover:bg-white/10"}`}
+                title="Scientist Mode — Detailed metrics and formulas"
+              >
+                <Beaker size={13} />
+              </button>
+              <button
+                onClick={() => setLatentMode(!latentMode)}
+                className={`p-2 border transition-colors rounded-sm ${latentMode ? "bg-orange-500/20 border-orange-500 text-orange-400" : "border-white/10 hover:bg-white/10"}`}
+                title="Toggle Latent Mode — See unobserved regions"
+              >
+                <Layers size={13} />
+              </button>
+              <button
+                onClick={() => initEngine(true)}
+                className="p-2 border border-white/10 hover:bg-red-500/80 transition-colors rounded-sm"
+                title="Reset — Big Bang"
+              >
+                <RefreshCw size={13} className="rotate-45" />
+              </button>
+              <button
+                onClick={() => setShowInfo(!showInfo)}
+                className="p-2 border border-white/10 hover:bg-white/10 transition-colors rounded-sm"
+              >
+                <Info size={13} />
+              </button>
+            </div>
           </div>
         </header>
 
-        <main className="flex justify-between items-end">
-          <div className="space-y-3 w-72">
-            {/* Documentary Mode Overlay */}
+        <AnimatePresence>
+          {!humanMode && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 2 }}
+              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            >
+              <p className="text-white/20 font-mono text-xs tracking-widest uppercase">
+                Universo rodando em lazy puro. Nada está sendo calculado desnecessariamente.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className={`transition-opacity duration-1000 ${!humanMode ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
+          <main className="flex justify-between items-end">
+            <div className="space-y-3 w-72">
+              {/* Documentary Mode Overlay */}
             <div className="bg-black/40 backdrop-blur-md border border-white/10 p-4 rounded-lg space-y-3 mb-4 pointer-events-auto">
               <div className="flex justify-between items-center">
-                <h2 className="text-[10px] uppercase tracking-widest font-bold text-orange-400">Cosmos Emergente</h2>
+                <h2 className="text-[10px] uppercase tracking-widest font-bold text-orange-400">
+                  Cosmos Emergente
+                </h2>
                 <div className="flex gap-1">
-                  <button 
+                  <button
                     onClick={() => {
                       if (engineRef.current) {
-                        engineRef.current.state.isSpectatorMode = !engineRef.current.state.isSpectatorMode;
-                        setState({...engineRef.current.state});
+                        engineRef.current.metrics.isSpectatorMode =
+                          !engineRef.current.metrics.isSpectatorMode;
+                        setState({ ...engineRef.current.getState() });
                       }
                     }}
-                    className={`px-2 py-1 text-[8px] rounded border transition-all ${state?.isSpectatorMode ? 'bg-orange-500/20 border-orange-500 text-orange-400' : 'border-white/20 text-white/40'}`}
+                    className={`px-2 py-1 text-[8px] rounded border transition-all ${state?.isSpectatorMode ? "bg-orange-500/20 border-orange-500 text-orange-400" : "border-white/20 text-white/40"}`}
                   >
-                    {state?.isSpectatorMode ? 'ESPECTADOR ATIVO' : 'ATIVAR ESPECTADOR'}
+                    {state?.isSpectatorMode
+                      ? "ESPECTADOR ATIVO"
+                      : "ATIVAR ESPECTADOR"}
                   </button>
                 </div>
               </div>
@@ -624,121 +885,299 @@ export default function App() {
                   <p>"O vácuo quântico flutua em silêncio..."</p>
                 )}
               </div>
-              
+
               <div className="space-y-1">
                 <div className="flex justify-between text-[10px]">
                   <span className="opacity-50">Ciclo atual:</span>
-                  <span className="text-white">#{state?.currentCycle} | Tick {state?.tick}</span>
+                  <span className="text-white">
+                    #{state?.currentCycle} | Tick {state?.tick}
+                  </span>
                 </div>
               </div>
 
               {/* Tabbed Metrics */}
               <div className="pt-2 border-t border-white/5">
                 <div className="flex justify-between mb-3 bg-white/5 p-1 rounded">
-                  {(['quantum', 'life', 'civ', 'cosmic', 'log'] as const).map(tab => (
-                    <button
-                      key={tab}
-                      onClick={() => setActiveTab(tab)}
-                      className={`px-2 py-1 text-[8px] uppercase tracking-tighter rounded transition-all ${activeTab === tab ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white/60'}`}
-                    >
-                      {tab}
-                    </button>
-                  ))}
+                  {(["quantum", "life", "civ", "cosmic", "log"] as const).map(
+                    (tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setActiveTab(tab)}
+                        className={`px-2 py-1 text-[8px] uppercase tracking-tighter rounded transition-all ${activeTab === tab ? "bg-white/10 text-white" : "text-white/30 hover:text-white/60"}`}
+                      >
+                        {tab}
+                      </button>
+                    ),
+                  )}
                 </div>
 
                 <div className="space-y-3 min-h-[160px]">
-                  {activeTab === 'quantum' && (
+                  {activeTab === "quantum" && (
                     <div className="space-y-2">
-                      <Metric 
-                        label="Coherence" 
-                        value={state?.coherence ?? 0} 
-                        icon={<Layers size={11}/>} 
-                        color="text-emerald-400" 
-                        pct 
-                        trend={getTrend(state?.coherence, prevStats.coherence)} 
-                        tooltip="Ordem global da fase quântica. Alta coerência permite interferência construtiva e estabilidade de estruturas." 
+                      <Metric
+                        label="Coherence"
+                        value={state?.coherence ?? 0}
+                        icon={<Layers size={11} />}
+                        color="text-emerald-400"
+                        pct
+                        trend={getTrend(state?.coherence, prevStats.coherence)}
+                        tooltip="Ordem global da fase quântica. Alta coerência permite interferência construtiva e estabilidade de estruturas."
                         formula="Σ|ψ_i|² / N"
                         range="0.0 (Caos) - 1.0 (Cristalino)"
                         scientistMode={scientistMode}
                       />
                       <div className="grid grid-cols-2 gap-2">
-                        <Stat label="Interferência" value={state?.interferenceCount ?? 0} icon={<Sigma size={10}/>} color="text-cyan-400" tooltip="Eventos de superposição de ondas. Essencial para a formação de ligações químicas." range="Típico: 1000-20000" scientistMode={scientistMode} />
-                        <Stat label="Emaranhados" value={state?.entangledPairsCount ?? 0} icon={<Link size={10}/>} color="text-purple-400" tooltip="Pares de partículas com estados correlacionados. Base para a consciência coletiva." range="Cresce com a complexidade" scientistMode={scientistMode} />
-                        <Stat label="Fase Média" value={(state?.avgPhase ?? 0).toFixed(2)} icon={<Orbit size={10}/>} color="text-indigo-400" tooltip="Média das fases quânticas. Determina se a interferência é construtiva ou destrutiva." range="0 - 2π (π = Destrutiva)" scientistMode={scientistMode} />
-                        <Stat label="Contexto" value={(state?.contextualityRate ?? 0).toFixed(2)} icon={<Info size={10}/>} color="text-yellow-400" tooltip="Taxa de viés contextual. Mede o quanto o universo é influenciado pelo ato de observar." range="0.0 - 1.0" scientistMode={scientistMode} />
+                        <Stat
+                          label="Interferência"
+                          value={state?.interferenceCount ?? 0}
+                          icon={<Sigma size={10} />}
+                          color="text-cyan-400"
+                          tooltip="Eventos de superposição de ondas. Essencial para a formação de ligações químicas."
+                          range="Típico: 1000-20000"
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Emaranhados"
+                          value={state?.entangledPairsCount ?? 0}
+                          icon={<Link size={10} />}
+                          color="text-purple-400"
+                          tooltip="Pares de partículas com estados correlacionados. Base para a consciência coletiva."
+                          range="Cresce com a complexidade"
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Fase Média"
+                          value={(state?.avgPhase ?? 0).toFixed(2)}
+                          icon={<Orbit size={10} />}
+                          color="text-indigo-400"
+                          tooltip="Média das fases quânticas. Determina se a interferência é construtiva ou destrutiva."
+                          range="0 - 2π (π = Destrutiva)"
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Contexto"
+                          value={(state?.contextualityRate ?? 0).toFixed(2)}
+                          icon={<Info size={10} />}
+                          color="text-yellow-400"
+                          tooltip="Taxa de viés contextual. Mede o quanto o universo é influenciado pelo ato de observar."
+                          range="0.0 - 1.0"
+                          scientistMode={scientistMode}
+                        />
                       </div>
                     </div>
                   )}
 
-                  {activeTab === 'life' && (
+                  {activeTab === "life" && (
                     <div className="space-y-2">
-                      <Metric 
-                        label="Fertilidade" 
-                        value={state?.fertility ?? 0} 
-                        icon={<Activity size={11}/>} 
-                        color="text-orange-400" 
-                        trend={getTrend(state?.fertility, prevStats.fertility)} 
-                        tooltip="Capacidade do ambiente de sustentar vida. Depende de densidade orgânica e reciclagem de matéria." 
+                      <Metric
+                        label="Fertilidade"
+                        value={state?.fertility ?? 0}
+                        icon={<Activity size={11} />}
+                        color="text-orange-400"
+                        trend={getTrend(state?.fertility, prevStats.fertility)}
+                        tooltip="Capacidade do ambiente de sustentar vida. Depende de densidade orgânica e reciclagem de matéria."
                         formula="(OrgDensity * 10) + (Recycle * 5)"
                         range="> 5.0 (Bio-favorável)"
                         scientistMode={scientistMode}
                       />
                       <div className="grid grid-cols-2 gap-2">
-                        <Stat label="Moléculas" value={state?.moleculeCount ?? 0} icon={<Atom size={10}/>} color="text-emerald-300" tooltip="Estruturas químicas estáveis." scientistMode={scientistMode} />
-                        <Stat label="Orgânicas" value={state?.organicCount ?? 0} icon={<Zap size={10}/>} color="text-emerald-500" tooltip="Moléculas complexas baseadas em carbono." scientistMode={scientistMode} />
-                        <Stat label="Replicantes" value={state?.replicantCount ?? 0} icon={<RefreshCw size={10}/>} color="text-violet-400" tooltip="Moléculas capazes de auto-cópia." scientistMode={scientistMode} />
-                        <Stat label="Vida" value={state?.lifeCount ?? 0} icon={<Heart size={10}/>} color="text-red-400" tooltip="Partículas com metabolismo ativo." scientistMode={scientistMode} />
+                        <Stat
+                          label="Moléculas"
+                          value={state?.moleculeCount ?? 0}
+                          icon={<Atom size={10} />}
+                          color="text-emerald-300"
+                          tooltip="Estruturas químicas estáveis."
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Orgânicas"
+                          value={state?.organicCount ?? 0}
+                          icon={<Zap size={10} />}
+                          color="text-emerald-500"
+                          tooltip="Moléculas complexas baseadas em carbono."
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Replicantes"
+                          value={state?.replicantCount ?? 0}
+                          icon={<RefreshCw size={10} />}
+                          color="text-violet-400"
+                          tooltip="Moléculas capazes de auto-cópia."
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Vida"
+                          value={state?.lifeCount ?? 0}
+                          icon={<Heart size={10} />}
+                          color="text-red-400"
+                          tooltip="Partículas com metabolismo ativo."
+                          scientistMode={scientistMode}
+                        />
                       </div>
                     </div>
                   )}
 
-                  {activeTab === 'log' && (
+                  {activeTab === "log" && (
                     <div className="space-y-0 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
                       {state?.discoveryLog && state.discoveryLog.length > 0 ? (
-                        state.discoveryLog.slice().reverse().map((d, i) => (
-                          <div key={i} className="flex gap-3 p-2 border-b border-white/5 last:border-0 group hover:bg-white/5 transition-colors">
-                            <div className="flex flex-col items-center gap-1 mt-1">
-                              <div className="w-1 h-1 rounded-full bg-orange-500/50" />
-                              <div className="w-[1px] flex-1 bg-white/10" />
-                            </div>
-                            <div className="flex-1 space-y-1">
-                              <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-1.5">
-                                  <Clock size={10} className="text-orange-400 opacity-60" />
-                                  <span className="text-[8px] uppercase tracking-widest font-bold text-white/40">{d.category}</span>
-                                </div>
-                                <span className="text-[8px] font-mono text-white/20">T+{d.tick}</span>
+                        state.discoveryLog
+                          .slice()
+                          .reverse()
+                          .map((d, i) => (
+                            <div
+                              key={i}
+                              className="flex gap-3 p-2 border-b border-white/5 last:border-0 group hover:bg-white/5 transition-colors"
+                            >
+                              <div className="flex flex-col items-center gap-1 mt-1">
+                                <div className="w-1 h-1 rounded-full bg-orange-500/50" />
+                                <div className="w-[1px] flex-1 bg-white/10" />
                               </div>
-                              <p className="text-[10px] text-zinc-300 leading-snug italic">"{d.message || d.event}"</p>
+                              <div className="flex-1 space-y-1">
+                                <div className="flex justify-between items-center">
+                                  <div className="flex items-center gap-1.5">
+                                    <Clock
+                                      size={10}
+                                      className="text-orange-400 opacity-60"
+                                    />
+                                    <span className="text-[8px] uppercase tracking-widest font-bold text-white/40">
+                                      {d.category}
+                                    </span>
+                                  </div>
+                                  <span className="text-[8px] font-mono text-white/20">
+                                    T+{d.tick}
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-zinc-300 leading-snug italic">
+                                  "{d.event}"
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        ))
+                          ))
                       ) : (
-                        <div className="text-center py-8 opacity-20 text-[9px]">Nenhuma descoberta registrada ainda...</div>
+                        <div className="text-center py-8 opacity-20 text-[9px]">
+                          Nenhuma descoberta registrada ainda...
+                        </div>
                       )}
                     </div>
                   )}
 
-                  {activeTab === 'civ' && (
+                  {activeTab === "civ" && (
                     <div className="space-y-2">
-                      <Metric label="Cultura" value={state?.culture ?? 0} icon={<Globe size={11}/>} color="text-orange-300" trend={getTrend(state?.culture, prevStats.culture)} tooltip="Acúmulo de informação compartilhada entre consciências." scientistMode={scientistMode} />
+                      <Metric
+                        label="Cultura"
+                        value={state?.culture ?? 0}
+                        icon={<Globe size={11} />}
+                        color="text-orange-300"
+                        trend={getTrend(state?.culture, prevStats.culture)}
+                        tooltip="Acúmulo de informação compartilhada entre consciências."
+                        scientistMode={scientistMode}
+                      />
                       <div className="grid grid-cols-2 gap-2">
-                        <Stat label="Relações" value={state?.relationsCount ?? 0} icon={<Share2 size={10}/>} color="text-blue-300" tooltip="Conexões significativas entre mentes." scientistMode={scientistMode} />
-                        <Stat label="Nós" value={state?.collectiveConsciousnessNodes ?? 0} icon={<Network size={10}/>} color="text-violet-300" tooltip="Número de mentes integradas na rede coletiva." scientistMode={scientistMode} />
-                        <Stat label="Tecnologia" value={state?.technology ?? 0} icon={<Cpu size={10}/>} color="text-cyan-400" tooltip="Nível de manipulação da realidade física." scientistMode={scientistMode} />
-                        <Stat label="Conscious" value={state?.consciousnessCount ?? 0} icon={<Eye size={10}/>} color="text-violet-400" tooltip="Total de observadores individuais." scientistMode={scientistMode} />
+                        <Stat
+                          label="Relações"
+                          value={state?.relationsCount ?? 0}
+                          icon={<Share2 size={10} />}
+                          color="text-blue-300"
+                          tooltip="Conexões significativas entre mentes."
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Nós"
+                          value={state?.collectiveConsciousnessNodes ?? 0}
+                          icon={<Network size={10} />}
+                          color="text-violet-300"
+                          tooltip="Número de mentes integradas na rede coletiva."
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Tecnologia"
+                          value={state?.technology ?? 0}
+                          icon={<Cpu size={10} />}
+                          color="text-cyan-400"
+                          tooltip="Nível de manipulação da realidade física."
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Conscious"
+                          value={state?.consciousnessCount ?? 0}
+                          icon={<Eye size={10} />}
+                          color="text-violet-400"
+                          tooltip="Total de observadores individuais."
+                          scientistMode={scientistMode}
+                        />
                       </div>
                     </div>
                   )}
 
-                  {activeTab === 'cosmic' && (
+                  {activeTab === "cosmic" && (
                     <div className="space-y-2">
-                      <Metric label="Entropia" value={state?.entropy ?? 1} icon={<Wind size={11}/>} color="text-gray-400" pct trend={getTrend(state?.entropy, prevStats.entropy)} tooltip="Medida de desordem e informação perdida no universo." scientistMode={scientistMode} />
+                      <Metric
+                        label="Entropia"
+                        value={state?.entropy ?? 1}
+                        icon={<Wind size={11} />}
+                        color="text-gray-400"
+                        pct
+                        trend={getTrend(state?.entropy, prevStats.entropy)}
+                        tooltip="Medida de desordem e informação perdida no universo."
+                        scientistMode={scientistMode}
+                      />
                       <div className="grid grid-cols-2 gap-2">
-                        <Stat label="Curvatura" value={state?.maxCurvature ?? 0} icon={<Circle size={10}/>} color="text-indigo-400" tooltip="Distorção máxima do espaço-tempo causada pela massa." scientistMode={scientistMode} />
-                        <Stat label="Temperatura" value={state?.avgTemperature ?? 0} icon={<Thermometer size={10}/>} color="text-red-400" tooltip="Energia cinética média das partículas ativas." scientistMode={scientistMode} />
-                        <Stat label="Informação" value={Math.round(state?.totalInformation ?? 0)} icon={<Database size={10}/>} color="text-blue-500" tooltip="Conteúdo total de bits/energia processados pela simulação." scientistMode={scientistMode} />
-                        <Stat label="Pares" value={state?.pairProductionCount ?? 0} icon={<RefreshCw size={10}/>} color="text-orange-500" tooltip="Total de pares matéria-antimatter criados a partir de energia pura." scientistMode={scientistMode} />
+                        <Stat
+                          label="Curvatura"
+                          value={state?.maxCurvature ?? 0}
+                          icon={<Circle size={10} />}
+                          color="text-indigo-400"
+                          tooltip="Distorção máxima do espaço-tempo causada pela massa."
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Temperatura"
+                          value={state?.avgTemperature ?? 0}
+                          icon={<Thermometer size={10} />}
+                          color="text-red-400"
+                          tooltip="Energia cinética média das partículas ativas."
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Informação"
+                          value={Math.round(state?.totalInformation ?? 0)}
+                          icon={<Database size={10} />}
+                          color="text-blue-500"
+                          tooltip="Conteúdo total de bits/energia processados pela simulação."
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Pares"
+                          value={state?.pairProductionCount ?? 0}
+                          icon={<RefreshCw size={10} />}
+                          color="text-orange-500"
+                          tooltip="Total de pares matéria-antimatter criados a partir de energia pura."
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Fótons (c)"
+                          value={state?.photonCount ?? 0}
+                          icon={<Zap size={10} />}
+                          color="text-yellow-300"
+                          tooltip="Partículas viajando à velocidade da luz. Observadores puros que não envelhecem."
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Dilatação"
+                          value={(state?.avgTimeDilation ?? 0).toFixed(4)}
+                          icon={<Clock size={10} />}
+                          color="text-purple-300"
+                          tooltip="Média de dilatação temporal. Quanto maior, mais devagar o tempo passa para as partículas."
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Energia Escura"
+                          value={(state?.darkEnergy ?? 0).toFixed(2)}
+                          icon={<Orbit size={10} />}
+                          color="text-zinc-400"
+                          tooltip="Contribuição dos fótons para a expansão acelerada do universo."
+                          scientistMode={scientistMode}
+                        />
                       </div>
                     </div>
                   )}
@@ -748,20 +1187,22 @@ export default function App() {
               <div className="border-t border-white/5 pt-3 space-y-1.5">
                 <div className="group relative flex justify-between text-[9px]">
                   <span className="opacity-40">Eficiência Lazy:</span>
-                  <span className="text-emerald-400 font-bold">{(state?.efficiency ?? 0 * 100).toFixed(1)}%</span>
-                  <Tooltip 
-                    content="Economia de processamento ao não calcular regiões não observadas." 
-                    formula="1 - (LazyCost / EagerCost)" 
+                  <span className="text-emerald-400 font-bold">
+                    {(state?.efficiency ?? 0 * 100).toFixed(1)}%
+                  </span>
+                  <Tooltip
+                    content="Economia de processamento ao não calcular regiões não observadas."
+                    formula="1 - (LazyCost / EagerCost)"
                     range={`Custo Eager: ${Math.round(state?.eagerCost ?? 0)} | Lazy: ${Math.round(state?.lazyCost ?? 0)}`}
                   />
                 </div>
               </div>
-              
-              <button 
+
+              <button
                 onClick={() => {
                   if (engineRef.current) {
                     engineRef.current.resetUniverse();
-                    setState({...engineRef.current.state});
+                    setState({ ...engineRef.current.getState() });
                   }
                 }}
                 className="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[9px] uppercase tracking-widest transition-all"
@@ -772,127 +1213,228 @@ export default function App() {
           </div>
 
           <div className="w-60 text-right space-y-2">
-            <div className="text-[9px] opacity-30 uppercase tracking-widest">Linha do Tempo Cósmica</div>
+            <div className="text-[9px] opacity-30 uppercase tracking-widest">
+              Linha do Tempo Cósmica
+            </div>
             <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
-              {state?.history?.slice().reverse().map((h, i) => (
-                <div key={i} className="text-right space-y-1 border-r border-white/10 pr-3 mr-1">
-                  <div className="text-[9px] font-bold text-orange-300">Ciclo #{h.cycleId}</div>
-                  <div className="text-[8px] opacity-40">Finalizado em {h.totalTicks} ticks</div>
-                  <div className="text-[8px] text-zinc-500 italic">
-                    {h.milestones.slice(-1).map(m => m.event)}
+              {state?.history
+                ?.slice()
+                .reverse()
+                .map((h, i) => (
+                  <div
+                    key={i}
+                    className="text-right space-y-1 border-r border-white/10 pr-3 mr-1"
+                  >
+                    <div className="text-[9px] font-bold text-orange-300">
+                      Ciclo #{h.cycleId}
+                    </div>
+                    <div className="text-[8px] opacity-40">
+                      Finalizado em {h.totalTicks} ticks
+                    </div>
+                    <div className="text-[8px] text-zinc-500 italic">
+                      {h.milestones.slice(-1).map((m) => m.event)}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
               <div className="text-right space-y-1 border-r border-emerald-500/30 pr-3 mr-1">
-                <div className="text-[9px] font-bold text-emerald-400">Ciclo #{state?.currentCycle} (Atual)</div>
-                <div className="text-[8px] opacity-40 animate-pulse">Evoluindo...</div>
+                <div className="text-[9px] font-bold text-emerald-400">
+                  Ciclo #{state?.currentCycle} (Atual)
+                </div>
+                <div className="text-[8px] opacity-40 animate-pulse">
+                  Evoluindo...
+                </div>
               </div>
             </div>
 
             <div className="pt-4">
-              <div className="text-[9px] opacity-30 uppercase tracking-widest">Eventos Recentes</div>
+              <div className="text-[9px] opacity-30 uppercase tracking-widest">
+                Eventos Recentes
+              </div>
               <div className="space-y-1 text-[10px] text-zinc-400 max-h-40 overflow-y-auto">
-                {state?.events?.slice(-5)?.map((e, i) => <p key={i}>{e}</p>)}
+                {state?.events?.slice(-5)?.map((e, i) => (
+                  <p key={i}>{e}</p>
+                ))}
               </div>
             </div>
           </div>
 
           <div className="text-right space-y-3">
             <div className="space-y-1">
-              <div className="text-[9px] opacity-30 uppercase tracking-widest">Tick</div>
+              <div className="text-[9px] opacity-30 uppercase tracking-widest">
+                Tick
+              </div>
               <div className="flex items-baseline gap-2 justify-end">
                 <div className="text-2xl font-light tabular-nums tracking-tighter">
-                  {String(state?.tick ?? 0).padStart(10, '0')}
+                  {String(state?.tick ?? 0).padStart(10, "0")}
                 </div>
-                <div className="text-[8px] text-emerald-500/50 border border-emerald-500/20 px-1 rounded-[2px] animate-pulse">LIVE</div>
+                <div className="text-[8px] text-emerald-500/50 border border-emerald-500/20 px-1 rounded-[2px] animate-pulse">
+                  LIVE
+                </div>
               </div>
             </div>
             <div className="space-y-1">
-              <div className="text-[9px] opacity-30 uppercase tracking-widest">Max Curvature</div>
+              <div className="text-[9px] opacity-30 uppercase tracking-widest">
+                Max Curvature
+              </div>
               <div className="text-xl font-light tracking-tighter text-amber-400">
-                {engineRef.current ? engineRef.current.curvature.observar().toFixed(3) : 0}
+                {engineRef.current
+                  ? engineRef.current.curvature.observar().toFixed(3)
+                  : 0}
               </div>
             </div>
             <div className="space-y-1">
-              <div className="text-[9px] opacity-30 uppercase tracking-widest">Particle Count</div>
+              <div className="text-[9px] opacity-30 uppercase tracking-widest">
+                Particle Count
+              </div>
               <div className="text-xl font-light tracking-tighter text-amber-400">
-                {engineRef.current ? engineRef.current.particleCount.observar() : 0}
+                {engineRef.current
+                  ? engineRef.current.particleCount.observar()
+                  : 0}
               </div>
             </div>
             <div className="flex flex-col items-end gap-1">
               <div className="flex gap-[2px]">
                 {Array.from({ length: 14 }).map((_, i) => (
-                  <div key={i}
+                  <div
+                    key={i}
                     className={`w-[3px] h-4 rounded-[1px] transition-colors duration-300 ${
-                      i < (state?.coherence ?? 0)*14 ? 'bg-white/70' : 'bg-white/8'
-                    }`} />
+                      i < (state?.coherence ?? 0) * 14
+                        ? "bg-white/70"
+                        : "bg-white/8"
+                    }`}
+                  />
                 ))}
               </div>
-              <div className="text-[8px] opacity-20 uppercase tracking-[0.2em]">Structural Integrity</div>
+              <div className="text-[8px] opacity-20 uppercase tracking-[0.2em]">
+                Structural Integrity
+              </div>
             </div>
 
             {/* Epistemological Panel */}
-            {selectedParticleId && state?.particles.find(p => p.id === selectedParticleId) && (
-              <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-4 rounded-lg w-72 text-left pointer-events-auto mt-4">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-[10px] uppercase tracking-widest font-bold text-cyan-400">Observação Epistemológica</h3>
-                  <button onClick={() => setSelectedParticleId(null)} className="text-[10px] opacity-40 hover:opacity-100">✕</button>
+            {selectedParticleId &&
+              state?.particles.find((p) => p.id === selectedParticleId) && (
+                <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-4 rounded-lg w-72 text-left pointer-events-auto mt-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-[10px] uppercase tracking-widest font-bold text-cyan-400">
+                      Observação Epistemológica
+                    </h3>
+                    <button
+                      onClick={() => setSelectedParticleId(null)}
+                      className="text-[10px] opacity-40 hover:opacity-100"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  {(() => {
+                    const p = state.particles.find(
+                      (p) => p.id === selectedParticleId,
+                    )!;
+                    const descriptions = ObserverLayer.describeEvent(
+                      p,
+                      state.tick,
+                    );
+                    return (
+                      <div className="space-y-3">
+                        <div>
+                          <div className="text-[8px] opacity-40 uppercase mb-1">
+                            Ontologia (Lazy Evaluation)
+                          </div>
+                          <p className="text-[10px] text-zinc-300 leading-relaxed italic">
+                            "{descriptions.lazyEvaluation}"
+                          </p>
+                        </div>
+                        <div>
+                          <div className="text-[8px] opacity-40 uppercase mb-1">
+                            Formalismo (Função de Onda)
+                          </div>
+                          <p className="text-[10px] text-blue-300 leading-relaxed">
+                            "{descriptions.funcaoOnda}"
+                          </p>
+                        </div>
+                        <div>
+                          <div className="text-[8px] opacity-40 uppercase mb-1">
+                            Contexto (Matriz Densidade)
+                          </div>
+                          <p className="text-[10px] text-purple-300 leading-relaxed">
+                            "{descriptions.matrizDensidade}"
+                          </p>
+                        </div>
+                        <div className="pt-2 border-t border-white/5 flex justify-between text-[9px]">
+                          <span className="opacity-40">Amplitude:</span>
+                          <span className="text-white">
+                            {p.amplitude.toFixed(3)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-[9px]">
+                          <span className="opacity-40">Fase:</span>
+                          <span className="text-white">
+                            {((p.phase * 180) / Math.PI).toFixed(1)}°
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-[9px]">
+                          <span className="opacity-40">Viés de Contexto:</span>
+                          <span className="text-yellow-400">
+                            {p.contextualBias.toFixed(3)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-[9px]">
+                          <span className="opacity-40">Tempo Próprio:</span>
+                          <span className="text-emerald-400">
+                            {Math.floor(p.properTime || 0)} ticks
+                          </span>
+                        </div>
+                        {p.isPhoton && (
+                          <div className="flex justify-between text-[9px]">
+                            <span className="text-yellow-300 font-bold">
+                              FÓTON (v = c)
+                            </span>
+                            <span className="text-yellow-300">
+                              Tempo Parado
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
-                {(() => {
-                  const p = state.particles.find(p => p.id === selectedParticleId)!;
-                  const descriptions = UniverseEngine.describeEvent(p, state.tick);
-                  return (
-                    <div className="space-y-3">
-                      <div>
-                        <div className="text-[8px] opacity-40 uppercase mb-1">Ontologia (Lazy Evaluation)</div>
-                        <p className="text-[10px] text-zinc-300 leading-relaxed italic">"{descriptions.lazyEvaluation}"</p>
-                      </div>
-                      <div>
-                        <div className="text-[8px] opacity-40 uppercase mb-1">Formalismo (Função de Onda)</div>
-                        <p className="text-[10px] text-blue-300 leading-relaxed">"{descriptions.funcaoOnda}"</p>
-                      </div>
-                      <div>
-                        <div className="text-[8px] opacity-40 uppercase mb-1">Contexto (Matriz Densidade)</div>
-                        <p className="text-[10px] text-purple-300 leading-relaxed">"{descriptions.matrizDensidade}"</p>
-                      </div>
-                      <div className="pt-2 border-t border-white/5 flex justify-between text-[9px]">
-                        <span className="opacity-40">Amplitude:</span>
-                        <span className="text-white">{p.amplitude.toFixed(3)}</span>
-                      </div>
-                      <div className="flex justify-between text-[9px]">
-                        <span className="opacity-40">Fase:</span>
-                        <span className="text-white">{(p.phase * 180 / Math.PI).toFixed(1)}°</span>
-                      </div>
-                      <div className="flex justify-between text-[9px]">
-                        <span className="opacity-40">Viés de Contexto:</span>
-                        <span className="text-yellow-400">{p.contextualBias.toFixed(3)}</span>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
+              )}
           </div>
         </main>
+        </div>
       </div>
 
       <AnimatePresence>
         {showInfo && (
           <motion.div
-            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
             className="absolute inset-0 z-50 flex items-center justify-center p-6 pointer-events-none"
           >
             <div className="bg-[#080808]/95 border border-white/15 p-8 max-w-lg w-full pointer-events-auto shadow-2xl overflow-y-auto max-h-[90vh]">
               <div className="flex justify-between items-start mb-6">
-                <h2 className="text-xs font-bold uppercase tracking-[0.25em]">Physics Laws</h2>
-                <button onClick={() => setShowInfo(false)} className="opacity-30 hover:opacity-80 text-sm">✕</button>
+                <h2 className="text-xs font-bold uppercase tracking-[0.25em]">
+                  Physics Laws
+                </h2>
+                <button
+                  onClick={() => setShowInfo(false)}
+                  className="opacity-30 hover:opacity-80 text-sm"
+                >
+                  ✕
+                </button>
               </div>
               <div className="space-y-2.5 text-[10px] leading-relaxed opacity-65">
                 {LAWS.map(([law, desc]) => (
-                  <p key={law}><span className="text-white font-bold">{law}: </span>{desc}</p>
+                  <p key={law}>
+                    <span className="text-white font-bold">{law}: </span>
+                    {desc}
+                  </p>
                 ))}
                 <div className="pt-4 border-t border-white/8 flex items-center gap-2 opacity-50">
-                  <Cpu size={12}/><span className="uppercase tracking-widest text-[9px]">each particle is its own observer</span>
+                  <Cpu size={12} />
+                  <span className="uppercase tracking-widest text-[9px]">
+                    each particle is its own observer
+                  </span>
                 </div>
               </div>
             </div>
@@ -902,8 +1444,8 @@ export default function App() {
 
       {/* Narrative Overlay */}
       <AnimatePresence>
-        {showNarrative && (
-          <motion.div 
+        {showNarrative && humanMode && (
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
@@ -912,15 +1454,21 @@ export default function App() {
             <div className="bg-black/80 backdrop-blur-md border border-white/10 rounded-2xl p-6 shadow-2xl pointer-events-auto">
               <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-xs font-mono text-white/40 uppercase tracking-widest">Estado da Existência</h3>
-                  <Tooltip 
-                    content="Frase gerada dinamicamente com base no estado atual do cosmos (complexidade, vida, tecnologia)."
-                    className="text-[10px] opacity-40 hover:opacity-100 transition-opacity"
-                  >
-                    <Info size={10} />
-                  </Tooltip>
+                  <h3 className="text-xs font-mono text-white/40 uppercase tracking-widest">
+                    Estado da Existência
+                  </h3>
+                  <div className="group relative">
+                    <Info
+                      size={10}
+                      className="text-[10px] opacity-40 hover:opacity-100 transition-opacity"
+                    />
+                    <Tooltip content="Frase gerada dinamicamente com base no estado atual do cosmos (complexidade, vida, tecnologia)." />
+                  </div>
                 </div>
-                <button onClick={() => setShowNarrative(false)} className="text-white/20 hover:text-white/60 transition-colors">
+                <button
+                  onClick={() => setShowNarrative(false)}
+                  className="text-white/20 hover:text-white/60 transition-colors"
+                >
                   <X size={14} />
                 </button>
               </div>
@@ -932,9 +1480,11 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <div className="absolute inset-0 pointer-events-none z-20 opacity-[0.055]
+      <div
+        className="absolute inset-0 pointer-events-none z-20 opacity-[0.055]
         bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.5)_50%)]
-        bg-[length:100%_2px]" />
+        bg-[length:100%_2px]"
+      />
     </div>
   );
 }
@@ -943,18 +1493,31 @@ export default function App() {
 //  COMPONENTS
 // ═══════════════════════════════════════════════════════════════════
 
-function getTrend(current: number | undefined, prev: number | undefined): 'up' | 'down' | 'neutral' {
-  if (current === undefined || prev === undefined) return 'neutral';
-  if (current > prev) return 'up';
-  if (current < prev) return 'down';
-  return 'neutral';
+function getTrend(
+  current: number | undefined,
+  prev: number | undefined,
+): "up" | "down" | "neutral" {
+  if (current === undefined || prev === undefined) return "neutral";
+  if (current > prev) return "up";
+  if (current < prev) return "down";
+  return "neutral";
 }
 
-function Tooltip({ content, formula, range }: { content: string; formula?: string; range?: string }) {
+function Tooltip({
+  content,
+  formula,
+  range,
+}: {
+  content: string;
+  formula?: string;
+  range?: string;
+}) {
   return (
     <div className="absolute left-0 -top-16 z-50 w-56 p-2.5 bg-black/95 border border-white/15 rounded-lg shadow-2xl text-[9px] leading-relaxed opacity-0 group-hover:opacity-100 pointer-events-none transition-all transform translate-y-2 group-hover:translate-y-0">
       <div className="text-white/90 font-medium mb-1">{content}</div>
-      {range && <div className="text-emerald-400/80 mb-1 italic">Ref: {range}</div>}
+      {range && (
+        <div className="text-emerald-400/80 mb-1 italic">Ref: {range}</div>
+      )}
       {formula && (
         <div className="mt-1.5 pt-1.5 border-t border-white/10 font-mono text-[8px] text-white/40">
           {formula}
@@ -964,29 +1527,60 @@ function Tooltip({ content, formula, range }: { content: string; formula?: strin
   );
 }
 
-function Metric({ label, value, icon, color, pct, trend, tooltip, formula, range }: {
-  label: string; value: number | string; icon: React.ReactNode; color: string; pct?: boolean; trend?: 'up' | 'down' | 'neutral'; tooltip?: string; formula?: string; range?: string;
+function Metric({
+  label,
+  value,
+  icon,
+  color,
+  pct,
+  trend,
+  tooltip,
+  formula,
+  range,
+  scientistMode,
+}: {
+  label: string;
+  value: number | string;
+  icon: React.ReactNode;
+  color: string;
+  pct?: boolean;
+  trend?: "up" | "down" | "neutral";
+  tooltip?: string;
+  formula?: string;
+  range?: string;
+  scientistMode?: boolean;
 }) {
-  const n       = typeof value === 'string' ? parseFloat(value) : value;
-  const display = pct ? `${(n*100).toFixed(1)}%` : (typeof value === 'number' ? value.toFixed(2) : value);
+  const n = typeof value === "string" ? parseFloat(value) : value;
+  const display = pct
+    ? `${(n * 100).toFixed(1)}%`
+    : typeof value === "number"
+      ? value.toFixed(2)
+      : value;
   return (
     <div className="group relative space-y-1">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2 opacity-35 group-hover:opacity-100 transition-opacity">
-          {icon}<span className="text-[9px] uppercase tracking-widest font-bold">{label}</span>
+          {icon}
+          <span className="text-[9px] uppercase tracking-widest font-bold">
+            {label}
+          </span>
         </div>
-        {trend && trend !== 'neutral' && (
-          <span className={`text-[8px] ${trend === 'up' ? 'text-emerald-400' : 'text-red-400'}`}>
-            {trend === 'up' ? '▲' : '▼'}
+        {trend && trend !== "neutral" && (
+          <span
+            className={`text-[8px] ${trend === "up" ? "text-emerald-400" : "text-red-400"}`}
+          >
+            {trend === "up" ? "▲" : "▼"}
           </span>
         )}
       </div>
-      <div className={`text-xl font-light tracking-tighter ${color}`}>{display}</div>
+      <div className={`text-xl font-light tracking-tighter ${color}`}>
+        {display}
+      </div>
       <div className="w-full h-px bg-white/8 relative overflow-hidden">
         <motion.div
           className={`absolute inset-y-0 left-0 bg-current ${color}`}
-          animate={{ width: pct ? `${Math.min(100, n*100)}%` : '100%' }}
-          transition={{ type: 'spring', bounce: 0, duration: 0.8 }}
+          animate={{ width: pct ? `${Math.min(100, n * 100)}%` : "100%" }}
+          transition={{ type: "spring", bounce: 0, duration: 0.8 }}
         />
       </div>
 
@@ -995,15 +1589,34 @@ function Metric({ label, value, icon, color, pct, trend, tooltip, formula, range
   );
 }
 
-function Stat({ label, value, icon, color, tooltip, formula, range }: {
-  label: string; value: number | string; icon: React.ReactNode; color: string; tooltip?: string; formula?: string; range?: string;
+function Stat({
+  label,
+  value,
+  icon,
+  color,
+  tooltip,
+  formula,
+  range,
+  scientistMode,
+}: {
+  label: string;
+  value: number | string;
+  icon: React.ReactNode;
+  color: string;
+  tooltip?: string;
+  formula?: string;
+  range?: string;
+  scientistMode?: boolean;
 }) {
   return (
     <div className="group relative space-y-0.5">
       <div className="flex items-center gap-1.5 opacity-30 group-hover:opacity-100 transition-opacity">
-        {icon}<span className="text-[8px] uppercase tracking-wider">{label}</span>
+        {icon}
+        <span className="text-[8px] uppercase tracking-wider">{label}</span>
       </div>
-      <div className={`text-lg font-light tracking-tighter ${color}`}>{value}</div>
+      <div className={`text-lg font-light tracking-tighter ${color}`}>
+        {value}
+      </div>
 
       {tooltip && <Tooltip content={tooltip} formula={formula} range={range} />}
     </div>
@@ -1015,31 +1628,112 @@ function Stat({ label, value, icon, color, tooltip, formula, range }: {
 // ═══════════════════════════════════════════════════════════════════
 
 const LAWS: [string, string][] = [
-  ['LOCAL OBSERVER', 'No particle has global knowledge. Each only processes its local neighbourhood. No global barycenter — expansion emerges from local density observation.'],
-  ['LAZY EVALUATION', 'Separate active/dormant grids. Active: full physics O(active). Wake-up: O(active_cells × wakeRange²). Dormant: O(1) geodesic drift only. The universe never processes what it doesn\'t need to.'],
-  ['FREEDOM', 'Particle identity is not fixed at birth. It changes through physics: charge flips (beta decay), mass splits (fission), new matter born from energy (pair production), bound states form (atoms). The physics decides, not the programmer.'],
-  ['GRAVITY', 'F = G·m₁·m₂/(r²+ε). Only active (observed) particles curve spacetime. Dormant particles are in superposition — no classical gravitational field.'],
-  ['DARK MATTER', '25% of the universe. Interacts only via gravity. Invisible to electromagnetism, strong, and weak forces. Forms the unseen scaffolding of galaxies.'],
-  ['DARK ENERGY', 'Cosmological constant (Λ) driving local expansion when density drops below a critical threshold. Pushes particles apart in voids.'],
-  ['ELECTROMAGNETISM', 'F = K·q·q/(r²+ε). Charged particles (38%) attract opposites, repel same at range=90. Faster than gravity.'],
-  ['SPIN-ORBIT COUPLING', 'Magnetic-like force: spin × charge creates an additional force. Same spin + same charge = extra repulsion. Opposite spin + opposite charge = extra attraction (bonding).'],
-  ['STRONG NUCLEAR FORCE', 'At r < 4.5, very strong attractive force overwhelms EM repulsion. Creates bound states analogous to atoms. Hard core prevents r < 1.5. Bound particles have reduced orbital drag.'],
-  ['WEAK FORCE (BETA DECAY)', 'Rare charge flip per tick (0.012%/tick). Spin also flips. W boson emitted as heat. Particles can change their electromagnetic identity over time.'],
-  ['QUANTUM ENTANGLEMENT', 'Spooky action at a distance. Interacting particles can become entangled. If one undergoes beta decay and flips its spin, its partner instantly flips its spin regardless of distance.'],
-  ['FISSION', 'Spontaneous splitting when weight > 18. Probability scales with excess weight. Daughter has opposite momentum (conserved) and opposite charge. Energy released as heat. Latent traces split.'],
-  ['PAIR PRODUCTION', 'In hot regions (T > 2.5), thermal energy creates particle + antiparticle pairs. Energy E is conserved: T -= cost. Pairs have opposite momenta.'],
-  ['ANNIHILATION', 'When opposite-charged collapsed particles meet within r < 2.2: E = m·c². Both destroyed. 2 photon-like particles emitted at C in opposite directions. Huge heat burst.'],
-  ['DEGENERACY PRESSURE', 'At 4.5 < r < 8: Pauli exclusion repulsion. Prevents classical collapse to a point.'],
-  ['WAVE FUNCTION / DE BROGLIE', 'waveRadius = ħ/p. Fast/heavy particles are localized (particle-like). Slow/light are spread (wave-like). Observation (interaction) collapses the wave function.'],
-  ['THERMODYNAMICS', 'Per-region temperature field. Larmor radiation: acceleration → heat. Collapse emits heat. Fusion emits heat. Heat diffuses between adjacent regions and decays.'],
-  ['HAWKING RADIATION', 'Level > 2 collapsed entities emit energy into local region. Information stored in latent traces.'],
-  ['MOMENTUM CONSERVATION', 'Fusion: v = (p₁m₁+p₂m₂)/(m₁+m₂). Fission: daughter has opposite momentum recoil. Singularity compression conserves total momentum. Annihilation: photons emitted in opposite directions.'],
-  ['SPEED OF LIGHT C=40', 'No particle exceeds C per tick. Photon-like particles (fast, uncharged, massless) travel at ≈C.'],
-  ['TIME DILATION', 'tf = 1/(1+κ·α). All forces and motion scale by tf. Dense regions evolve slower.'],
-  ['QUANTUM COHERENCE', 'Particles have phase and amplitude. Interaction causes interference (constructive/destructive) based on phase alignment. Coherence measures the global phase order.'],
-  ['NON-LOCALITY', 'Entanglement creates instantaneous correlations. Measuring one particle affects its partner across any distance, violating classical locality.'],
-  ['CONTEXTUALITY', 'Measurement outcomes are not pre-determined but depend on the experimental context (Kochen-Specker). The universe is not a collection of independent facts.'],
-  ['EPISTEMOLOGY', 'Mathematics (Wave Functions, Matrices) are human tools to model reality, not the reality itself. The simulation uses lazy evaluation as a primary ontological substrate.'],
-  ['INFORMATION CONSERVATION', 'Dissolution: weight redistributed. Fusion: latent traces inherited. Fission: traces split. Latent traces re-emerge when host weight allows.'],
-  ['BIG BANG', '1800 particles. 24 proto-galaxy clusters with proto-galactic spin. Void particles dormant from birth. ±60,000 unit radius.'],
+  [
+    "LOCAL OBSERVER",
+    "No particle has global knowledge. Each only processes its local neighbourhood. No global barycenter — expansion emerges from local density observation.",
+  ],
+  [
+    "LAZY EVALUATION",
+    "Separate active/dormant grids. Active: full physics O(active). Wake-up: O(active_cells × wakeRange²). Dormant: O(1) geodesic drift only. The universe never processes what it doesn't need to.",
+  ],
+  [
+    "FREEDOM",
+    "Particle identity is not fixed at birth. It changes through physics: charge flips (beta decay), mass splits (fission), new matter born from energy (pair production), bound states form (atoms). The physics decides, not the programmer.",
+  ],
+  [
+    "GRAVITY",
+    "F = G·m₁·m₂/(r²+ε). Only active (observed) particles curve spacetime. Dormant particles are in superposition — no classical gravitational field.",
+  ],
+  [
+    "DARK MATTER",
+    "25% of the universe. Interacts only via gravity. Invisible to electromagnetism, strong, and weak forces. Forms the unseen scaffolding of galaxies.",
+  ],
+  [
+    "DARK ENERGY",
+    "Cosmological constant (Λ) driving local expansion when density drops below a critical threshold. Pushes particles apart in voids.",
+  ],
+  [
+    "ELECTROMAGNETISM",
+    "F = K·q·q/(r²+ε). Charged particles (38%) attract opposites, repel same at range=90. Faster than gravity.",
+  ],
+  [
+    "SPIN-ORBIT COUPLING",
+    "Magnetic-like force: spin × charge creates an additional force. Same spin + same charge = extra repulsion. Opposite spin + opposite charge = extra attraction (bonding).",
+  ],
+  [
+    "STRONG NUCLEAR FORCE",
+    "At r < 4.5, very strong attractive force overwhelms EM repulsion. Creates bound states analogous to atoms. Hard core prevents r < 1.5. Bound particles have reduced orbital drag.",
+  ],
+  [
+    "WEAK FORCE (BETA DECAY)",
+    "Rare charge flip per tick (0.012%/tick). Spin also flips. W boson emitted as heat. Particles can change their electromagnetic identity over time.",
+  ],
+  [
+    "QUANTUM ENTANGLEMENT",
+    "Spooky action at a distance. Interacting particles can become entangled. If one undergoes beta decay and flips its spin, its partner instantly flips its spin regardless of distance.",
+  ],
+  [
+    "FISSION",
+    "Spontaneous splitting when weight > 18. Probability scales with excess weight. Daughter has opposite momentum (conserved) and opposite charge. Energy released as heat. Latent traces split.",
+  ],
+  [
+    "PAIR PRODUCTION",
+    "In hot regions (T > 2.5), thermal energy creates particle + antiparticle pairs. Energy E is conserved: T -= cost. Pairs have opposite momenta.",
+  ],
+  [
+    "ANNIHILATION",
+    "When opposite-charged collapsed particles meet within r < 2.2: E = m·c². Both destroyed. 2 photon-like particles emitted at C in opposite directions. Huge heat burst.",
+  ],
+  [
+    "DEGENERACY PRESSURE",
+    "At 4.5 < r < 8: Pauli exclusion repulsion. Prevents classical collapse to a point.",
+  ],
+  [
+    "WAVE FUNCTION / DE BROGLIE",
+    "waveRadius = ħ/p. Fast/heavy particles are localized (particle-like). Slow/light are spread (wave-like). Observation (interaction) collapses the wave function.",
+  ],
+  [
+    "THERMODYNAMICS",
+    "Per-region temperature field. Larmor radiation: acceleration → heat. Collapse emits heat. Fusion emits heat. Heat diffuses between adjacent regions and decays.",
+  ],
+  [
+    "HAWKING RADIATION",
+    "Level > 2 collapsed entities emit energy into local region. Information stored in latent traces.",
+  ],
+  [
+    "MOMENTUM CONSERVATION",
+    "Fusion: v = (p₁m₁+p₂m₂)/(m₁+m₂). Fission: daughter has opposite momentum recoil. Singularity compression conserves total momentum. Annihilation: photons emitted in opposite directions.",
+  ],
+  [
+    "SPEED OF LIGHT C=40",
+    "No particle exceeds C per tick. Photon-like particles (fast, uncharged, massless) travel at ≈C.",
+  ],
+  [
+    "TIME DILATION",
+    "tf = 1/(1+κ·α). All forces and motion scale by tf. Dense regions evolve slower.",
+  ],
+  [
+    "QUANTUM COHERENCE",
+    "Particles have phase and amplitude. Interaction causes interference (constructive/destructive) based on phase alignment. Coherence measures the global phase order.",
+  ],
+  [
+    "NON-LOCALITY",
+    "Entanglement creates instantaneous correlations. Measuring one particle affects its partner across any distance, violating classical locality.",
+  ],
+  [
+    "CONTEXTUALITY",
+    "Measurement outcomes are not pre-determined but depend on the experimental context (Kochen-Specker). The universe is not a collection of independent facts.",
+  ],
+  [
+    "EPISTEMOLOGY",
+    "Mathematics (Wave Functions, Matrices) are human tools to model reality, not the reality itself. The simulation uses lazy evaluation as a primary ontological substrate.",
+  ],
+  [
+    "INFORMATION CONSERVATION",
+    "Dissolution: weight redistributed. Fusion: latent traces inherited. Fission: traces split. Latent traces re-emerge when host weight allows.",
+  ],
+  [
+    "BIG BANG",
+    "1800 particles. 24 proto-galaxy clusters with proto-galactic spin. Void particles dormant from birth. ±60,000 unit radius.",
+  ],
 ];

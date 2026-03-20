@@ -1,5 +1,5 @@
 import { Particle, UniverseState } from './types';
-import { UniverseEngine } from './UniverseEngine';
+import { ObserverLayer } from './ObserverLayer';
 
 export interface DocumentaryRegion {
   id: string;
@@ -9,12 +9,12 @@ export interface DocumentaryRegion {
 }
 
 export class LazyDocumentary {
-  private universe: UniverseEngine;
+  private universe: ObserverLayer;
   private historico: any[] = [];
   private economia: number = 0;
   private LIMIAR: number = 0.5;
 
-  constructor(universe: UniverseEngine) {
+  constructor(universe: ObserverLayer) {
     this.universe = universe;
   }
 

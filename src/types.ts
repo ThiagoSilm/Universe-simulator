@@ -43,6 +43,10 @@ export interface Particle {
   phase: number;
   lastInteractionType?: 'interference' | 'entanglement' | 'collision';
   contextualBias: number;
+
+  // Relativity & Photons
+  isPhoton?: boolean;
+  properTime?: number;
 }
 
 export interface Molecule {
@@ -111,6 +115,11 @@ export interface UniverseState {
   eagerCost: number;
   lazyCost: number;
   efficiency: number;
+  
+  // Relativity & Photons
+  photonCount: number;
+  avgTimeDilation: number;
+  darkEnergy: number;
   
   // Discovery & History
   discoveryLog: { tick: number, event: string, category: 'quantum' | 'life' | 'civ' | 'cosmic' }[];
