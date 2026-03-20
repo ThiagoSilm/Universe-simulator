@@ -1,47 +1,20 @@
-# Universe Simulator
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
 
-![Badges](https://img.shields.io/badge/Version-1.0.0-brightgreen) ![Badges](https://img.shields.io/badge/License-MIT-blue)
+# Run and deploy your AI Studio app
 
-## Table of Contents
-- [Introduction](#introduction)
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Contributing](#contributing)
-- [License](#license)
+This contains everything you need to run your app locally.
 
----
+View your app in AI Studio: https://ai.studio/apps/72d5ce80-5fd4-448c-809f-7259f46e053f
 
-## Introduction
+## Run Locally
 
-The Universe Simulator is a project designed to provide an immersive experience of the universe's workings. 
+**Prerequisites:**  Node.js
 
-## Features
-- Realistic simulations of celestial movements.
-- Interactive controls for detailed observations.
-- Support for various planetary models.
 
-## Installation
-
-To install the Universe Simulator, clone the repository and run:
-
-```bash
-npm install
-```
-
-## Usage
-
-To start the simulator, use the command:
-
-```bash
-npm run dev
-```
-
-## Contributing
-
-We welcome contributions! Please submit a pull request or open an issue.
-
-## License
-This project is licensed under the MIT License.
-
----
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`

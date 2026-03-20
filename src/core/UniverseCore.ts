@@ -132,7 +132,7 @@ export class UniverseCore {
   private readonly C = 50; // Speed of light (pixels/tick)
   private readonly H = 0.05; // Planck constant (energy/phase quantum)
   private readonly G = 0.1; // Gravitational constant
-  private readonly LAMBDA = 0.0001; // Cosmological constant (expansion rate)
+  private readonly LAMBDA = 0.0005; // Cosmological constant (expansion rate)
   private readonly PLANCK_LENGTH = 2; // Minimum distance
   private readonly PLANCK_TEMP = 1000; // Maximum energy
   private readonly BEKENSTEIN_LIMIT = 20; // Max traces/information per particle
@@ -168,7 +168,7 @@ export class UniverseCore {
         y: (nextR() - 0.5) * 60000,
         vx: (nextR() - 0.5) * 5,
         vy: (nextR() - 0.5) * 5,
-        weight: nextR() * 5 + 0.1,
+        weight: nextR() * 0.05 + 0.001,
         charge,
         isLatent: true,
         lastActiveTick: 0,
@@ -265,7 +265,7 @@ export class UniverseCore {
       // 4. Busca Local Ativa (G & Planck Length)
       // Singularities don't search, they only attract
       if (!p.isBlackHole) {
-        const neighbors = qt.query(p.x, p.y, 2000);
+        const neighbors = qt.query(p.x, p.y, 500); // Reduced range
         totalCandidatesFound += neighbors.length;
         
         if (neighbors.length > 1) {
@@ -338,7 +338,7 @@ export class UniverseCore {
         x, y,
         vx: -Math.cos(angle) * 2, // Moving towards center
         vy: -Math.sin(angle) * 2,
-        weight: Math.random() * 5 + 0.1,
+        weight: Math.random() * 0.05 + 0.001,
         charge: Math.random() < 0.5 ? 1 : -1,
         isLatent: true,
         lastActiveTick: this.tickCount,
@@ -401,7 +401,7 @@ export class UniverseCore {
       const effectiveDist = Math.max(this.PLANCK_LENGTH, dist);
       
       // Gravity (G)
-      const gravity = (this.G * p.weight * n.weight) / (effectiveDist * effectiveDist);
+      const gravity = Math.min((this.G * p.weight * n.weight) / (effectiveDist * effectiveDist), 10.0);
       
       // Quantum Affinity (h)
       const phaseDiff = Math.cos(p.phase - n.phase);
