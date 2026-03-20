@@ -34,7 +34,7 @@ npm install
 To start the simulator, use the command:
 
 ```bash
-npm start
+npm run dev
 ```
 
 ## Contributing
