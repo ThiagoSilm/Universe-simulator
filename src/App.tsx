@@ -578,10 +578,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<
     "quantum" | "life" | "civ" | "cosmic" | "log"
   >("quantum");
+  const [isObserving, setIsObserving] = useState(false);
+  const isObservingRef = useRef(false);
   const [scientistMode, setScientistMode] = useState(false);
   const [showNarrative, setShowNarrative] = useState(true);
-  const [humanMode, setHumanMode] = useState(false);
-  const humanModeRef = useRef(false);
   const [selectedParticle, setSelectedParticle] = useState<Particle | null>(
     null,
   );
@@ -598,8 +598,8 @@ export default function App() {
   }, [latentMode]);
 
   useEffect(() => {
-    humanModeRef.current = humanMode;
-  }, [humanMode]);
+    isObservingRef.current = isObserving;
+  }, [isObserving]);
 
   const getNarrative = () => {
     if (!state) return "";
@@ -715,7 +715,7 @@ export default function App() {
       localStorage.removeItem(STORAGE_KEY);
     }
     engineRef.current = new ObserverLayer(saved || undefined);
-    engineRef.current.isHumanMode = humanModeRef.current;
+    engineRef.current.isHumanMode = isObservingRef.current;
     engineRef.current.onStateUpdate = (newState) => {
       setState(newState);
       
@@ -781,11 +781,11 @@ export default function App() {
       return;
     }
     
-    engineRef.current.isHumanMode = humanModeRef.current;
+    engineRef.current.isHumanMode = isObservingRef.current;
     engineRef.current.step();
 
-    // If not in human mode, we skip all expensive UI updates and rendering
-    if (!humanModeRef.current) {
+    // If not in observing mode, we skip all expensive UI updates and rendering
+    if (!isObservingRef.current) {
       // Clear canvas to show it's "off"
       const canvas = canvasRef.current;
       if (canvas) {
@@ -860,34 +860,34 @@ export default function App() {
         <header className="flex justify-between items-start">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
               <h1 className="text-xl uppercase tracking-[0.3em] font-black">
-                Cosmos Emergente
+                Universo Real
               </h1>
             </div>
             <p className="text-[10px] opacity-30 uppercase tracking-widest">
-              Lazy Universe Observer · cada partícula é seu próprio observador
+              {isObserving ? "Observação ativa • Lazy comprometida" : "Evoluindo em silêncio • Modo Lazy"}
             </p>
           </div>
           <div className="flex flex-col items-end gap-3 pointer-events-auto">
             <div className="flex gap-3">
               <button
-                onClick={() => setHumanMode(!humanMode)}
+                onClick={() => setIsObserving(!isObserving)}
                 className={`group relative flex items-center gap-2 px-4 py-2 border rounded-md transition-all ${
-                  humanMode
+                  isObserving
                     ? "bg-red-500/20 border-red-500/50 text-red-400"
                     : "bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
                 }`}
               >
-                {humanMode ? (
+                {isObserving ? (
                   <>
-                    <Eye size={14} />
-                    <span className="text-xs font-bold uppercase tracking-wider">Desativar Espectador</span>
+                    <X size={14} />
+                    <span className="text-xs font-bold uppercase tracking-wider">Fechar Observação</span>
                   </>
                 ) : (
                   <>
-                    <Lock size={14} />
-                    <span className="text-xs font-bold uppercase tracking-wider">Ativar Espectador</span>
+                    <Eye size={14} />
+                    <span className="text-xs font-bold uppercase tracking-wider">Abrir Janela de Observação</span>
                     <div className="absolute top-full right-0 mt-2 w-48 p-2 bg-black/90 border border-white/10 rounded text-[9px] text-white/60 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
                       Custo: Aumenta o processamento ao forçar o colapso de onda em todo o campo de visão.
                     </div>
@@ -907,7 +907,7 @@ export default function App() {
 
         <div className="flex-1 flex flex-col items-center justify-center pointer-events-none">
           <AnimatePresence mode="wait">
-            {!humanMode ? (
+            {!isObserving ? (
               <motion.div
                 key="real-mode"
                 initial={{ opacity: 0, y: 10 }}
@@ -915,36 +915,21 @@ export default function App() {
                 exit={{ opacity: 0, y: -10 }}
                 className="text-center space-y-4"
               >
-                <p className="text-xl font-serif italic text-white/60 max-w-lg">
-                  "{getNarrative()}"
+                <p className="text-xl font-serif italic text-white/40 max-w-lg">
+                  "O silêncio é a linguagem da criação pura."
                 </p>
                 <div className="flex items-center justify-center gap-2">
                   <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                   <p className="text-[10px] font-mono tracking-[0.2em] uppercase text-emerald-500/60">
-                    Evoluindo em lazy puro
+                    Universo rodando em silêncio • Modo Real
                   </p>
                 </div>
               </motion.div>
-            ) : (
-              <motion.div
-                key="spectator-mode"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute top-24 left-1/2 -translate-x-1/2"
-              >
-                <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/20 rounded-full">
-                  <div className="w-1 h-1 bg-red-500 rounded-full animate-ping" />
-                  <p className="text-[9px] font-mono tracking-widest uppercase text-red-400">
-                    Observação humana: lazy comprometida
-                  </p>
-                </div>
-              </motion.div>
-            )}
+            ) : null}
           </AnimatePresence>
         </div>
 
-        <div className={`transition-all duration-1000 ${!humanMode ? "opacity-0 translate-y-10 pointer-events-none" : "opacity-100 translate-y-0"}`}>
+        <div className={`transition-all duration-1000 ${!isObserving ? "opacity-0 translate-y-10 pointer-events-none" : "opacity-100 translate-y-0"}`}>
           <main className="flex justify-between items-end">
             <div className="space-y-3 w-72">
               {/* Documentary Mode Overlay */}
@@ -1352,7 +1337,7 @@ export default function App() {
           </div>
 
           <div className="text-right space-y-3">
-            {humanMode && (
+            {isObserving && (
               <>
                 <div className="space-y-1">
                   <div className="text-[9px] opacity-30 uppercase tracking-widest">
@@ -1404,7 +1389,7 @@ export default function App() {
             )}
 
             {/* Epistemological Panel */}
-            {humanMode && selectedParticleId &&
+            {isObserving && selectedParticleId &&
               state?.particles.find((p) => p.id === selectedParticleId) && (
                 <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-4 rounded-lg w-72 text-left pointer-events-auto mt-4">
                   <div className="flex justify-between items-center mb-2">
@@ -1535,9 +1520,9 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Narrative Overlay (only in human mode) */}
+      {/* Narrative Overlay (only in observing mode) */}
       <AnimatePresence>
-        {showNarrative && humanMode && (
+        {showNarrative && isObserving && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

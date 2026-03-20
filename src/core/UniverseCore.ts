@@ -8,7 +8,6 @@ export interface ParticleCore {
   charge: number;
   isLatent: boolean;
   lastActiveTick: number;
-  // Propriedades para interações complexas (química, vida, etc.)
   element: 'H' | 'C' | 'O' | 'N';
   energy: number;
   generation: number;
@@ -20,21 +19,34 @@ export class UniverseCore {
   public particles: ParticleCore[] = [];
   public tickCount: number = 0;
   private activeParticles: Set<ParticleCore> = new Set();
+  private seed: number;
 
-  constructor(initialParticles: number = 1800) {
-    for (let i = 0; i < initialParticles; i++) {
-      const charge = Math.random() < 0.5 ? 1 : -1;
+  constructor(seed: number = Math.random(), initialParticles: number = 1800) {
+    this.seed = seed;
+    this.initialize(initialParticles);
+  }
+
+  private initialize(count: number) {
+    // Deterministic-ish initialization based on seed
+    let r = this.seed;
+    const nextR = () => {
+      r = (r * 16807) % 2147483647;
+      return r / 2147483647;
+    };
+
+    for (let i = 0; i < count; i++) {
+      const charge = nextR() < 0.5 ? 1 : -1;
       let element: 'H' | 'C' | 'O' | 'N' = 'H';
       if (charge > 0) element = 'C';
       else if (charge < 0) element = 'O';
       
       const p: ParticleCore = {
         id: `p-${i}`,
-        x: (Math.random() - 0.5) * 60000,
-        y: (Math.random() - 0.5) * 60000,
-        vx: (Math.random() - 0.5) * 2,
-        vy: (Math.random() - 0.5) * 2,
-        mass: Math.random() * 2 + 0.1,
+        x: (nextR() - 0.5) * 60000,
+        y: (nextR() - 0.5) * 60000,
+        vx: (nextR() - 0.5) * 2,
+        vy: (nextR() - 0.5) * 2,
+        mass: nextR() * 2 + 0.1,
         charge,
         isLatent: true,
         lastActiveTick: 0,
@@ -54,36 +66,41 @@ export class UniverseCore {
     const toSleep: ParticleCore[] = [];
     const toWake: ParticleCore[] = [];
     
-    // 1. Avançar partículas ativas e detectar colisões/proximidade
     for (const p of this.activeParticles) {
       p.x += p.vx;
       p.y += p.vy;
       
-      // Limites do universo (bounce)
       if (Math.abs(p.x) > 30000) p.vx *= -1;
       if (Math.abs(p.y) > 30000) p.vy *= -1;
 
-      // Propagação: se uma partícula ativa passar perto de uma latente, acorda ela
-      // Para performance, fazemos isso apenas ocasionalmente ou com raio pequeno
-      if (this.tickCount % 5 === 0) {
-        for (const other of this.particles) {
+      if (this.tickCount % 10 === 0) {
+        // Optimization: only check a few particles for wake-up propagation
+        const checkCount = 5;
+        for (let i = 0; i < checkCount; i++) {
+          const other = this.particles[Math.floor(Math.random() * this.particles.length)];
           if (other.isLatent) {
             const dx = p.x - other.x;
             const dy = p.y - other.y;
-            if (dx * dx + dy * dy < 40000) { // Raio de 200 para acordar
+            if (dx * dx + dy * dy < 40000) {
               toWake.push(other);
             }
           }
         }
       }
       
-      // Se ficar muito tempo sem interação ou observação, dorme
       if (this.tickCount - p.lastActiveTick > 300) {
         toSleep.push(p);
       }
     }
+
+    // Spontaneous wake-up (background noise)
+    if (this.tickCount % 100 === 0 && this.activeParticles.size < 50) {
+      const randomParticle = this.particles[Math.floor(Math.random() * this.particles.length)];
+      if (randomParticle.isLatent) {
+        toWake.push(randomParticle);
+      }
+    }
     
-    // 2. Acordar partículas
     for (const p of toWake) {
       if (p.isLatent) {
         p.isLatent = false;
@@ -92,7 +109,6 @@ export class UniverseCore {
       }
     }
 
-    // 3. Dormir partículas
     for (const p of toSleep) {
       p.isLatent = true;
       this.activeParticles.delete(p);
@@ -141,5 +157,42 @@ export class UniverseCore {
       activeCount: this.activeParticles.size,
       totalCount: this.particles.length
     };
+  }
+
+  public getPersistentState() {
+    return {
+      seed: this.seed,
+      tickCount: this.tickCount,
+      latentTraces: this.particles.map(p => ({
+        id: p.id,
+        x: p.x,
+        y: p.y,
+        vx: p.vx,
+        vy: p.vy,
+        isLatent: p.isLatent,
+        lastActiveTick: p.lastActiveTick
+      }))
+    };
+  }
+
+  public loadPersistentState(state: any) {
+    this.seed = state.seed;
+    this.tickCount = state.tickCount;
+    this.activeParticles.clear();
+    
+    state.latentTraces.forEach((trace: any) => {
+      const p = this.particles.find(part => part.id === trace.id);
+      if (p) {
+        p.x = trace.x;
+        p.y = trace.y;
+        p.vx = trace.vx;
+        p.vy = trace.vy;
+        p.isLatent = trace.isLatent;
+        p.lastActiveTick = trace.lastActiveTick;
+        if (!p.isLatent) {
+          this.activeParticles.add(p);
+        }
+      }
+    });
   }
 }
