@@ -142,6 +142,7 @@ export class UniverseCore {
   public avgCandidates: number = 0;
   public totalSelfEnergy: number = 0;
   public activeTracesCount: number = 0;
+  public recentEvents: string[] = [];
 
   constructor(seed: number = Math.random(), initialParticles: number = 5000) {
     this.seed = seed;
@@ -459,6 +460,12 @@ export class UniverseCore {
     return observedCount;
   }
 
+  public teleport(x: number, y: number) {
+    this.recentEvents.push(`Salto Quântico: Setor (${Math.round(x)}, ${Math.round(y)})`);
+    if (this.recentEvents.length > 10) this.recentEvents.shift();
+    this.observe(x, y, 5000);
+  }
+
   public getSnapshot() {
     // Lazy Snapshot: Only send active particles and a stable subset of latent ones
     // This significantly reduces worker postMessage overhead and main thread rendering load.
@@ -477,7 +484,9 @@ export class UniverseCore {
         decisionsPerTick: this.decisionsPerTick,
         avgCandidates: this.avgCandidates,
         totalSelfEnergy: this.totalSelfEnergy,
-        activeTracesCount: this.activeTracesCount
+        activeTracesCount: this.activeTracesCount,
+        events: this.recentEvents,
+        universeHorizon: 50000 + this.tickCount * this.LAMBDA * 100
       }
     };
   }

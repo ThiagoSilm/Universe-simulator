@@ -85,5 +85,8 @@ self.onmessage = (e: MessageEvent) => {
     case 'RESET':
       core = new UniverseCore(payload?.seed);
       break;
+    case 'TELEPORT':
+      core.teleport(payload.x, payload.y);
+      break;
   }
 };

@@ -110,7 +110,10 @@ export class ObserverLayer {
     this.metrics.viewportX = x;
     this.metrics.viewportY = y;
     this.metrics.isSpectatorMode = true;
-    this.observeAt(x, y, 2000 / this.metrics.zoom);
+    this.worker.postMessage({ 
+      type: 'TELEPORT', 
+      payload: { x, y } 
+    });
   }
 
   public setZoom(zoom: number) {
