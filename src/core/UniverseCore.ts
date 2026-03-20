@@ -131,9 +131,9 @@ export class UniverseCore {
   // Fundamental Constants
   private readonly C = 50; // Speed of light (pixels/tick)
   private readonly H = 0.05; // Planck constant (energy/phase quantum)
-  private readonly G = 0.1; // Gravitational constant
+  private readonly G = 0.02; // Reduced Gravitational constant
   private readonly LAMBDA = 0.0005; // Cosmological constant (expansion rate)
-  private readonly PLANCK_LENGTH = 2; // Minimum distance
+  private readonly PLANCK_LENGTH = 5; // Increased minimum distance for softening
   private readonly PLANCK_TEMP = 1000; // Maximum energy
   private readonly BEKENSTEIN_LIMIT = 20; // Max traces/information per particle
   
@@ -249,6 +249,10 @@ export class UniverseCore {
 
         p.x += p.vx;
         p.y += p.vy;
+        
+        // Velocity Drag (Energy Dissipation)
+        p.vx *= 0.99;
+        p.vy *= 0.99;
         
         // Boundary check (Universe Horizon)
         const horizon = 50000 + this.tickCount * this.LAMBDA * 100;
