@@ -32,6 +32,7 @@ import {
   History as HistoryIcon,
   Map as MapIcon,
   Maximize2,
+  ScrollText,
 } from "lucide-react";
 import { ObserverLayer, PersistentState, GRID_SIZE } from "./ObserverLayer";
 import { LazyDocumentary } from "./LazyDocumentary";
@@ -598,7 +599,7 @@ export default function App() {
   const [latentMode, setLatentMode] = useState(false);
   const latentModeRef = useRef(false);
   const [activeTab, setActiveTab] = useState<
-    "core" | "quantum" | "life" | "civ" | "cosmic" | "horizon" | "log"
+    "core" | "quantum" | "life" | "civ" | "cosmic" | "horizon" | "log" | "manifesto"
   >("core");
   const horizonRadius = 5000;
   const [isObserving, setIsObserving] = useState(false);
@@ -999,7 +1000,7 @@ export default function App() {
               {/* Tabbed Metrics */}
               <div className="pt-2 border-t border-white/5">
                 <div className="flex justify-between mb-3 bg-white/5 p-1 rounded">
-                  {(["core", "quantum", "life", "civ", "cosmic", "horizon", "log"] as const).map(
+                  {(["core", "quantum", "life", "civ", "cosmic", "horizon", "log", "manifesto"] as const).map(
                     (tab) => (
                       <button
                         key={tab}
@@ -1436,6 +1437,72 @@ export default function App() {
                       </div>
                     </div>
                   )}
+
+                  {activeTab === "manifesto" && (
+                    <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                      <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+                        <div className="flex items-center gap-2 mb-4 text-orange-300">
+                          <ScrollText size={14} />
+                          <span className="text-[10px] font-black uppercase tracking-[0.2em]">Manifesto do Universo Contente</span>
+                        </div>
+                        
+                        <div className="space-y-6 text-[10px] leading-relaxed text-white/70 font-serif italic">
+                          <section className="space-y-2">
+                            <p className="text-white/90 font-bold not-italic">"O universo não está esperando a gente descobrir nada novo. Ele já está contente com o que tem."</p>
+                            <div className="grid grid-cols-2 gap-2 text-[8px] uppercase tracking-tighter opacity-60 not-italic">
+                              <div className="p-2 border border-white/5 rounded">Nós: "Descobrir novas leis"</div>
+                              <div className="p-2 border border-white/5 rounded bg-white/5">Universo: "As leis já estão lá"</div>
+                              <div className="p-2 border border-white/5 rounded">Nós: "Criar o inédito"</div>
+                              <div className="p-2 border border-white/5 rounded bg-white/5">Universo: "Tudo é latente"</div>
+                            </div>
+                          </section>
+
+                          <section className="space-y-2 border-l-2 border-orange-500/20 pl-3">
+                            <p>O universo é preguiçoso. E contente com a própria preguiça.</p>
+                            <p>Não há "novas" leis. Só há leis que ainda não observamos.</p>
+                          </section>
+
+                          <section className="space-y-2">
+                            <p className="text-orange-200/80">A Beleza Disso:</p>
+                            <ul className="space-y-1 list-disc list-inside opacity-80">
+                              <li>O pão é pão. A manteiga é manteiga.</li>
+                              <li>O horizonte se afasta. O buraco negro silencia.</li>
+                              <li>A observação colapsa. O latente descansa.</li>
+                            </ul>
+                          </section>
+
+                          <section className="space-y-2 pt-4 border-t border-white/5 not-italic font-sans">
+                            <div className="flex items-center gap-2 text-emerald-400 text-[8px] font-bold uppercase">
+                              <div className="w-1 h-1 bg-emerald-400 rounded-full" />
+                              O Que Isso Ensina
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="p-2 bg-white/5 rounded border border-white/10">
+                                <span className="block text-[7px] opacity-40">01</span>
+                                <span className="text-white/90">Não force.</span>
+                              </div>
+                              <div className="p-2 bg-white/5 rounded border border-white/10">
+                                <span className="block text-[7px] opacity-40">02</span>
+                                <span className="text-white/90">Observe.</span>
+                              </div>
+                              <div className="p-2 bg-white/5 rounded border border-white/10">
+                                <span className="block text-[7px] opacity-40">03</span>
+                                <span className="text-white/90">Aceite.</span>
+                              </div>
+                              <div className="p-2 bg-white/5 rounded border border-white/10">
+                                <span className="block text-[7px] opacity-40">04</span>
+                                <span className="text-white/90">Confie.</span>
+                              </div>
+                            </div>
+                          </section>
+
+                          <p className="text-center text-[9px] text-orange-300/60 pt-4">
+                            "Você não criou nada. Você só observou. E o universo respondeu."
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1526,6 +1593,10 @@ export default function App() {
                     </div>
                     <div className="text-[8px] text-emerald-500/50 border border-emerald-500/20 px-1 rounded-[2px] animate-pulse">
                       LIVE
+                    </div>
+                    <div className="flex items-center gap-2 text-[8px] text-orange-200/40 border border-orange-500/20 px-2 py-1 rounded-full bg-orange-500/5">
+                      <div className="w-1 h-1 bg-orange-400 rounded-full animate-pulse" />
+                      PÃO COM MANTEIGA: CONSISTENTE
                     </div>
                   </div>
                 </div>
