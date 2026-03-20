@@ -20,7 +20,8 @@ export class LazyDocumentary {
 
   // Só processa o que VALE A PENA (Lazy Evaluation)
   capturarMomento() {
-    const particles = this.universe.particles;
+    const state = this.universe.getState();
+    const particles = state.particles;
     const totalEntidades = particles.length;
     
     // Use pre-calculated counts if possible, or do a single pass
@@ -34,11 +35,11 @@ export class LazyDocumentary {
     this.economia = 1 - (activeCount / (totalEntidades || 1));
     
     // Captura eventos significativos (baseado no histórico de eventos do motor)
-    const eventosRecentes = this.universe.state.events.length > 0 
-      ? this.universe.state.events.slice(-3).map(text => ({
+    const eventosRecentes = state.events.length > 0 
+      ? state.events.slice(-3).map(text => ({
           text,
           importancia: 0.6 + Math.random() * 0.4, // High importance for recent events
-          timestamp: this.universe.state.tick
+          timestamp: state.tick
         }))
       : [];
 
@@ -51,13 +52,14 @@ export class LazyDocumentary {
   }
 
   getMetrics() {
+    const state = this.universe.getState();
     const momento = this.capturarMomento();
     return {
       economy: momento.economia,
       latentesPct: momento.latentesPct,
       calculandoPct: momento.calculandoPct,
       event: momento.eventos[0]?.text || 'Observação Estática',
-      nextScan: this.universe.state.tick + 10
+      nextScan: state.tick + 10
     };
   }
 }

@@ -499,6 +499,10 @@ export default function App() {
   const engineRef = useRef<ObserverLayer | null>(null);
   const lazyDocRef = useRef<LazyDocumentary | null>(null);
   const [state, setState] = useState<UniverseState | null>(null);
+  const stateRef = useRef<UniverseState | null>(null);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
   const [lazyMetrics, setLazyMetrics] = useState({
     economy: "0%",
     latentesPct: "0%",
@@ -627,8 +631,39 @@ export default function App() {
     }
     engineRef.current = new ObserverLayer(saved || undefined);
     engineRef.current.isHumanMode = humanModeRef.current;
+    engineRef.current.onStateUpdate = (newState) => {
+      setState(newState);
+      
+      if (newState.tick % 60 === 0) {
+        const currentStats: Record<string, number> = {
+          entropy: newState.entropy,
+          coherence: newState.coherence,
+          relations: newState.relationsCount,
+          culture: newState.culture,
+          tech: newState.technology,
+          life: newState.lifeCount,
+          nodes: newState.collectiveConsciousnessNodes,
+          entangled: newState.entangledPairsCount,
+          interference: newState.interferenceCount,
+        };
+        setPrevStats(currentStats);
+      }
+
+      if (newState.tick % 10 === 0 && lazyDocRef.current) {
+        setLazyMetrics(lazyDocRef.current.getMetrics());
+      }
+
+      if (newState.tick % 120 === 0) {
+        try {
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify(engineRef.current?.getPersistentState()),
+          );
+        } catch (_) {}
+      }
+    };
     lazyDocRef.current = new LazyDocumentary(engineRef.current);
-    setState(engineRef.current.step());
+    setState(engineRef.current.getState());
   }, []);
 
   useEffect(() => {
@@ -662,19 +697,10 @@ export default function App() {
     }
     
     engineRef.current.isHumanMode = humanModeRef.current;
-    const newState = engineRef.current.step();
+    engineRef.current.step();
 
     // If not in human mode, we skip all expensive UI updates and rendering
     if (!humanModeRef.current) {
-      // Still save state occasionally
-      if (newState.tick % 120 === 0) {
-        try {
-          localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify(engineRef.current.getPersistentState()),
-          );
-        } catch (_) {}
-      }
       // Clear canvas to show it's "off"
       const canvas = canvasRef.current;
       if (canvas) {
@@ -688,61 +714,37 @@ export default function App() {
       return;
     }
 
-    // Spectator Mode Camera
-    if (newState.isSpectatorMode && newState.significantEvents.length > 0) {
-      const lastEvent =
-        newState.significantEvents[newState.significantEvents.length - 1];
-      // Smooth pan to event
-      newState.viewportX += (lastEvent.x - newState.viewportX) * 0.05;
-      newState.viewportY += (lastEvent.y - newState.viewportY) * 0.05;
-      newState.zoom += (1.2 - newState.zoom) * 0.02;
-    } else if (newState.isSpectatorMode) {
-      // Default slow pan if no events
-      newState.viewportX += Math.sin(newState.tick * 0.01) * 2;
-      newState.viewportY += Math.cos(newState.tick * 0.01) * 2;
-      newState.zoom += (0.8 - newState.zoom) * 0.01;
-    }
+    const currentState = stateRef.current;
+    if (currentState) {
+      // Spectator Mode Camera
+      if (currentState.isSpectatorMode && currentState.significantEvents && currentState.significantEvents.length > 0) {
+        const lastEvent =
+          currentState.significantEvents[currentState.significantEvents.length - 1];
+        // Smooth pan to event
+        currentState.viewportX += (lastEvent.x - currentState.viewportX) * 0.05;
+        currentState.viewportY += (lastEvent.y - currentState.viewportY) * 0.05;
+        currentState.zoom += (1.2 - currentState.zoom) * 0.02;
+      } else if (currentState.isSpectatorMode) {
+        // Default slow pan if no events
+        currentState.viewportX += Math.sin(currentState.tick * 0.01) * 2;
+        currentState.viewportY += Math.cos(currentState.tick * 0.01) * 2;
+        currentState.zoom += (0.8 - currentState.zoom) * 0.01;
+      }
 
-    if (newState.tick % 60 === 0) {
-      const currentStats: Record<string, number> = {
-        entropy: newState.entropy,
-        coherence: newState.coherence,
-        relations: newState.relationsCount,
-        culture: newState.culture,
-        tech: newState.technology,
-        life: newState.lifeCount,
-        nodes: newState.collectiveConsciousnessNodes,
-        entangled: newState.entangledPairsCount,
-        interference: newState.interferenceCount,
-      };
-      setPrevStats(currentStats);
-    }
-
-    setState(newState);
-    if (newState.tick % 120 === 0) {
-      try {
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify(engineRef.current.getPersistentState()),
-        );
-      } catch (_) {}
-    }
-    if (newState.tick % 10 === 0 && lazyDocRef.current) {
-      setLazyMetrics(lazyDocRef.current.getMetrics());
-    }
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext("2d");
-      if (ctx && engineRef.current)
-        renderUniverse(
-          ctx,
-          canvas.width,
-          canvas.height,
-          newState,
-          engineRef.current,
-          latentModeRef.current,
-          selectedParticleIdRef.current,
-        );
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext("2d");
+        if (ctx && engineRef.current)
+          renderUniverse(
+            ctx,
+            canvas.width,
+            canvas.height,
+            currentState,
+            engineRef.current,
+            latentModeRef.current,
+            selectedParticleIdRef.current,
+          );
+      }
     }
     requestRef.current = requestAnimationFrame(animate);
   }, []);
@@ -1277,9 +1279,7 @@ export default function App() {
                 Max Curvature
               </div>
               <div className="text-xl font-light tracking-tighter text-amber-400">
-                {engineRef.current
-                  ? engineRef.current.curvature.observar().toFixed(3)
-                  : 0}
+                {state?.maxCurvature?.toFixed(3) ?? 0}
               </div>
             </div>
             <div className="space-y-1">
@@ -1287,9 +1287,7 @@ export default function App() {
                 Particle Count
               </div>
               <div className="text-xl font-light tracking-tighter text-amber-400">
-                {engineRef.current
-                  ? engineRef.current.particleCount.observar()
-                  : 0}
+                {state?.particleCount ?? 0}
               </div>
             </div>
             <div className="flex flex-col items-end gap-1">

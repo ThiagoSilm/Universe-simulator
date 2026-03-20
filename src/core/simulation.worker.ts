@@ -1,14 +1,26 @@
 import { UniverseCore } from './UniverseCore';
 
-const core = new UniverseCore();
+let core = new UniverseCore();
+let isRunning = false;
+let tickInterval: any = null;
 
 self.onmessage = (e: MessageEvent) => {
   const { type, payload } = e.data;
 
   switch (type) {
+    case 'START':
+      isRunning = true;
+      if (!tickInterval) {
+        tickInterval = setInterval(() => {
+          if (isRunning) core.tick();
+        }, 1000 / 60);
+      }
+      break;
+    case 'STOP':
+      isRunning = false;
+      break;
     case 'TICK':
       core.tick();
-      // Não devolve o estado todo tick para economizar
       break;
     case 'OBSERVE':
       core.observe(payload.x, payload.y, payload.radius);
@@ -18,6 +30,9 @@ self.onmessage = (e: MessageEvent) => {
         type: 'SNAPSHOT',
         payload: core.getSnapshot()
       });
+      break;
+    case 'RESET':
+      core = new UniverseCore(payload?.particles);
       break;
   }
 };

@@ -86,6 +86,7 @@ export interface UniverseState {
   totalInformation: number;
   tick: number;
   maxCurvature: number;
+  particleCount: number;
   avgTemperature: number;
   pairProductionCount: number;   // cumulative pair-production events
   annihilationCount: number;     // cumulative annihilation events

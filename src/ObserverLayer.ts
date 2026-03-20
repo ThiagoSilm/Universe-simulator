@@ -1,6 +1,4 @@
-import { UniverseCore } from './core/UniverseCore';
 import { UniverseState, Particle } from './types';
-import { VariavelInfinita } from './VariavelInfinita';
 
 export const GRID_SIZE = 60;
 
@@ -11,18 +9,11 @@ export interface PersistentState {
 }
 
 export class ObserverLayer {
-  private core: UniverseCore;
-  private lastSnapshot: UniverseState | null = null;
+  private worker: Worker;
+  private lastSnapshot: any = null;
   public isHumanMode: boolean = false;
-  
-  public state: UniverseState;
-  public particles: Particle[] = [];
+  public onStateUpdate: (state: UniverseState) => void = () => {};
 
-  public temperature: VariavelInfinita;
-  public curvature: VariavelInfinita;
-  public particleCount: VariavelInfinita;
-
-  // Métricas calculadas apenas quando observado
   public metrics = {
     photonCount: 0,
     moleculeCount: 0,
@@ -31,14 +22,9 @@ export class ObserverLayer {
     consciousnessCount: 0,
     culture: 0,
     technology: 0,
-    avgTemperature: 0,
-    efficiency: 0,
-    lazyCost: 0,
-    eagerCost: 0,
     entropy: 1,
     coherence: 0,
     totalInformation: 0,
-    maxCurvature: 0,
     pairProductionCount: 0,
     annihilationCount: 0,
     fissionCount: 0,
@@ -70,63 +56,69 @@ export class ObserverLayer {
     darkEnergy: 0,
     avgTimeDilation: 0,
     discoveryLog: [],
+    avgTemperature: 0,
+    lazyCost: 0,
+    eagerCost: 0,
+    efficiency: 0,
+    maxCurvature: 0,
+    particleCount: 0,
   };
 
   constructor(savedState?: any) {
-    this.core = new UniverseCore(savedState ? savedState.state.particles.length : 1800);
-    this.state = this.getState();
-    this.particles = this.state.particles;
-    this.temperature = new VariavelInfinita(() => this.state.avgTemperature);
-    this.curvature = new VariavelInfinita(() => this.state.maxCurvature);
-    this.particleCount = new VariavelInfinita(() => this.particles.length);
-  }
+    this.worker = new Worker(new URL('./core/simulation.worker.ts', import.meta.url), { type: 'module' });
+    
+    this.worker.onmessage = (e) => {
+      if (e.data.type === 'SNAPSHOT') {
+        this.lastSnapshot = e.data.payload;
+        this.calculateMetrics(this.lastSnapshot.particles);
+        this.onStateUpdate(this.getState());
+      }
+    };
 
-  public step(): UniverseState {
-    // O core sempre avança o tempo
-    this.core.tick();
-
-    if (this.isHumanMode) {
-      // O humano está observando! Força colapso na área visível
-      const visibleRadius = 2000 / this.state.zoom; 
-      const observedCount = this.core.observe(this.state.viewportX, this.state.viewportY, visibleRadius);
-      
-      // Pega o snapshot para renderizar e calcular métricas
-      this.lastSnapshot = this.core.getSnapshot() as any;
-      
-      // Calcula métricas pesadas apenas no modo humano
-      this.calculateMetrics(this.lastSnapshot.particles, observedCount);
-    } else {
-      // Modo Universo Real: quase zero custo
-      // Não pede snapshot, não calcula métricas
-      this.lastSnapshot = this.core.getSnapshot() as any; // Pega snapshot mínimo para não quebrar a UI
+    if (savedState) {
+      this.worker.postMessage({ type: 'RESET', payload: { particles: savedState.state.particles.length } });
     }
-
-    this.state = this.getState();
-    return this.state;
+    
+    this.worker.postMessage({ type: 'START' });
   }
 
-  private calculateMetrics(particles: Particle[], observedCount: number) {
+  public step() {
+    if (this.isHumanMode) {
+      // Força observação na área visível (isso é o que custa caro!)
+      this.worker.postMessage({ 
+        type: 'OBSERVE', 
+        payload: { x: this.metrics.viewportX, y: this.metrics.viewportY, radius: 2000 / this.metrics.zoom } 
+      });
+      
+      // Pede o estado para o humano ver
+      this.worker.postMessage({ type: 'GET_SNAPSHOT' });
+    }
+  }
+
+  private calculateMetrics(particles: any[]) {
     let tempSum = 0;
-    let photons = 0;
+    let activeCount = 0;
+    let maxCurv = 0;
     
     for (const p of particles) {
       if (!p.isLatent) {
         tempSum += p.vx * p.vx + p.vy * p.vy;
+        activeCount++;
+        const curv = Math.abs(p.vx || 0) + Math.abs(p.vy || 0);
+        if (curv > maxCurv) maxCurv = curv;
       }
-      if (p.isPhoton) photons++;
     }
 
-    this.metrics.avgTemperature = tempSum / (particles.length || 1);
-    this.metrics.photonCount = photons;
-    
-    // Simula o custo de observação
+    this.metrics.avgTemperature = tempSum / (activeCount || 1);
+    this.metrics.lazyCost = activeCount;
     this.metrics.eagerCost = particles.length;
-    this.metrics.lazyCost = observedCount;
-    this.metrics.efficiency = 100 - (observedCount / particles.length) * 100;
+    this.metrics.efficiency = 100 - (activeCount / (particles.length || 1)) * 100;
+    this.metrics.maxCurvature = maxCurv;
+    this.metrics.particleCount = particles.length;
   }
 
   public getState(): UniverseState {
-    const snapshot = this.lastSnapshot || (this.core.getSnapshot() as any);
+    const snapshot = this.lastSnapshot || { tick: 0, particles: [] };
     
     return {
       ...snapshot,
@@ -138,15 +130,14 @@ export class ObserverLayer {
 
   public getPersistentState() {
     return {
-      state: this.state,
+      state: this.getState(),
       energyGrid: [],
       molecules: [],
     };
   }
 
   public resetUniverse() {
-    this.core = new UniverseCore();
-    this.state = this.getState();
+    this.worker.postMessage({ type: 'RESET' });
   }
 
   public static describeEvent(p: any, tick: number) {
