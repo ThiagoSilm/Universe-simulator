@@ -123,10 +123,15 @@ export class ObserverLayer {
     localStorage.setItem(`snapshot_${tick}`, JSON.stringify(dataToSave));
   }
 
+  private lastSnapshotTime = 0;
+
   public step() {
     if (this.isObserving) {
-      // Pede o estado para o humano ver
-      this.worker.postMessage({ type: 'GET_SNAPSHOT' });
+      const now = performance.now();
+      if (now - this.lastSnapshotTime > 500) { // Limita a 2 snapshots por segundo
+        this.worker.postMessage({ type: 'GET_SNAPSHOT' });
+        this.lastSnapshotTime = now;
+      }
     }
   }
 

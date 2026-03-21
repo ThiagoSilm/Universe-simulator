@@ -653,7 +653,7 @@ export default function App() {
   const handleObserve = () => {
     setSnapshotView(null);
     setIsSilentMode(!isSilentMode);
-    setIsObserving(isSilentMode);
+    setIsObserving(!isObserving);
   };
 
   const handleCaptureRichest = () => {
