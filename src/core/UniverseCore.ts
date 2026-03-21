@@ -127,6 +127,7 @@ class Quadtree {
 export class UniverseCore {
   public particles: ParticleCore[] = [];
   public tickCount: number = 0;
+  private expansionStarted: boolean = false;
   private activeParticles: Set<ParticleCore> = new Set();
   private cosmicMemory: Map<string, ParticleTrace[]> = new Map();
   private seed: number;
@@ -190,9 +191,24 @@ export class UniverseCore {
     };
 
     for (let i = 0; i < count; i++) {
-      const isMassless = nextR() < 0.1; // 10% chance to be a photon
-      const charge = isMassless ? 0 : (nextR() < 0.5 ? 1 : -1);
-      const weight = isMassless ? 0.0005 : nextR() * 0.05 + 0.001;
+      let isMassless = nextR() < 0.1; // 10% chance to be a photon
+      let charge = isMassless ? 0 : (nextR() < 0.5 ? 1 : -1);
+      let weight = isMassless ? 0.0005 : nextR() * 0.05 + 0.001;
+      let vx = isMassless ? (nextR() - 0.5) * this.C : 0;
+      let vy = isMassless ? (nextR() - 0.5) * this.C : 0;
+      let isLatent = true;
+      let x = i === 0 ? -1 : 1;
+
+      if (count === 2) {
+        // Minimum Big Bang: One positive, one negative
+        isMassless = false;
+        charge = i === 0 ? 1 : -1;
+        weight = 0.05;
+        x = i === 0 ? -20 : 20; // Start slightly apart
+        vx = 0;
+        vy = i === 0 ? 1.5 : -1.5; // Tangential velocity for orbit
+        isLatent = false; // Start active to trigger the cascade
+      }
       
       let element: 'H' | 'C' | 'O' | 'N' = 'H';
       if (charge > 0) element = 'C';
@@ -200,13 +216,13 @@ export class UniverseCore {
       
       const p: ParticleCore = {
         id: `p-${i}`,
-        x: i === 0 ? -1 : 1, // Extremely close to (0,0)
+        x,
         y: 0,
-        vx: isMassless ? (nextR() - 0.5) * this.C : 0,
-        vy: isMassless ? (nextR() - 0.5) * this.C : 0,
+        vx,
+        vy,
         weight,
         charge,
-        isLatent: true,
+        isLatent,
         lastActiveTick: 0,
         age: 0,
         energy: 1.0,
@@ -233,6 +249,9 @@ export class UniverseCore {
         });
       }
       this.particles.push(p);
+      if (!isLatent) {
+        this.activeParticles.add(p);
+      }
     }
   }
 
@@ -330,7 +349,7 @@ export class UniverseCore {
         p.vy *= 0.99;
         
         // Boundary check (Universe Horizon)
-        const horizon = 50000 + this.tickCount * this.effectiveLAMBDA * 100;
+        const horizon = this.expansionStarted ? (100 + this.decisionsPerTick * 0.1) : 50;
         if (Math.abs(p.x) > horizon) { p.vx *= -1; p.x = Math.sign(p.x) * horizon; }
         if (Math.abs(p.y) > horizon) { p.vy *= -1; p.y = Math.sign(p.y) * horizon; }
       }
@@ -376,9 +395,13 @@ export class UniverseCore {
             const dx = n.x - p.x;
             const dy = n.y - p.y;
             const distSq = dx * dx + dy * dy;
-            const collisionThreshold = (p.weight + n.weight) * 500;
+            // Reduce collision threshold to allow tight orbits without actual collision
+            const collisionThreshold = (p.weight + n.weight) * 50;
             
             if (distSq < collisionThreshold) {
+              if (p.charge * n.charge < 0) {
+                this.expansionStarted = true;
+              }
               // 1. Momentum Exchange (Elastic Collision)
               const m1 = p.weight;
               const m2 = n.weight;
@@ -580,17 +603,28 @@ export class UniverseCore {
       const distSq = (dx * dx + dy * dy) / relationalFactor + this.EPS;
       const dist = Math.sqrt(distSq);
       
-      // Gravity (G)
+      // Gravity (G) - always attractive
       const gravity = (this.effectiveG * p.weight * n.weight) / distSq;
       
       // Electrostatic (Coulomb-like)
-      // Same charge repels, opposite attracts
-      const electrostatic = -(p.charge * n.charge * 0.1) / distSq;
+      // Same charge repels, opposite attracts. Neutrals (charge 0) don't feel this.
+      const electrostatic = -(p.charge * n.charge * 0.5) / distSq;
       
-      const netForce = gravity + electrostatic;
+      // Quantum Repulsion (Pauli Exclusion / Strong Nuclear)
+      // Prevents collapse, creates stable orbits. Very short range (1/r^4).
+      // It pushes away, so it's a negative force contribution.
+      const quantumRepulsion = - (0.5) / (distSq * distSq);
+      
+      const netForce = gravity + electrostatic + quantumRepulsion;
       
       totalFx += (dx / dist) * netForce;
       totalFy += (dy / dist) * netForce;
+
+      // Virtual Photon Emission (Information exchange via field)
+      // If there's a strong EM interaction, emit a virtual photon
+      if (p.charge !== 0 && n.charge !== 0 && Math.random() < Math.abs(electrostatic) * 0.05) {
+        this.emitVirtualPhoton(p, n);
+      }
 
       // Information exchange (probabilistic)
       if (Math.random() < 0.1) {
@@ -608,6 +642,48 @@ export class UniverseCore {
     p.lastActiveTick = this.tickCount;
 
     return { fx: totalFx, fy: totalFy };
+  }
+
+  private emitVirtualPhoton(source: ParticleCore, target: ParticleCore) {
+    // A virtual photon is a massless, chargeless particle that carries information
+    // It travels at C towards the target (or away, depending on interaction)
+    
+    const dx = target.x - source.x;
+    const dy = target.y - source.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) + this.EPS;
+    
+    const photon: ParticleCore = {
+      id: `ph-${this.tickCount}-${source.id}`,
+      x: source.x,
+      y: source.y,
+      vx: (dx / dist) * this.C, // Travels at C towards target
+      vy: (dy / dist) * this.C,
+      weight: 0.0001, // Extremely light, almost massless
+      charge: 0, // Photons have no charge
+      isLatent: false, // Active immediately
+      lastActiveTick: this.tickCount,
+      age: 0,
+      energy: this.H * 2, // Carries a quantum of energy
+      phase: source.phase, // Carries phase information
+      amplitude: source.amplitude,
+      level: 0, // Base level
+      element: 'H', // Doesn't matter for photons
+      generation: source.generation,
+      traces: [{ targetId: target.id, affinity: 1, tick: this.tickCount }], // Knows where it's going
+      isBlackHole: false,
+      isBound: false,
+      potentialHistories: [],
+      positionHistory: [],
+      ax: 0,
+      ay: 0
+    };
+
+    this.particles.push(photon);
+    this.activeParticles.add(photon);
+    
+    // Slight recoil on source (conservation of momentum)
+    source.vx -= photon.vx * 0.001;
+    source.vy -= photon.vy * 0.001;
   }
 
   private wakeUp(p: ParticleCore) {
