@@ -136,6 +136,22 @@ export class UniverseEngine {
     return this.state;
   }
 
+  /**
+   * Laboratory Instrumentation: Spawns particles for experimental verification.
+   */
+  public spawn(x: number, y: number, count: number = 1, spread: number = 10, weight: number = 1.0, charge?: number) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * spread;
+      const px = x + Math.cos(angle) * dist;
+      const py = y + Math.sin(angle) * dist;
+      this.particles.push(this.newParticle(
+        `exp-${this.state.tick}-${i}-${Math.random().toString(36).slice(2)}`,
+        px, py, 0, 0, weight, charge !== undefined ? charge : this.makeCharge(), true, '#ffffff', this.state.tick
+      ));
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────
   private makeCharge(): number {
     const r = Math.random();

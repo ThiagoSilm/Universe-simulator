@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Zap, Activity, Brain, Orbit, RefreshCw, Info, Layers, Cpu, Thermometer, Atom, Sigma } from 'lucide-react';
+import { Zap, Activity, Brain, Orbit, RefreshCw, Info, Layers, Cpu, Thermometer, Atom, Sigma, FlaskConical, Beaker, Microscope } from 'lucide-react';
 import { UniverseState, Particle } from './types';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -235,6 +235,7 @@ export default function App() {
   const workerRef = useRef<Worker | null>(null);
   const [state, setState] = useState<UniverseState | null>(null);
   const [showInfo, setShowInfo] = useState(false);
+  const [activeTab, setActiveTab] = useState<'laws' | 'lab'>('laws');
   const requestRef = useRef<number>(0);
 
   useEffect(() => {
@@ -292,12 +293,17 @@ export default function App() {
             </p>
           </div>
           <div className="flex gap-3 pointer-events-auto">
+            <button onClick={() => { setShowInfo(true); setActiveTab('lab'); }}
+              className="p-2 border border-white/10 hover:bg-emerald-500/20 transition-colors rounded-sm text-emerald-400"
+              title="Laboratory — Experimental Protocols">
+              <FlaskConical size={13} />
+            </button>
             <button onClick={() => workerRef.current?.postMessage('reset')}
               className="p-2 border border-white/10 hover:bg-red-500/80 transition-colors rounded-sm"
               title="Reset — Big Bang">
               <RefreshCw size={13} className="rotate-45" />
             </button>
-            <button onClick={() => setShowInfo(!showInfo)}
+            <button onClick={() => { setShowInfo(true); setActiveTab('laws'); }}
               className="p-2 border border-white/10 hover:bg-white/10 transition-colors rounded-sm">
               <Info size={13} />
             </button>
@@ -365,19 +371,77 @@ export default function App() {
             initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
             className="absolute inset-0 z-50 flex items-center justify-center p-6 pointer-events-none"
           >
-            <div className="bg-[#080808]/95 border border-white/15 p-8 max-w-lg w-full pointer-events-auto shadow-2xl overflow-y-auto max-h-[90vh]">
-              <div className="flex justify-between items-start mb-6">
-                <h2 className="text-xs font-bold uppercase tracking-[0.25em]">Physics Laws</h2>
+            <div className="bg-[#080808]/95 border border-white/15 p-8 max-w-2xl w-full pointer-events-auto shadow-2xl overflow-y-auto max-h-[90vh]">
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex gap-6">
+                  <button 
+                    onClick={() => setActiveTab('laws')}
+                    className={`text-xs font-bold uppercase tracking-[0.25em] transition-opacity ${activeTab === 'laws' ? 'opacity-100' : 'opacity-30'}`}
+                  >
+                    Physics Laws
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('lab')}
+                    className={`text-xs font-bold uppercase tracking-[0.25em] transition-opacity ${activeTab === 'lab' ? 'opacity-100' : 'opacity-30'}`}
+                  >
+                    Experimental Protocols
+                  </button>
+                </div>
                 <button onClick={() => setShowInfo(false)} className="opacity-30 hover:opacity-80 text-sm">✕</button>
               </div>
-              <div className="space-y-2.5 text-[10px] leading-relaxed opacity-65">
-                {LAWS.map(([law, desc]) => (
-                  <p key={law}><span className="text-white font-bold">{law}: </span>{desc}</p>
-                ))}
-                <div className="pt-4 border-t border-white/8 flex items-center gap-2 opacity-50">
-                  <Cpu size={12}/><span className="uppercase tracking-widest text-[9px]">each particle is its own observer</span>
+
+              {activeTab === 'laws' ? (
+                <div className="space-y-2.5 text-[10px] leading-relaxed opacity-65">
+                  {LAWS.map(([law, desc]) => (
+                    <p key={law}><span className="text-white font-bold">{law}: </span>{desc}</p>
+                  ))}
+                  <div className="pt-4 border-t border-white/8 flex items-center gap-2 opacity-50">
+                    <Cpu size={12}/><span className="uppercase tracking-widest text-[9px]">each particle is its own observer</span>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <ProtocolCard 
+                      title="Isolation Decay"
+                      setup="Spawn a single particle in a void region."
+                      prediction="P(t) decays rapidly. Definability decreases. Eventual removal from state space."
+                      icon={<Beaker size={14} />}
+                      onRun={() => {
+                        workerRef.current?.postMessage({ type: 'spawn', x: 10000, y: 10000, count: 1, weight: 2.0 });
+                        setShowInfo(false);
+                      }}
+                    />
+                    <ProtocolCard 
+                      title="Interaction Stability"
+                      setup="Spawn an entangled pair of particles."
+                      prediction="Information exchange reinforces P(t). System achieves dynamic stability."
+                      icon={<FlaskConical size={14} />}
+                      onRun={() => {
+                        workerRef.current?.postMessage({ type: 'spawn', x: -10000, y: -10000, count: 2, spread: 5, weight: 1.5 });
+                        setShowInfo(false);
+                      }}
+                    />
+                    <ProtocolCard 
+                      title="Substrate Satura."
+                      setup="Inject a high-density information cluster."
+                      prediction="Information density exceeds limit. Local instability leads to rapid reconfiguration."
+                      icon={<Microscope size={14} />}
+                      onRun={() => {
+                        workerRef.current?.postMessage({ type: 'spawn', x: 5000, y: -5000, count: 50, spread: 20, weight: 5.0 });
+                        setShowInfo(false);
+                      }}
+                    />
+                  </div>
+                  
+                  <div className="p-4 bg-white/5 border border-white/10 rounded-sm">
+                    <h3 className="text-[10px] font-bold uppercase tracking-widest mb-2 opacity-80">Epistemological Instrumentation</h3>
+                    <p className="text-[9px] opacity-50 leading-relaxed">
+                      The observer interface measures the delta between the <strong>Real State</strong> (the simulated engine) and the <strong>Observable State</strong> (the rendered frame). High efficiency indicates that the majority of the universe exists in a latent, non-observed state, fulfilling the structural necessity of bounded computation.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -393,6 +457,33 @@ export default function App() {
 // ═══════════════════════════════════════════════════════════════════
 //  COMPONENTS
 // ═══════════════════════════════════════════════════════════════════
+
+function ProtocolCard({ title, setup, prediction, icon, onRun }: {
+  title: string; setup: string; prediction: string; icon: React.ReactNode; onRun: () => void;
+}) {
+  return (
+    <div className="p-4 border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] transition-colors flex flex-col justify-between h-full">
+      <div>
+        <div className="flex items-center gap-2 mb-3 text-emerald-400">
+          {icon}
+          <h3 className="text-[10px] font-bold uppercase tracking-widest">{title}</h3>
+        </div>
+        <div className="space-y-2 mb-4">
+          <div className="text-[8px] opacity-30 uppercase tracking-widest">Setup</div>
+          <p className="text-[9px] opacity-70 leading-tight">{setup}</p>
+          <div className="text-[8px] opacity-30 uppercase tracking-widest">Prediction</div>
+          <p className="text-[9px] opacity-70 leading-tight italic">{prediction}</p>
+        </div>
+      </div>
+      <button 
+        onClick={onRun}
+        className="w-full py-2 border border-white/10 hover:border-emerald-500/50 hover:text-emerald-400 transition-all text-[9px] uppercase tracking-widest font-bold"
+      >
+        Execute
+      </button>
+    </div>
+  );
+}
 
 function Metric({ label, value, icon, color, pct }: {
   label: string; value: number | string; icon: React.ReactNode; color: string; pct?: boolean;

@@ -14,5 +14,7 @@ self.onmessage = (e: MessageEvent) => {
     self.postMessage({ type: 'snapshot', state });
   } else if (e.data === 'reset') {
     engine = new UniverseEngine();
+  } else if (e.data.type === 'spawn') {
+    engine.spawn(e.data.x, e.data.y, e.data.count, e.data.spread, e.data.weight, e.data.charge);
   }
 };
