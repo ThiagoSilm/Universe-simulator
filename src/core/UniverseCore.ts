@@ -193,10 +193,10 @@ export class UniverseCore {
       
       const p: ParticleCore = {
         id: `p-${i}`,
-        x: (nextR() - 0.5) * 60000,
-        y: (nextR() - 0.5) * 60000,
-        vx: (nextR() - 0.5) * 5,
-        vy: (nextR() - 0.5) * 5,
+        x: i === 0 ? -1 : 1, // Extremely close to (0,0)
+        y: 0,
+        vx: 0,
+        vy: 0,
         weight: nextR() * 0.05 + 0.001,
         charge,
         isLatent: true,
