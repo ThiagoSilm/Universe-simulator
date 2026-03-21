@@ -115,6 +115,7 @@ export class UniverseEngine {
         totalInformation: INITIAL_PARTICLE_COUNT,
         tick: 0, maxCurvature: 0, avgTemperature: 0,
         pairProductionCount: 0, annihilationCount: 0, fissionCount: 0,
+        maxLevel: 1, dormantCount: 0, chargedCount: 0, boundCount: 0,
         viewportX: 0, viewportY: 0, zoom: 1,
       };
     }
@@ -753,6 +754,12 @@ export class UniverseEngine {
     );
     this.state.annihilationCount += annihCount;
     this.state.fissionCount      += fissCount;
+
+    // Calculate metrics
+    this.state.maxLevel = Math.max(1, ...this.particles.map(p => p.level));
+    this.state.dormantCount = this.particles.filter(p => p.isLatent).length;
+    this.state.chargedCount = this.particles.filter(p => p.charge !== 0).length;
+    this.state.boundCount = this.particles.filter(p => p.isBound && !p.isLatent).length;
 
     let maxCurv = 0, totalTemp = 0, tempCount = 0;
     this.energyGrid.forEach(r => {

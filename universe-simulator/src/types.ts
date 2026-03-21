@@ -41,6 +41,11 @@ export interface UniverseState {
   pairProductionCount: number;   // cumulative pair-production events
   annihilationCount: number;     // cumulative annihilation events
   fissionCount: number;          // cumulative fission events
+  // Metrics
+  maxLevel: number;
+  dormantCount: number;
+  chargedCount: number;
+  boundCount: number;
   // legacy
   viewportX: number;
   viewportY: number;

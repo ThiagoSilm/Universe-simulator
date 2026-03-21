@@ -263,10 +263,10 @@ export default function App() {
   }, [animate]);
 
   const p   = state?.particles ?? [];
-  const maxLevel  = Math.max(1, ...p.map(q => q.level));
-  const dormant   = p.filter(q => q.isLatent).length;
-  const charged   = p.filter(q => q.charge !== 0).length;
-  const bound     = p.filter(q => q.isBound && !q.isLatent).length;
+  const maxLevel  = state?.maxLevel ?? 1;
+  const dormant   = state?.dormantCount ?? 0;
+  const charged   = state?.chargedCount ?? 0;
+  const bound     = state?.boundCount ?? 0;
 
   return (
     <div className="relative w-full h-screen bg-[#050505] text-white overflow-hidden font-mono">
