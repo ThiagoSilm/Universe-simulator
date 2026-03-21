@@ -33,6 +33,7 @@ import {
   Map as MapIcon,
   Maximize2,
   ScrollText,
+  Camera,
 } from "lucide-react";
 import { ObserverLayer, PersistentState, GRID_SIZE } from "./ObserverLayer";
 import { LazyDocumentary } from "./LazyDocumentary";
@@ -603,7 +604,9 @@ export default function App() {
   >("core");
   const horizonRadius = 5000;
   const [isObserving, setIsObserving] = useState(false);
+  const [documentaryMode, setDocumentaryMode] = useState(false);
   const isObservingRef = useRef(false);
+  const documentaryModeRef = useRef(false);
   const [scientistMode, setScientistMode] = useState(false);
   const [showNarrative, setShowNarrative] = useState(true);
   const [selectedParticle, setSelectedParticle] = useState<Particle | null>(
@@ -622,7 +625,17 @@ export default function App() {
   }, [latentMode]);
 
   useEffect(() => {
+    documentaryModeRef.current = documentaryMode;
+    if (documentaryMode) {
+      setIsObserving(false);
+    }
+  }, [documentaryMode]);
+
+  useEffect(() => {
     isObservingRef.current = isObserving;
+    if (engineRef.current) {
+      engineRef.current.isObserving = isObserving;
+    }
   }, [isObserving]);
 
   const getNarrative = () => {
@@ -896,6 +909,30 @@ export default function App() {
           </div>
           <div className="flex flex-col items-end gap-3 pointer-events-auto">
             <div className="flex gap-3">
+              <button
+                onClick={() => setDocumentaryMode(!documentaryMode)}
+                className={`group relative flex items-center gap-2 px-4 py-2 border rounded-md transition-all ${
+                  documentaryMode
+                    ? "bg-blue-500/20 border-blue-500/50 text-blue-400"
+                    : "bg-slate-500/20 border-slate-500/50 text-slate-400"
+                }`}
+              >
+                <Clock size={14} />
+                <span className="text-xs font-bold uppercase tracking-wider">
+                  {documentaryMode ? "Modo Documentário Ativo" : "Ativar Modo Documentário"}
+                </span>
+              </button>
+
+              {documentaryMode && (
+                <button
+                  onClick={() => engineRef.current?.forceSnapshot()}
+                  className="group relative flex items-center gap-2 px-4 py-2 border rounded-md transition-all bg-purple-500/20 border-purple-500/50 text-purple-400"
+                >
+                  <Camera size={14} />
+                  <span className="text-xs font-bold uppercase tracking-wider">Capturar Snapshot</span>
+                </button>
+              )}
+
               <button
                 onClick={() => setIsObserving(!isObserving)}
                 className={`group relative flex items-center gap-2 px-4 py-2 border rounded-md transition-all ${

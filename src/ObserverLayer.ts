@@ -102,6 +102,10 @@ export class ObserverLayer {
     }
   }
 
+  public forceSnapshot() {
+    this.worker.postMessage({ type: 'GET_SNAPSHOT' });
+  }
+
   public observeAt(x: number, y: number, radius: number = 1000) {
     this.worker.postMessage({ 
       type: 'OBSERVE', 
