@@ -128,6 +128,7 @@ export class UniverseCore {
   public particles: ParticleCore[] = [];
   public tickCount: number = 0;
   private expansionStarted: boolean = false;
+  private currentHorizon: number = 50;
   private activeParticles: Set<ParticleCore> = new Set();
   private cosmicMemory: Map<string, ParticleTrace[]> = new Map();
   private seed: number;
