@@ -60,6 +60,20 @@ async function init() {
 
 function tick() {
   if (isRunning && core) {
+    // Apply feedback loop
+    const snapshot = core.getSnapshot();
+    
+    // Simple feedback logic:
+    // Life (decisionsPerTick) reduces Entropy
+    // Technology (represented by activeTracesCount) affects Gravity
+    // Culture (represented by totalSelfEnergy) affects Lambda
+    
+    const entropyFactor = Math.max(0.1, 1.0 - (snapshot.decisionsPerTick / 1000));
+    const gFactor = 1.0 + (snapshot.activeTracesCount / 5000);
+    const lambdaFactor = 1.0 + (snapshot.totalSelfEnergy / 100000);
+    
+    core.applyPhysicsInfluence(gFactor, lambdaFactor, entropyFactor);
+    
     core.tick();
   }
   setTimeout(tick, 1000 / 60);

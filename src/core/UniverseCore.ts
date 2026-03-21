@@ -132,14 +132,29 @@ export class UniverseCore {
   private seed: number;
 
   // Fundamental Constants
-  private readonly C = 50; // Speed of light (pixels/tick)
-  private readonly H = 0.05; // Planck constant (energy/phase quantum)
-  private readonly G = 0.02; // Reduced Gravitational constant
-  private readonly LAMBDA = 0.0005; // Cosmological constant (expansion rate)
-  private readonly PLANCK_LENGTH = 5; // Increased minimum distance for softening
-  private readonly EPS = 0.05; // Gravitational softening
-  private readonly PLANCK_TEMP = 1000; // Maximum energy
-  private readonly BEKENSTEIN_LIMIT = 20; // Max traces/information per particle
+  private readonly C = 50; 
+  private readonly H = 0.05; 
+  private readonly G = 0.02; 
+  private readonly LAMBDA = 0.0005; 
+  private readonly PLANCK_LENGTH = 5; 
+  private readonly EPS = 0.05; 
+  private readonly PLANCK_TEMP = 1000; 
+  private readonly BEKENSTEIN_LIMIT = 20; 
+  
+  // Influence Factors
+  private G_influence = 1.0;
+  private LAMBDA_influence = 1.0;
+  private ENTROPY_influence = 1.0;
+
+  private get effectiveG() { return Math.max(0.001, Math.min(0.1, this.G * this.G_influence)); }
+  private get effectiveLAMBDA() { return Math.max(0.0001, Math.min(0.01, this.LAMBDA * this.LAMBDA_influence)); }
+  private get effectiveENTROPY_DENSITY_FACTOR() { return Math.max(0.0001, Math.min(0.01, this.ENTROPY_DENSITY_FACTOR * this.ENTROPY_influence)); }
+
+  public applyPhysicsInfluence(gFactor: number, lambdaFactor: number, entropyFactor: number) {
+    this.G_influence = gFactor;
+    this.LAMBDA_influence = lambdaFactor;
+    this.ENTROPY_influence = entropyFactor;
+  }
   
   // Metrics for ObserverLayer
   public decisionsPerTick: number = 0;
@@ -272,8 +287,8 @@ export class UniverseCore {
       // 1. Cosmological Expansion (Λ)
       // Space expands, pushing particles away from center
       if (!p.isBlackHole) {
-        p.x *= (1 + this.LAMBDA);
-        p.y *= (1 + this.LAMBDA);
+        p.x *= (1 + this.effectiveLAMBDA);
+        p.y *= (1 + this.effectiveLAMBDA);
       }
 
       // 2. Tempo Próprio & Relatividade (c)
@@ -300,7 +315,7 @@ export class UniverseCore {
         p.vy *= 0.99;
         
         // Boundary check (Universe Horizon)
-        const horizon = 50000 + this.tickCount * this.LAMBDA * 100;
+        const horizon = 50000 + this.tickCount * this.effectiveLAMBDA * 100;
         if (Math.abs(p.x) > horizon) { p.vx *= -1; p.x = Math.sign(p.x) * horizon; }
         if (Math.abs(p.y) > horizon) { p.vy *= -1; p.y = Math.sign(p.y) * horizon; }
       }
@@ -319,7 +334,7 @@ export class UniverseCore {
         
         // --- Entropy Law: Cost of Information Maintenance ---
         const density = neighbors.length;
-        const entropyCost = this.ENTROPY_COST_BASE + (density * this.ENTROPY_DENSITY_FACTOR);
+        const entropyCost = this.ENTROPY_COST_BASE + (density * this.effectiveENTROPY_DENSITY_FACTOR);
         p.energy -= entropyCost;
         
         // Trace Decay: Information fades faster in dense environments
@@ -351,7 +366,7 @@ export class UniverseCore {
       }
 
       // 7. Singularity / Schwarzschild Collapse
-      const rs = (2 * this.G * p.weight) / (this.C * this.C);
+      const rs = (2 * this.effectiveG * p.weight) / (this.C * this.C);
       if (!p.isBlackHole && (p.traces.length >= this.BEKENSTEIN_LIMIT || rs > this.PLANCK_LENGTH)) {
         p.isBlackHole = true; 
         p.energy = 0;
@@ -391,7 +406,7 @@ export class UniverseCore {
   }
 
   private generateBeyondHorizon(count: number) {
-    const horizon = 50000 + this.tickCount * this.LAMBDA * 100;
+    const horizon = 50000 + this.tickCount * this.effectiveLAMBDA * 100;
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const dist = horizon + Math.random() * 5000;
@@ -472,7 +487,7 @@ export class UniverseCore {
       const distSq = ddx * ddx + ddy * ddy;
       
       // Gravity (G) with Softening
-      const gravity = Math.min((this.G * p.weight * n.weight) / (distSq + this.EPS), 10.0);
+      const gravity = Math.min((this.effectiveG * p.weight * n.weight) / (distSq + this.EPS), 10.0);
       
       // Quantum Affinity (h)
       const phaseDiff = Math.cos(p.phase - n.phase);
@@ -621,7 +636,7 @@ export class UniverseCore {
         totalSelfEnergy: this.totalSelfEnergy,
         activeTracesCount: this.activeTracesCount,
         events: this.recentEvents,
-        universeHorizon: 50000 + this.tickCount * this.LAMBDA * 100
+        universeHorizon: 50000 + this.tickCount * this.effectiveLAMBDA * 100
       }
     };
   }
