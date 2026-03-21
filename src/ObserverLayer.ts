@@ -74,6 +74,7 @@ export class ObserverLayer {
     horizonSize: 0,
     systemTemperature: 0,
     thermalGradient: 0,
+    persistenceScale: 0,
   };
 
   constructor(savedState?: any) {
@@ -135,6 +136,7 @@ export class ObserverLayer {
     let bnd = 0;
     let bhCount = 0;
     let totalVel = 0;
+    let totalAge = 0;
     
     // As métricas são calculadas apenas sobre o que está ATIVO (Lazy)
     // Se o worker já nos deu o activeCount, não precisamos contar de novo!
@@ -149,6 +151,7 @@ export class ObserverLayer {
         if (p.charge !== 0) chrgd++;
         if (p.isBound) bnd++;
         if (p.isBlackHole) bhCount++;
+        totalAge += p.age || 0;
       }
     }
 
@@ -184,6 +187,15 @@ export class ObserverLayer {
     this.metrics.lifeCount = Math.floor(activeCount / 50);
     this.metrics.culture = Math.min(100, activeCount / 20);
     this.metrics.technology = Math.min(100, activeCount / 10);
+
+    // Persistence Scale P(t) = (⟨k⟩ × τ × H × A) / D
+    const k_avg = this.metrics.activeTracesCount / (activeCount || 1);
+    const tau = totalAge / (activeCount || 1);
+    const H_val = this.metrics.entropy || 1;
+    const A_val = Math.min(1, bnd / (activeCount || 1)) + 0.01; // Temporal correlation proxy
+    const D_val = Math.max(0.001, 1.0 - (this.metrics.efficiency / 100)); // Dissipation factor (dimensionless)
+    
+    this.metrics.persistenceScale = (k_avg * tau * H_val * A_val) / D_val;
   }
 
   public getState(): UniverseState {

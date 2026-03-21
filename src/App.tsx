@@ -754,6 +754,7 @@ export default function App() {
           nodes: newState.collectiveConsciousnessNodes,
           entangled: newState.entangledPairsCount,
           interference: newState.interferenceCount,
+          persistenceScale: newState.persistenceScale,
         };
         setPrevStats(currentStats);
       }
@@ -1302,6 +1303,15 @@ export default function App() {
                         pct
                         trend={getTrend(state?.entropy, prevStats.entropy)}
                         tooltip="Medida de desordem e informação perdida no universo."
+                        scientistMode={scientistMode}
+                      />
+                      <Metric
+                        label="Persistência P(t)"
+                        value={state?.persistenceScale ?? 0}
+                        icon={<Clock size={11} />}
+                        color="text-emerald-400"
+                        trend={getTrend(state?.persistenceScale, prevStats.persistenceScale)}
+                        tooltip="Escala de tempo de persistência instantânea. P(t) = (⟨k⟩ × τ × H × A) / D. Quanto tempo o sistema 'acha' que vai durar antes de dissipar."
                         scientistMode={scientistMode}
                       />
                       <div className="grid grid-cols-2 gap-2">
