@@ -52,11 +52,13 @@ const MIN_POPULATION         = 50;
 const ENERGY_REGEN_RATE      = 0.01;
 
 // Sustainability & Information Persistence
-const PERSISTENCE_DECAY      = 0.008;    // Slightly faster decay
-const INTERACTION_GAIN       = 0.06;     // Stronger reinforcement
-const DISSOLUTION_THRESHOLD  = -10;      // More buffer before removal
+const PERSISTENCE_DECAY      = 0.004;    // Slower base decay
+const INTERACTION_GAIN       = 0.12;     // Much stronger base reinforcement
+const SYNERGY_BOOST          = 1.35;     // Stronger multiplier for cluster stability
+const THRESHOLD_BOOST        = 0.45;     // Large boost for strong coupling (tipping point)
+const DISSOLUTION_THRESHOLD  = -20;      // More buffer before removal
 const BLUR_THRESHOLD         = 0;        // Start losing definability below this
-const INFORMATION_LIMIT      = 600;      // Substrate capacity
+const INFORMATION_LIMIT      = 800;      // Substrate capacity
 
 // Particle events
 const FISSION_WEIGHT         = 18;       // minimum weight for spontaneous fission
@@ -421,7 +423,9 @@ export class UniverseEngine {
       regionInfo.set(key, (regionInfo.get(key) || 0) + info);
       
       // Natural decay of persistence (entropy)
-      p.persistence -= PERSISTENCE_DECAY;
+      // Complexity maintenance cost: higher level = faster decay if not interacting
+      const decay = PERSISTENCE_DECAY * (1 + (p.level - 1) * 0.5);
+      p.persistence -= decay;
     });
 
     // ── 7. MAIN PHYSICS LOOP — each particle is its own observer ────
@@ -614,6 +618,8 @@ export class UniverseEngine {
 
       // j. FORCE INTERACTIONS (gravity + EM + nuclear + strong + annihilation)
       p1.isBound = false; // reset each tick; set true if strong bond detected
+      let neighborCount = 0;
+
       for (let dx = -gRange; dx <= gRange; dx++) {
         for (let dy = -gRange; dy <= gRange; dy++) {
           const nb = spatialGrid.get(`${gx+dx},${gy+dy}`);
@@ -630,8 +636,16 @@ export class UniverseEngine {
 
             // Information propagation: interaction restores persistence
             if (d2 < gR2) {
-              p1.persistence = Math.min(20, p1.persistence + INTERACTION_GAIN * tf);
-              p2.persistence = Math.min(20, p2.persistence + INTERACTION_GAIN * tf);
+              neighborCount++;
+              let gain = INTERACTION_GAIN * tf;
+              
+              // Threshold Effect: Strong coupling provides non-linear boost (Tipping Point)
+              if (d2 < INTERACTION_RADIUS * INTERACTION_RADIUS) {
+                gain += THRESHOLD_BOOST * tf;
+              }
+
+              p1.persistence = Math.min(40, p1.persistence + gain);
+              p2.persistence = Math.min(40, p2.persistence + gain);
             }
 
             // ── GRAVITY ──────────────────────────────────────────────
@@ -752,7 +766,10 @@ export class UniverseEngine {
             p1.isLatent    = p2.isLatent    = false;
             p1.lastInteractionTick = p2.lastInteractionTick = tick;
             p1.lastActiveTick      = p2.lastActiveTick      = tick;
-            p1.persistence += 0.01*tf; p2.persistence += 0.01*tf;
+            
+            // Interaction reinforces existence
+            const obsGain = 0.05 * tf;
+            p1.persistence += obsGain; p2.persistence += obsGain;
             p1.weight      += 0.01*tf; p2.weight      += 0.01*tf;
             region.temperature += 0.012;
           }
@@ -761,6 +778,14 @@ export class UniverseEngine {
         if (toKill.has(p1.id)) break;
       }
       if (toKill.has(p1.id)) continue;
+
+      // Synergy Effect: Cluster size reinforces stability (non-linear threshold)
+      if (neighborCount > 2) {
+        // Tipping point: once a cluster forms, it becomes a self-sustaining information node
+        const synergyFactor = 1 + (neighborCount - 2) * 0.25;
+        p1.persistence *= synergyFactor;
+        p1.persistence = Math.min(60, p1.persistence);
+      }
 
       // k. Dormancy — particle enters superposition when unobserved
       if (tick - p1.lastActiveTick > DORMANCY_THRESHOLD) p1.isLatent = true;
