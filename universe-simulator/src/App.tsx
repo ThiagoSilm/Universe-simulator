@@ -452,6 +452,9 @@ const LAWS: [string, string][] = [
   ['MOMENTUM CONSERVATION', 'Fusion: v = (p₁m₁+p₂m₂)/(m₁+m₂). Fission: daughter has opposite momentum recoil. Singularity compression conserves total momentum. Annihilation: photons emitted in opposite directions.'],
   ['SPEED OF LIGHT C=40', 'No particle exceeds C per tick. Photon-like particles (fast, uncharged, massless) travel at ≈C.'],
   ['TIME DILATION', 'tf = 1/(1+κ·α). All forces and motion scale by tf. Dense regions evolve slower.'],
+  ['SUSTAINABILITY', 'Systems persist only if they maintain a stable configuration. Unstable states (low persistence) decay into the substrate or blur out of classical existence.'],
+  ['OBSERVABILITY', 'Information must propagate to the observer. Non-propagating states (isolated particles) lose persistence and become unobservable (latent).'],
+  ['INFORMATION PERSISTENCE', 'The universe sustains configurations that propagate enough information to persist within substrate limits. Excessive information density destabilizes local configurations.'],
   ['INFORMATION CONSERVATION', 'Dissolution: weight redistributed. Fusion: latent traces inherited. Fission: traces split. Latent traces re-emerge when host weight allows.'],
   ['BIG BANG', '1800 particles. 24 proto-galaxy clusters with proto-galactic spin. Void particles dormant from birth. ±60,000 unit radius.'],
 ];

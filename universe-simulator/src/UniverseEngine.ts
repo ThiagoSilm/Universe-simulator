@@ -51,6 +51,12 @@ const MAX_LATENT_TRACES      = 24;
 const MIN_POPULATION         = 50;
 const ENERGY_REGEN_RATE      = 0.01;
 
+// Sustainability & Information Persistence
+const PERSISTENCE_DECAY      = 0.005;
+const INTERACTION_GAIN       = 0.05;
+const DISSOLUTION_THRESHOLD  = -5;
+const INFORMATION_LIMIT      = 500;
+
 // Particle events
 const FISSION_WEIGHT         = 18;       // minimum weight for spontaneous fission
 const FISSION_PROB_BASE      = 0.0005;   // base fission probability per tick
@@ -389,6 +395,18 @@ export class UniverseEngine {
     this.particles = this.particles.filter(p => !deadSet.has(p.id));
     this.particles.push(...newBorn);
 
+    // ── 5.5 SUSTAINABILITY & INFORMATION PERSISTENCE ────────────────
+    const regionInfo = new Map<string, number>();
+    this.particles.forEach(p => {
+      const gx = Math.floor(p.x / GRID_SIZE), gy = Math.floor(p.y / GRID_SIZE);
+      const key = `${gx},${gy}`;
+      const info = p.weight * (1 + p.level * 0.1) + (p.latentTraces?.length || 0);
+      regionInfo.set(key, (regionInfo.get(key) || 0) + info);
+      
+      // Natural decay of persistence (entropy)
+      p.persistence -= PERSISTENCE_DECAY;
+    });
+
     // ── 7. MAIN PHYSICS LOOP — each particle is its own observer ────
     const gRange     = Math.ceil(GRAVITY_RADIUS / GRID_SIZE);
     const gR2        = GRAVITY_RADIUS ** 2;
@@ -432,6 +450,24 @@ export class UniverseEngine {
       const region = this.getRegion(gx, gy);
       region.lastActiveTick = tick;
       const tf = 1 / (1 + region.curvature * TIME_DILATION_STR);
+
+      // Sustainability check: high information density destabilizes particles
+      const infoDensity = regionInfo.get(`${gx},${gy}`) || 0;
+      if (infoDensity > INFORMATION_LIMIT) {
+        p1.persistence -= 0.02 * (infoDensity / INFORMATION_LIMIT) * tf;
+      }
+
+      // Dissolution check: if persistence drops too low, the configuration is unsustainable
+      if (p1.persistence < DISSOLUTION_THRESHOLD) {
+        toKill.add(p1.id);
+        continue;
+      }
+
+      // Observability check: if persistence is low, it starts to lose classical state (blur)
+      if (p1.persistence < 0 && p1.isCollapsed) {
+        p1.isCollapsed = false; 
+        p1.level = Math.max(1, p1.level - 1);
+      }
 
       // a. Complexity maintenance cost
       if (p1.isCollapsed) {
@@ -572,6 +608,12 @@ export class UniverseEngine {
             const d2  = ddx*ddx+ddy*ddy;
             if (d2 === 0) continue;
             const d = Math.sqrt(d2);
+
+            // Information propagation: interaction restores persistence
+            if (d2 < gR2) {
+              p1.persistence += INTERACTION_GAIN * tf;
+              p2.persistence += INTERACTION_GAIN * tf;
+            }
 
             // ── GRAVITY ──────────────────────────────────────────────
             if (d2 < gR2) {
