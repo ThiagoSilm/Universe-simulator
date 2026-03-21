@@ -604,8 +604,8 @@ export default function App() {
     "core" | "quantum" | "life" | "civ" | "cosmic" | "horizon" | "log" | "manifesto"
   >("core");
   const horizonRadius = 5000;
-  const [isObserving, setIsObserving] = useState(false);
-  const [isSilentMode, setIsSilentMode] = useState(true);
+  const [isObserving, setIsObserving] = useState(true);
+  const [isSilentMode, setIsSilentMode] = useState(false);
   const [snapshotView, setSnapshotView] = useState<UniverseState | null>(null);
   const [renderLimit, setRenderLimit] = useState(5000);
   const [documentaryMode, setDocumentaryMode] = useState(false);
@@ -650,11 +650,7 @@ export default function App() {
     }
   }, [isObserving]);
 
-  const handleObserve = () => {
-    setSnapshotView(null);
-    setIsSilentMode(!isSilentMode);
-    setIsObserving(!isObserving);
-  };
+  // Removido handleObserve
 
   const handleCaptureRichest = () => {
     if (!engineRef.current) return;
@@ -966,14 +962,6 @@ export default function App() {
           </div>
           <div className="flex flex-col items-end gap-3 pointer-events-auto">
             <div className="flex gap-3">
-              <button
-                onClick={handleObserve}
-                className="group relative flex items-center gap-2 px-4 py-2 border rounded-md transition-all bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
-              >
-                <Eye size={14} />
-                <span className="text-xs font-bold uppercase tracking-wider">OBSERVAR</span>
-              </button>
-
               <button
                 onClick={handleCaptureRichest}
                 className="group relative flex items-center gap-2 px-4 py-2 border rounded-md transition-all bg-amber-500/20 border-amber-500/50 text-amber-400"
