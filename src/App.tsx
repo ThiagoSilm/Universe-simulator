@@ -1078,7 +1078,7 @@ export default function App() {
                           value={(state?.horizonSize ?? 0).toFixed(0)}
                           icon={<Expand size={10} />}
                           color="text-rose-400"
-                          tooltip="Raio do universo observável. Expande com Λ."
+                          tooltip="Raio do universo observável. A expansão (Λ) dilui a densidade de partículas, reduzindo o custo computacional local. O espaço se expande para manter a simulação 'lazy'."
                           range="Causalidade"
                           scientistMode={scientistMode}
                         />
@@ -1350,7 +1350,7 @@ export default function App() {
                           value={state?.photonCount ?? 0}
                           icon={<Zap size={10} />}
                           color="text-yellow-300"
-                          tooltip="Partículas viajando à velocidade da luz. Observadores puros que não envelhecem."
+                          tooltip="Partículas viajando à velocidade da luz (c). O limite 'c' atua como o clock speed máximo e limite de bandwidth do simulador, garantindo a causalidade local."
                           scientistMode={scientistMode}
                         />
                         <Stat
