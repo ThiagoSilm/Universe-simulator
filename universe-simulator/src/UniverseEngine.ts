@@ -59,6 +59,8 @@ const THRESHOLD_BOOST        = 0.45;     // Large boost for strong coupling (tip
 const DISSOLUTION_THRESHOLD  = -20;      // More buffer before removal
 const BLUR_THRESHOLD         = 0;        // Start losing definability below this
 const INFORMATION_LIMIT      = 800;      // Substrate capacity
+const ENTROPY_SPAWN_PROB     = 0.08;     // Prob of spawning entropy particle in overloaded regions
+const ENTROPY_DECAY_RATE     = 1.2;      // How much persistence an entropy particle drains
 
 // Particle events
 const FISSION_WEIGHT         = 18;       // minimum weight for spontaneous fission
@@ -475,8 +477,19 @@ export class UniverseEngine {
       // Substrate Constraint: Bounded information density
       const infoDensity = regionInfo.get(`${gx},${gy}`) || 0;
       if (infoDensity > INFORMATION_LIMIT) {
-        // Computational overload destabilizes configurations
-        p1.persistence -= 0.03 * (infoDensity / INFORMATION_LIMIT) * tf;
+        // Computational overload destabilizes configurations (Structural Feedback)
+        const overload = infoDensity / INFORMATION_LIMIT;
+        p1.persistence -= 0.05 * Math.pow(overload, 2) * tf; // Non-linear penalty
+
+        // Structural Feedback: Dense regions generate entropy particles
+        if (Math.random() < ENTROPY_SPAWN_PROB * (overload - 1)) {
+          toSpawn.push(this.newParticle(
+            `ent-${tick}-${Math.random().toString(36).slice(2)}`,
+            p1.x + (Math.random()-0.5)*10, p1.y + (Math.random()-0.5)*10,
+            (Math.random()-0.5)*2, (Math.random()-0.5)*2,
+            0.5, 0, true, 'rgba(255, 50, 50, 0.8)', tick, { isEntropy: true, persistence: 10 }
+          ));
+        }
       }
 
       // Sustainability: Removal of dynamically unstable configurations
@@ -635,7 +648,7 @@ export class UniverseEngine {
             const d = Math.sqrt(d2);
 
             // Information propagation: interaction restores persistence
-            if (d2 < gR2) {
+            if (d2 < gR2 && !p1.isEntropy && !p2.isEntropy) {
               neighborCount++;
               let gain = INTERACTION_GAIN * tf;
               
@@ -646,6 +659,16 @@ export class UniverseEngine {
 
               p1.persistence = Math.min(40, p1.persistence + gain);
               p2.persistence = Math.min(40, p2.persistence + gain);
+            }
+
+            // Entropy Interaction: Entropy particles drain persistence (Local Implementation of Feedback)
+            if (d2 < gR2 && (p1.isEntropy || p2.isEntropy)) {
+              const drain = ENTROPY_DECAY_RATE * tf;
+              if (p1.isEntropy && !p2.isEntropy) p2.persistence -= drain;
+              if (p2.isEntropy && !p1.isEntropy) p1.persistence -= drain;
+              // Entropy particles themselves decay quickly to prevent runaway feedback
+              if (p1.isEntropy) p1.persistence -= 0.2 * tf;
+              if (p2.isEntropy) p2.persistence -= 0.2 * tf;
             }
 
             // ── GRAVITY ──────────────────────────────────────────────

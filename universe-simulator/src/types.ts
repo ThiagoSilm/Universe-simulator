@@ -19,6 +19,7 @@ export interface Particle {
   charge: number;            // electromagnetic charge: -1 | 0 | +1
   // State flags
   isBound: boolean;          // in a nuclear bound state (atom analogue)
+  isEntropy?: boolean;       // feedback particle that reduces persistence
   latentTraces?: LatentTrace[];
 }
 
