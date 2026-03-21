@@ -73,6 +73,7 @@ export class ObserverLayer {
     blackHoleCount: 0,
     horizonSize: 0,
     systemTemperature: 0,
+    thermalGradient: 0,
   };
 
   constructor(savedState?: any) {
@@ -172,6 +173,7 @@ export class ObserverLayer {
       this.metrics.totalSelfEnergy = coreMetrics.totalSelfEnergy;
       this.metrics.activeTracesCount = coreMetrics.activeTracesCount;
       this.metrics.systemTemperature = coreMetrics.systemTemperature;
+      this.metrics.thermalGradient = coreMetrics.thermalGradient;
       this.metrics.photonCount = coreMetrics.photonCount;
     }
     

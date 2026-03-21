@@ -1322,6 +1322,14 @@ export default function App() {
                           scientistMode={scientistMode}
                         />
                         <Stat
+                          label="Gradiente"
+                          value={state?.thermalGradient ?? 0}
+                          icon={<Layers size={10} />}
+                          color="text-orange-400"
+                          tooltip="Diferença térmica. O universo não 'cria' complexidade, ele comprime dados. O gradiente é a zona onde a computação ativa tenta se estabilizar em estruturas 'lazy' (ligadas)."
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
                           label="Informação"
                           value={Math.round(state?.totalInformation ?? 0)}
                           icon={<Database size={10} />}

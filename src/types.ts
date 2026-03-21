@@ -167,6 +167,7 @@ export interface UniverseState {
   blackHoleCount: number;
   horizonSize: number;
   systemTemperature: number;
+  thermalGradient: number;
 }
 
 export interface CycleHistory {

@@ -702,6 +702,17 @@ export class UniverseCore {
     return totalKE / this.activeParticles.size;
   }
 
+  public getThermalGradient(): number {
+    if (this.activeParticles.size < 2) return 0;
+    const avgTemp = this.getSystemTemperature();
+    let varianceSum = 0;
+    for (const p of this.activeParticles) {
+      const ke = this.getKineticEnergy(p);
+      varianceSum += (ke - avgTemp) * (ke - avgTemp);
+    }
+    return Math.sqrt(varianceSum / this.activeParticles.size);
+  }
+
   public getSnapshot() {
     // Lazy Snapshot: Only send active particles and a stable subset of latent ones
     // This significantly reduces worker postMessage overhead and main thread rendering load.
@@ -727,6 +738,7 @@ export class UniverseCore {
         totalSelfEnergy: this.totalSelfEnergy,
         activeTracesCount: this.activeTracesCount,
         systemTemperature: this.getSystemTemperature(),
+        thermalGradient: this.getThermalGradient(),
         photonCount,
         events: this.recentEvents,
         universeHorizon: 50000 + this.tickCount * this.effectiveLAMBDA * 100
