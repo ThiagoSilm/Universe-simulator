@@ -1315,7 +1315,7 @@ export default function App() {
                         />
                         <Stat
                           label="Temperatura"
-                          value={state?.avgTemperature ?? 0}
+                          value={state?.systemTemperature ?? 0}
                           icon={<Thermometer size={10} />}
                           color="text-red-400"
                           tooltip="Energia cinética média das partículas ativas."

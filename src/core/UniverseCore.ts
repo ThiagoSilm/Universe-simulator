@@ -190,7 +190,10 @@ export class UniverseCore {
     };
 
     for (let i = 0; i < count; i++) {
-      const charge = nextR() < 0.5 ? 1 : -1;
+      const isMassless = nextR() < 0.1; // 10% chance to be a photon
+      const charge = isMassless ? 0 : (nextR() < 0.5 ? 1 : -1);
+      const weight = isMassless ? 0.0005 : nextR() * 0.05 + 0.001;
+      
       let element: 'H' | 'C' | 'O' | 'N' = 'H';
       if (charge > 0) element = 'C';
       else if (charge < 0) element = 'O';
@@ -199,9 +202,9 @@ export class UniverseCore {
         id: `p-${i}`,
         x: i === 0 ? -1 : 1, // Extremely close to (0,0)
         y: 0,
-        vx: 0,
-        vy: 0,
-        weight: nextR() * 0.05 + 0.001,
+        vx: isMassless ? (nextR() - 0.5) * this.C : 0,
+        vy: isMassless ? (nextR() - 0.5) * this.C : 0,
+        weight,
         charge,
         isLatent: true,
         lastActiveTick: 0,
@@ -296,7 +299,10 @@ export class UniverseCore {
       }
 
       // 2. Tempo Próprio & Relatividade (c)
-      p.age++;
+      // Massless particles (photons) do not experience time
+      if (p.weight > 0.001) {
+        p.age++;
+      }
       
       // Store position history
       p.positionHistory.push({ x: p.x, y: p.y, tick: this.tickCount });
@@ -307,6 +313,11 @@ export class UniverseCore {
         const speedSq = p.vx * p.vx + p.vy * p.vy;
         if (speedSq > this.C * this.C) {
           const speed = Math.sqrt(speedSq);
+          p.vx = (p.vx / speed) * this.C;
+          p.vy = (p.vy / speed) * this.C;
+        } else if (p.weight <= 0.001 && speedSq < this.C * this.C * 0.99) {
+          // Massless particles always travel at c
+          const speed = Math.sqrt(speedSq) || 1;
           p.vx = (p.vx / speed) * this.C;
           p.vy = (p.vy / speed) * this.C;
         }
@@ -338,12 +349,17 @@ export class UniverseCore {
         
         // --- Entropy Law: Cost of Information Maintenance ---
         const density = neighbors.length;
-        const entropyCost = this.ENTROPY_COST_BASE + (density * this.effectiveENTROPY_DENSITY_FACTOR);
+        
+        // Lazy Persistence Principle: Coupling redistributes and reduces effective dissipation
+        const connectivity = p.traces.length;
+        const couplingFactor = 1 + (connectivity * 0.2); 
+        
+        const entropyCost = (this.ENTROPY_COST_BASE + (density * this.effectiveENTROPY_DENSITY_FACTOR)) / couplingFactor;
         p.energy -= entropyCost;
         
-        // Trace Decay: Information fades faster in dense environments
+        // Trace Decay: Information fades faster in dense environments, but coupling protects it
         if (density > 5 && p.traces.length > 0) {
-          p.traces = p.traces.filter(() => Math.random() > this.TRACE_DECAY_RATE);
+          p.traces = p.traces.filter(() => Math.random() > (this.TRACE_DECAY_RATE / couplingFactor));
         }
         // ----------------------------------------------------
 
@@ -385,12 +401,27 @@ export class UniverseCore {
                 n.vy += J * m1 * ny;
               }
 
-              // 2. Heat Generation (Inelastic part)
+              // 2. Heat Generation (Inelastic part) & 10% TLTE Rule
               const keP = this.getKineticEnergy(p);
               const keN = this.getKineticEnergy(n);
-              const heat = (keP + keN) * 0.05; 
-              p.energy += heat / 2;
-              n.energy += heat / 2;
+              
+              // 10% of kinetic energy is lost in the collision
+              const lostKeP = keP * 0.1;
+              const lostKeN = keN * 0.1;
+              
+              // Reduce velocity to reflect lost kinetic energy (sqrt(0.9) ≈ 0.948)
+              p.vx *= 0.948;
+              p.vy *= 0.948;
+              n.vx *= 0.948;
+              n.vy *= 0.948;
+              
+              // TLTE Rule: Only 10% of the lost energy is transferred as useful internal heat
+              // The other 90% is dissipated as entropy (lost to the environment)
+              const totalLostKe = lostKeP + lostKeN;
+              const usefulHeat = totalLostKe * 0.1; 
+              
+              p.energy += usefulHeat / 2;
+              n.energy += usefulHeat / 2;
 
               // 3. Trace Exchange (Information Conservation)
               if (n.traces.length > 0) {
@@ -411,11 +442,12 @@ export class UniverseCore {
           }
           if (fused) continue;
         } else {
-          p.energy -= 0.005;
+          // Solitary trajectories dissipate faster (Lazy Persistence)
+          p.energy -= 0.005 / couplingFactor;
         }
         
-        // Natural cooling
-        p.energy -= 0.001;
+        // Natural cooling (reduced by coupling)
+        p.energy -= 0.001 / couplingFactor;
       }
 
       // 5. Planck Temperature Check
@@ -428,7 +460,7 @@ export class UniverseCore {
       }
 
       // 6. Mitosis Check
-      if (!p.isBlackHole && p.energy > this.MITOSIS_THRESHOLD) {
+      if (!p.isBlackHole && p.weight > 0.001 && p.energy > this.MITOSIS_THRESHOLD) {
         this.performMitosis(p);
       }
 
@@ -480,13 +512,16 @@ export class UniverseCore {
       const x = Math.cos(angle) * dist;
       const y = Math.sin(angle) * dist;
       
+      const isMassless = Math.random() < 0.1; // 10% chance to be a photon
+      const weight = isMassless ? 0.0005 : Math.random() * 0.05 + 0.001;
+      
       const p: ParticleCore = {
         id: `p-gen-${this.tickCount}-${i}`,
         x, y,
-        vx: -Math.cos(angle) * 2, // Moving towards center
-        vy: -Math.sin(angle) * 2,
-        weight: Math.random() * 0.05 + 0.001,
-        charge: Math.random() < 0.5 ? 1 : -1,
+        vx: -Math.cos(angle) * (isMassless ? this.C : 2), // Photons move at C
+        vy: -Math.sin(angle) * (isMassless ? this.C : 2),
+        weight,
+        charge: isMassless ? 0 : (Math.random() < 0.5 ? 1 : -1), // Photons have no charge
         isLatent: true,
         lastActiveTick: this.tickCount,
         age: 0,
@@ -537,7 +572,12 @@ export class UniverseCore {
     for (const n of candidates) {
       const dx = n.x - p.x;
       const dy = n.y - p.y;
-      const distSq = dx * dx + dy * dy + this.EPS;
+      
+      // Relational Space: Distance is effectively reduced if particles share traces (entanglement)
+      const sharedTraces = p.traces.filter(t => t.targetId === n.id).length;
+      const relationalFactor = 1 + (sharedTraces * 0.5);
+      
+      const distSq = (dx * dx + dy * dy) / relationalFactor + this.EPS;
       const dist = Math.sqrt(distSq);
       
       // Gravity (G)
@@ -671,6 +711,8 @@ export class UniverseCore {
     // without the cost of 5000 objects.
     const sampledLatent = this.particles.filter((p, i) => p.isLatent && i % 10 === 0);
     
+    const photonCount = this.particles.filter(p => p.weight <= 0.001).length;
+
     return {
       tick: this.tickCount,
       particles: [...active, ...sampledLatent].map(p => {
@@ -685,6 +727,7 @@ export class UniverseCore {
         totalSelfEnergy: this.totalSelfEnergy,
         activeTracesCount: this.activeTracesCount,
         systemTemperature: this.getSystemTemperature(),
+        photonCount,
         events: this.recentEvents,
         universeHorizon: 50000 + this.tickCount * this.effectiveLAMBDA * 100
       }
@@ -775,7 +818,9 @@ export class UniverseCore {
       isLatent: false,
       lastActiveTick: this.tickCount,
       age: 0,
-      energy: (p1.energy + p2.energy) * 0.8, // Some energy lost to binding
+      // 10% TLTE Rule: Only 10% of the combined energy is retained as useful internal energy.
+      // 90% is dissipated as entropy (heat lost to the universe) during the violent fusion process.
+      energy: (p1.energy + p2.energy) * 0.1, 
       phase: (p1.phase + p2.phase) / 2,
       amplitude: (p1.amplitude + p2.amplitude) / 2,
       level: Math.max(p1.level, p2.level) + 1,

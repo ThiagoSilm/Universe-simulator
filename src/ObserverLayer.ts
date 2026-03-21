@@ -72,6 +72,7 @@ export class ObserverLayer {
     activeTracesCount: 0,
     blackHoleCount: 0,
     horizonSize: 0,
+    systemTemperature: 0,
   };
 
   constructor(savedState?: any) {
@@ -170,6 +171,8 @@ export class ObserverLayer {
       this.metrics.avgCandidates = coreMetrics.avgCandidates;
       this.metrics.totalSelfEnergy = coreMetrics.totalSelfEnergy;
       this.metrics.activeTracesCount = coreMetrics.activeTracesCount;
+      this.metrics.systemTemperature = coreMetrics.systemTemperature;
+      this.metrics.photonCount = coreMetrics.photonCount;
     }
     
     // Simulação de métricas complexas baseadas na densidade de atividade

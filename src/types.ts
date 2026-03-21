@@ -166,6 +166,7 @@ export interface UniverseState {
   activeTracesCount: number;
   blackHoleCount: number;
   horizonSize: number;
+  systemTemperature: number;
 }
 
 export interface CycleHistory {
