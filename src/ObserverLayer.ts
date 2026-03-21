@@ -126,13 +126,8 @@ export class ObserverLayer {
   private lastSnapshotTime = 0;
 
   public step() {
-    if (this.isObserving) {
-      const now = performance.now();
-      if (now - this.lastSnapshotTime > 500) { // Limita a 2 snapshots por segundo
-        this.worker.postMessage({ type: 'GET_SNAPSHOT' });
-        this.lastSnapshotTime = now;
-      }
-    }
+    // A física roda na velocidade máxima e envia o estado
+    this.worker.postMessage({ type: 'GET_SNAPSHOT' });
   }
 
   public getRichestArea(snapshot: any) {

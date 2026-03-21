@@ -606,7 +606,6 @@ export default function App() {
   const horizonRadius = 5000;
   const [isObserving, setIsObserving] = useState(true);
   const [isSilentMode, setIsSilentMode] = useState(false);
-  const [snapshotView, setSnapshotView] = useState<UniverseState | null>(null);
   const [renderLimit, setRenderLimit] = useState(5000);
   const [documentaryMode, setDocumentaryMode] = useState(false);
   const fpsRef = useRef(60);
@@ -652,27 +651,7 @@ export default function App() {
 
   // Removido handleObserve
 
-  const handleCaptureRichest = () => {
-    if (!engineRef.current) return;
-    engineRef.current.forceSnapshot();
-    
-    setTimeout(() => {
-        const snapshot = engineRef.current?.getState();
-        if (snapshot) {
-            const { x, y } = engineRef.current!.getRichestArea(snapshot);
-            const snapshotWithView = {
-                ...snapshot,
-                viewportX: x,
-                viewportY: y,
-                isSpectatorMode: true,
-                zoom: 0.5
-            };
-            setSnapshotView(snapshotWithView);
-            setIsSilentMode(true);
-            setIsObserving(false);
-        }
-    }, 100);
-  };
+  // Removido handleCaptureRichest
 
   const getNarrative = () => {
     if (!state) return "";
@@ -878,24 +857,13 @@ export default function App() {
       setRenderLimit(prev => Math.min(50000, prev + 500));
     }
 
-    const currentState = snapshotView || stateRef.current;
+    const currentState = stateRef.current;
     if (currentState) {
-      // Spectator Mode Camera
-      if (currentState.isSpectatorMode && !snapshotView) { // Só move se for live
-         if (currentState.significantEvents && currentState.significantEvents.length > 0) {
-            const lastEvent =
-              currentState.significantEvents[currentState.significantEvents.length - 1];
-            // Smooth pan to event
-            currentState.viewportX += (lastEvent.x - currentState.viewportX) * 0.05;
-            currentState.viewportY += (lastEvent.y - currentState.viewportY) * 0.05;
-            currentState.zoom += (1.2 - currentState.zoom) * 0.02;
-          } else {
-            // Default slow pan if no events
-            currentState.viewportX += Math.sin(currentState.tick * 0.01) * 2;
-            currentState.viewportY += Math.cos(currentState.tick * 0.01) * 2;
-            currentState.zoom += (0.8 - currentState.zoom) * 0.01;
-          }
-      }
+      // Janela de Observação Fixa (sempre centralizada ou em área pré-definida)
+      currentState.viewportX = 0; 
+      currentState.viewportY = 0;
+      currentState.isSpectatorMode = true;
+      currentState.zoom = 0.5;
 
       const canvas = canvasRef.current;
       if (canvas) {
@@ -962,14 +930,6 @@ export default function App() {
           </div>
           <div className="flex flex-col items-end gap-3 pointer-events-auto">
             <div className="flex gap-3">
-              <button
-                onClick={handleCaptureRichest}
-                className="group relative flex items-center gap-2 px-4 py-2 border rounded-md transition-all bg-amber-500/20 border-amber-500/50 text-amber-400"
-              >
-                <Camera size={14} />
-                <span className="text-xs font-bold uppercase tracking-wider">CAPTURAR ÁREA RICA</span>
-              </button>
-
               <button
                 onClick={() => setDocumentaryMode(!documentaryMode)}
                 className={`group relative flex items-center gap-2 px-4 py-2 border rounded-md transition-all ${
