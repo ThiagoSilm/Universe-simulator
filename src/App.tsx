@@ -93,9 +93,8 @@ function renderUniverse(
   latentMode: boolean,
   selectedParticleId: string | null,
   mousePos: { x: number; y: number } | null,
-  renderLimit: number,
 ) {
-  const particles = state.particles.slice(0, renderLimit);
+  const { particles } = state;
   if (particles.length === 0) return;
 
   // ── Layer 1: Background & Horizon ──────────────────────────────────
@@ -604,14 +603,9 @@ export default function App() {
     "core" | "quantum" | "life" | "civ" | "cosmic" | "horizon" | "log" | "manifesto"
   >("core");
   const horizonRadius = 5000;
-  const [isObserving, setIsObserving] = useState(true);
-  const [isSilentMode, setIsSilentMode] = useState(false);
-  const [renderLimit, setRenderLimit] = useState(5000);
+  const [isObserving, setIsObserving] = useState(false);
   const [documentaryMode, setDocumentaryMode] = useState(false);
-  const fpsRef = useRef(60);
-  const lastTimeRef = useRef(performance.now());
   const isObservingRef = useRef(false);
-  const isSilentModeRef = useRef(true);
   const documentaryModeRef = useRef(false);
   const [scientistMode, setScientistMode] = useState(false);
   const [showNarrative, setShowNarrative] = useState(true);
@@ -631,13 +625,10 @@ export default function App() {
   }, [latentMode]);
 
   useEffect(() => {
-    isSilentModeRef.current = isSilentMode;
-  }, [isSilentMode]);
-
-  useEffect(() => {
     documentaryModeRef.current = documentaryMode;
-    // Em vez de mudar instantaneamente, podemos apenas ajustar o comportamento
-    // sem forçar o fechamento da observação, apenas reduzindo a carga visual.
+    if (documentaryMode) {
+      setIsObserving(false);
+    }
   }, [documentaryMode]);
 
   useEffect(() => {
@@ -646,10 +637,6 @@ export default function App() {
       engineRef.current.isObserving = isObserving;
     }
   }, [isObserving]);
-
-  // Removido handleObserve
-
-  // Removido handleCaptureRichest
 
   const getNarrative = () => {
     if (!state) return "";
@@ -684,6 +671,8 @@ export default function App() {
     return "O universo está em seus estágios primordiais, onde flutuações quânticas dão origem à primeira matéria.";
   };
 
+  const lastObserveTime = useRef(0);
+
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current || !engineRef.current || !stateRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
@@ -694,7 +683,7 @@ export default function App() {
       ? { x: stateRef.current.viewportX, y: stateRef.current.viewportY, zoom: stateRef.current.zoom }
       : undefined;
     
-    const { toX, toY, scale } = computeTransform(
+    const { scale } = computeTransform(
       stateRef.current.particles,
       canvasRef.current.width,
       canvasRef.current.height,
@@ -707,7 +696,12 @@ export default function App() {
     
     mousePosRef.current = { x, y };
     
-    // Telescópio Cósmico: Observar localmente removido para evitar influência contínua
+    // Telescópio Cósmico: Observar localmente com throttle para evitar avalanche
+    const now = Date.now();
+    if (now - lastObserveTime.current > 100) {
+      engineRef.current.observeAt(universeX, universeY, horizonRadius / scale);
+      lastObserveTime.current = now;
+    }
   };
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -725,13 +719,6 @@ export default function App() {
       canvasRef.current.height,
       spectatorTarget,
     );
-
-    // Inverter a transformação para obter coordenadas do universo
-    const universeX = (x - canvasRef.current.width / 2) / scale + (spectatorTarget?.x ?? 0);
-    const universeY = (y - canvasRef.current.height / 2) / scale + (spectatorTarget?.y ?? 0);
-    
-    // Colapsar área
-    engineRef.current.observeAt(universeX, universeY, 500);
 
     let closest: Particle | null = null;
     let minDist = 20;
@@ -839,35 +826,62 @@ export default function App() {
     }
     
     engineRef.current.isObserving = isObservingRef.current;
+
+    // Viewport Optimization: Tell the engine where we are looking
+    if (isObservingRef.current && canvasRef.current && stateRef.current) {
+      const spectatorTarget = stateRef.current.isSpectatorMode
+        ? { x: stateRef.current.viewportX, y: stateRef.current.viewportY, zoom: stateRef.current.zoom }
+        : undefined;
+      
+      const { scale } = computeTransform(
+        stateRef.current.particles,
+        canvasRef.current.width,
+        canvasRef.current.height,
+        spectatorTarget,
+      );
+
+      engineRef.current.setViewport({
+        x: spectatorTarget?.x ?? 0,
+        y: spectatorTarget?.y ?? 0,
+        width: canvasRef.current.width,
+        height: canvasRef.current.height,
+        scale: scale
+      });
+    }
+
     engineRef.current.step();
 
-    // If silent mode, we skip all expensive UI updates and rendering
-    // (The loop is now cancelled via useEffect, so this block is technically unreachable in silent mode)
-    if (isSilentModeRef.current) {
+    // If not in observing mode, we skip all expensive UI updates and rendering
+    if (!isObservingRef.current) {
+      // Clear canvas to show it's "off"
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#050505";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+      }
       requestRef.current = requestAnimationFrame(animate);
       return;
     }
 
-    // FPS Monitoring & Lazy Limit Adjustment
-    const now = performance.now();
-    const delta = now - lastTimeRef.current;
-    lastTimeRef.current = now;
-    const fps = 1000 / delta;
-    fpsRef.current = fps;
-
-    if (fps < 50) {
-      setRenderLimit(prev => Math.max(1000, prev - 500));
-    } else if (fps > 58) {
-      setRenderLimit(prev => Math.min(50000, prev + 500));
-    }
-
     const currentState = stateRef.current;
     if (currentState) {
-      // Janela de Observação Fixa (sempre centralizada ou em área pré-definida)
-      currentState.viewportX = 0; 
-      currentState.viewportY = 0;
-      currentState.isSpectatorMode = true;
-      currentState.zoom = 0.5;
+      // Spectator Mode Camera
+      if (currentState.isSpectatorMode && currentState.significantEvents && currentState.significantEvents.length > 0) {
+        const lastEvent =
+          currentState.significantEvents[currentState.significantEvents.length - 1];
+        // Smooth pan to event
+        currentState.viewportX += (lastEvent.x - currentState.viewportX) * 0.05;
+        currentState.viewportY += (lastEvent.y - currentState.viewportY) * 0.05;
+        currentState.zoom += (1.2 - currentState.zoom) * 0.02;
+      } else if (currentState.isSpectatorMode) {
+        // Default slow pan if no events
+        currentState.viewportX += Math.sin(currentState.tick * 0.01) * 2;
+        currentState.viewportY += Math.cos(currentState.tick * 0.01) * 2;
+        currentState.zoom += (0.8 - currentState.zoom) * 0.01;
+      }
 
       const canvas = canvasRef.current;
       if (canvas) {
@@ -882,7 +896,6 @@ export default function App() {
             latentModeRef.current,
             selectedParticleIdRef.current,
             mousePosRef.current,
-            renderLimit,
           );
       }
     }
@@ -890,13 +903,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!isSilentMode) {
-      requestRef.current = requestAnimationFrame(animate);
-    } else {
-      cancelAnimationFrame(requestRef.current);
-    }
+    requestRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(requestRef.current);
-  }, [animate, isSilentMode]);
+  }, [animate]);
 
   const maxLevel = state?.maxLevel ?? 1;
   const dormant = state?.dormantCount ?? 0;
@@ -915,11 +924,6 @@ export default function App() {
       />
 
       <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-6 z-10">
-        {isSilentMode && (
-          <div className="absolute inset-0 z-5 flex items-center justify-center bg-black/80 pointer-events-none">
-            <p className="text-white text-2xl font-mono tracking-widest opacity-50">MODO SILENCIOSO ATIVO</p>
-          </div>
-        )}
         <header className="flex justify-between items-start">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -992,7 +996,7 @@ export default function App() {
           </div>
         </header>
 
-        <div className={`flex-1 flex flex-col items-center justify-center pointer-events-none transition-opacity duration-1000 ${documentaryMode ? 'opacity-30' : 'opacity-100'}`}>
+        <div className="flex-1 flex flex-col items-center justify-center pointer-events-none">
           <AnimatePresence mode="wait">
             {!isObserving ? (
               <motion.div

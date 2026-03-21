@@ -179,6 +179,12 @@ export class UniverseCore {
   private readonly ENTROPY_DENSITY_FACTOR = 0.0005;
   private readonly TRACE_DECAY_RATE = 0.05;
 
+  // Resource Budgets (Anti-Avalanche)
+  private readonly OBSERVATION_BUDGET = 100; // Max wake-ups per tick
+  private readonly RESOLUTION_BUDGET = 3000;  // Max neighbor checks per tick
+  private currentObservationCount = 0;
+  private observerPos: { x: number; y: number; radius: number } | null = null;
+
   constructor(seed: number = Math.random(), initialParticles: number = 5000) {
     this.seed = seed;
     this.initialize(initialParticles);
@@ -285,6 +291,7 @@ export class UniverseCore {
     this.decisionsPerTick = 0;
     this.totalSelfEnergy = 0;
     this.activeTracesCount = 0;
+    this.currentObservationCount = 0; // Reset budget
     let totalCandidatesFound = 0;
 
     const toSleep: ParticleCore[] = [];
@@ -364,6 +371,19 @@ export class UniverseCore {
       // 4. Busca Local Ativa (G & Planck Length)
       // Singularities don't search, they only attract
       if (!p.isBlackHole) {
+        // Resolution Budget: Stop resolving physics if we exceed the budget
+        if (this.decisionsPerTick > this.RESOLUTION_BUDGET) {
+          // Protected Lazy: Only resolve critical entities if we are over budget
+          const isCritical = p.weight > 1.0 || p.energy > 50 || 
+            (this.observerPos && Math.pow(p.x - this.observerPos.x, 2) + Math.pow(p.y - this.observerPos.y, 2) < Math.pow(this.observerPos.radius, 2));
+          
+          if (!isCritical) {
+            p.x += p.vx;
+            p.y += p.vy;
+            continue;
+          }
+        }
+
         const neighbors = qt.query(p.x, p.y, 500); // Reduced range
         totalCandidatesFound += neighbors.length;
         
@@ -731,10 +751,14 @@ export class UniverseCore {
   }
 
   public observe(x: number, y: number, radius: number = 1000): number {
+    this.observerPos = { x, y, radius }; // Store observer position for criticality checks
     const r2 = radius * radius;
     let observedCount = 0;
     
     for (let i = 0; i < this.particles.length; i++) {
+      // Observation Budget: Stop waking up if we exceed the budget
+      if (this.currentObservationCount >= this.OBSERVATION_BUDGET) break;
+
       const p = this.particles[i];
       
       // Absorbed particles cannot be observed
@@ -751,6 +775,7 @@ export class UniverseCore {
         if (inRange) {
           this.wakeUp(p);
           observedCount++;
+          this.currentObservationCount++;
         }
       } else {
         const dx = p.x - x;
@@ -790,10 +815,21 @@ export class UniverseCore {
     return Math.sqrt(varianceSum / this.activeParticles.size);
   }
 
-  public getSnapshot() {
+  public getSnapshot(viewport?: { x: number, y: number, width: number, height: number, scale: number }) {
     // Lazy Snapshot: Only send active particles and a stable subset of latent ones
     // This significantly reduces worker postMessage overhead and main thread rendering load.
-    const active = Array.from(this.activeParticles);
+    let active = Array.from(this.activeParticles);
+    
+    // Viewport Filtering: If viewport is provided, prioritize particles inside it
+    if (viewport) {
+      const margin = 500 / viewport.scale; // Extra margin for smooth entry
+      const left = viewport.x - viewport.width / (2 * viewport.scale) - margin;
+      const right = viewport.x + viewport.width / (2 * viewport.scale) + margin;
+      const top = viewport.y - viewport.height / (2 * viewport.scale) - margin;
+      const bottom = viewport.y + viewport.height / (2 * viewport.scale) + margin;
+
+      active = active.filter(p => p.x > left && p.x < right && p.y > top && p.y < bottom);
+    }
     
     // We send a 10% sample of latent particles to maintain the "quantum background" visual
     // without the cost of 5000 objects.

@@ -13,6 +13,7 @@ export class ObserverLayer {
   private lastSnapshot: any = null;
   public isObserving: boolean = false;
   public onStateUpdate: (state: UniverseState) => void = () => {};
+  private viewport: any = null;
 
   public metrics = {
     photonCount: 0,
@@ -85,8 +86,6 @@ export class ObserverLayer {
         this.lastSnapshot = e.data.payload;
         this.calculateMetrics(this.lastSnapshot);
         this.onStateUpdate(this.getState());
-      } else if (e.data.type === 'AUTO_SNAPSHOT') {
-        this.saveSnapshot(e.data.payload);
       }
     };
 
@@ -97,53 +96,15 @@ export class ObserverLayer {
     this.worker.postMessage({ type: 'START' });
   }
 
-  private saveSnapshot(snapshot: any) {
-    const tick = snapshot.tick;
-    const dataToSave = {
-      tick: tick,
-      metrics: {
-        persistenceScale: this.metrics.persistenceScale,
-        coherence: this.metrics.coherence,
-        entropy: this.metrics.entropy,
-        maxCurvature: this.metrics.maxCurvature,
-        particleCount: this.metrics.particleCount,
-        efficiency: this.metrics.efficiency,
-        activeTracesCount: this.metrics.activeTracesCount,
-      },
-      particles: snapshot.particles
-        .filter((p: any) => !p.isLatent)
-        .map((p: any) => ({
-          x: p.x,
-          y: p.y,
-          charge: p.charge,
-          energy: p.energy,
-          age: p.age
-        }))
-    };
-    localStorage.setItem(`snapshot_${tick}`, JSON.stringify(dataToSave));
+  public setViewport(v: { x: number, y: number, width: number, height: number, scale: number }) {
+    this.viewport = v;
   }
-
-  private lastSnapshotTime = 0;
 
   public step() {
-    // A física roda na velocidade máxima e envia o estado
-    this.worker.postMessage({ type: 'GET_SNAPSHOT' });
-  }
-
-  public getRichestArea(snapshot: any) {
-    const { particles } = snapshot;
-    if (!particles || particles.length === 0) return { x: 0, y: 0 };
-
-    // Simples centro de massa das partículas ativas
-    let sumX = 0, sumY = 0, count = 0;
-    for (const p of particles) {
-      if (!p.isLatent) {
-        sumX += p.x;
-        sumY += p.y;
-        count++;
-      }
+    if (this.isObserving) {
+      // Pede o estado para o humano ver, passando o viewport para otimização
+      this.worker.postMessage({ type: 'GET_SNAPSHOT', payload: this.viewport });
     }
-    return { x: sumX / (count || 1), y: sumY / (count || 1) };
   }
 
   public forceSnapshot() {
