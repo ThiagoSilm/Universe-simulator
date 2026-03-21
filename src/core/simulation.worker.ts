@@ -42,7 +42,7 @@ let isRunning = true;
 
 async function init() {
   const saved = await loadState();
-  core = new UniverseCore(saved?.seed);
+  core = new UniverseCore(saved?.seed, 2);
   if (saved) {
     core.loadPersistentState(saved);
   }
@@ -83,7 +83,7 @@ self.onmessage = (e: MessageEvent) => {
       });
       break;
     case 'RESET':
-      core = new UniverseCore(payload?.seed);
+      core = new UniverseCore(payload?.seed, 2);
       break;
     case 'TELEPORT':
       core.teleport(payload.x, payload.y);
