@@ -52,10 +52,11 @@ const MIN_POPULATION         = 50;
 const ENERGY_REGEN_RATE      = 0.01;
 
 // Sustainability & Information Persistence
-const PERSISTENCE_DECAY      = 0.005;
-const INTERACTION_GAIN       = 0.05;
-const DISSOLUTION_THRESHOLD  = -5;
-const INFORMATION_LIMIT      = 500;
+const PERSISTENCE_DECAY      = 0.008;    // Slightly faster decay
+const INTERACTION_GAIN       = 0.06;     // Stronger reinforcement
+const DISSOLUTION_THRESHOLD  = -10;      // More buffer before removal
+const BLUR_THRESHOLD         = 0;        // Start losing definability below this
+const INFORMATION_LIMIT      = 600;      // Substrate capacity
 
 // Particle events
 const FISSION_WEIGHT         = 18;       // minimum weight for spontaneous fission
@@ -153,7 +154,7 @@ export class UniverseEngine {
       id, isCollapsed, isLatent: false,
       x, y, vx, vy, weight,
       level: 1, lastInteractionTick: tick, lastActiveTick: tick,
-      persistence: 0, isConscious: false,
+      persistence: 5.0, isConscious: false,
       color, waveRadius: isCollapsed ? 0 : WAVE_INITIAL,
       spin: this.makeSpin(), charge, isBound: false,
       latentTraces: [],
@@ -191,7 +192,7 @@ export class UniverseEngine {
           vy: seed.vy + Math.sin(a + Math.PI / 2) * spin + (Math.random() - 0.5) * 1.5,
           weight: 0.8 + Math.random() * 0.4, level: 1,
           lastInteractionTick: -DORMANCY_THRESHOLD,
-          lastActiveTick: 0, persistence: 0, isConscious: false,
+          lastActiveTick: 0, persistence: 5.0, isConscious: false,
           color: `hsla(${seed.hue + (Math.random() - 0.5) * 40},60%,60%,0.2)`,
           waveRadius: WAVE_INITIAL, spin: this.makeSpin(),
           charge: this.makeCharge(), isBound: false,
@@ -210,7 +211,7 @@ export class UniverseEngine {
         weight: 0.5 + Math.random() * 0.5, level: 1,
         lastInteractionTick: -DORMANCY_THRESHOLD * 10,
         lastActiveTick: -DORMANCY_THRESHOLD,
-        persistence: 0, isConscious: false,
+        persistence: 2.0, isConscious: false,
         color: `hsla(${Math.random() * 360},30%,40%,0.1)`,
         waveRadius: WAVE_INITIAL, spin: this.makeSpin(),
         charge: this.makeCharge(), isBound: false,
@@ -451,20 +452,22 @@ export class UniverseEngine {
       region.lastActiveTick = tick;
       const tf = 1 / (1 + region.curvature * TIME_DILATION_STR);
 
-      // Sustainability check: high information density destabilizes particles
+      // Substrate Constraint: Bounded information density
       const infoDensity = regionInfo.get(`${gx},${gy}`) || 0;
       if (infoDensity > INFORMATION_LIMIT) {
-        p1.persistence -= 0.02 * (infoDensity / INFORMATION_LIMIT) * tf;
+        // Computational overload destabilizes configurations
+        p1.persistence -= 0.03 * (infoDensity / INFORMATION_LIMIT) * tf;
       }
 
-      // Dissolution check: if persistence drops too low, the configuration is unsustainable
+      // Sustainability: Removal of dynamically unstable configurations
       if (p1.persistence < DISSOLUTION_THRESHOLD) {
         toKill.add(p1.id);
         continue;
       }
 
-      // Observability check: if persistence is low, it starts to lose classical state (blur)
-      if (p1.persistence < 0 && p1.isCollapsed) {
+      // Observability: Loss of definability (reduced information accessibility)
+      if (p1.persistence < BLUR_THRESHOLD && p1.isCollapsed) {
+        // Entities lose their classical state as they become unobservable
         p1.isCollapsed = false; 
         p1.level = Math.max(1, p1.level - 1);
       }
@@ -611,8 +614,8 @@ export class UniverseEngine {
 
             // Information propagation: interaction restores persistence
             if (d2 < gR2) {
-              p1.persistence += INTERACTION_GAIN * tf;
-              p2.persistence += INTERACTION_GAIN * tf;
+              p1.persistence = Math.min(20, p1.persistence + INTERACTION_GAIN * tf);
+              p2.persistence = Math.min(20, p2.persistence + INTERACTION_GAIN * tf);
             }
 
             // ── GRAVITY ──────────────────────────────────────────────
