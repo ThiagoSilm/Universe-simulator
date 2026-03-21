@@ -308,7 +308,7 @@ export class UniverseCore {
       // 3. Auto-observação (h)
       // Singularities are points of silence, they don't self-observe
       if (!p.isBlackHole) {
-        this.selfObserve(p);
+        this.maintainCoherence(p);
       }
 
       // 4. Busca Local Ativa (G & Planck Length)
@@ -434,7 +434,7 @@ export class UniverseCore {
     }
   }
 
-  private selfObserve(p: ParticleCore) {
+  private maintainCoherence(p: ParticleCore) {
     // Quantized energy consumption (h)
     const cost = this.H * (1 + Math.sin(p.phase));
     p.energy -= cost;
@@ -443,16 +443,6 @@ export class UniverseCore {
     // Quantized phase evolution (h)
     p.phase = (p.phase + this.H) % (Math.PI * 2);
     p.amplitude = 0.5 + 0.5 * Math.cos(p.phase);
-    
-    // Bekenstein Limit Check (Information capacity)
-    if (p.age % 100 === 0) {
-      p.traces.push({ targetId: 'self', affinity: 1, tick: this.tickCount });
-      if (p.traces.length > this.BEKENSTEIN_LIMIT) {
-        p.traces.shift();
-        // Information overflow leads to slight energy loss
-        p.energy -= this.H;
-      }
-    }
   }
 
   private calculateForce(p: ParticleCore, neighbors: ParticleCore[]): { fx: number; fy: number } {
