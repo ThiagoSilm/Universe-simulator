@@ -180,8 +180,8 @@ export class UniverseCore {
   private readonly TRACE_DECAY_RATE = 0.05;
 
   // Resource Budgets (Anti-Avalanche)
-  private readonly OBSERVATION_BUDGET = 100; // Max wake-ups per tick
-  private readonly RESOLUTION_BUDGET = 3000;  // Max neighbor checks per tick
+  private readonly BASE_OBSERVATION_BUDGET = 100;
+  private readonly BASE_RESOLUTION_BUDGET = 3000;
   private currentObservationCount = 0;
   private observerPos: { x: number; y: number; radius: number } | null = null;
 
@@ -292,6 +292,15 @@ export class UniverseCore {
     this.totalSelfEnergy = 0;
     this.activeTracesCount = 0;
     this.currentObservationCount = 0; // Reset budget
+    
+    // Adaptive Budgets: Scale based on system efficiency and entropy
+    // If efficiency is high, we can afford more resolution.
+    // If entropy is high, we need more resolution to maintain coherence.
+    const efficiencyFactor = 1.0 + (this.activeParticles.size / (this.particles.length || 1));
+    const entropyFactor = 1.0 + (this.getThermalGradient() * 0.1);
+    const adaptiveResolutionBudget = this.BASE_RESOLUTION_BUDGET * efficiencyFactor * entropyFactor;
+    const adaptiveObservationBudget = this.BASE_OBSERVATION_BUDGET * efficiencyFactor;
+
     let totalCandidatesFound = 0;
 
     const toSleep: ParticleCore[] = [];
@@ -372,14 +381,16 @@ export class UniverseCore {
       // Singularities don't search, they only attract
       if (!p.isBlackHole) {
         // Resolution Budget: Stop resolving physics if we exceed the budget
-        if (this.decisionsPerTick > this.RESOLUTION_BUDGET) {
+        if (this.decisionsPerTick > adaptiveResolutionBudget) {
           // Protected Lazy: Only resolve critical entities if we are over budget
-          const isCritical = p.weight > 1.0 || p.energy > 50 || 
-            (this.observerPos && Math.pow(p.x - this.observerPos.x, 2) + Math.pow(p.y - this.observerPos.y, 2) < Math.pow(this.observerPos.radius, 2));
+          const criticality = this.calculateCriticality(p);
           
-          if (!isCritical) {
-            p.x += p.vx;
-            p.y += p.vy;
+          if (criticality < 0.5) {
+            // Stochastic Drift: Simulate unresolved quantum interactions
+            // Instead of pure linear motion, we add a "path integral noise"
+            const noise = (Math.random() - 0.5) * 0.05;
+            p.x += p.vx + noise;
+            p.y += p.vy + noise;
             continue;
           }
         }
@@ -755,9 +766,13 @@ export class UniverseCore {
     const r2 = radius * radius;
     let observedCount = 0;
     
+    // Adaptive Observation Budget
+    const efficiencyFactor = 1.0 + (this.activeParticles.size / (this.particles.length || 1));
+    const adaptiveObservationBudget = this.BASE_OBSERVATION_BUDGET * efficiencyFactor;
+
     for (let i = 0; i < this.particles.length; i++) {
       // Observation Budget: Stop waking up if we exceed the budget
-      if (this.currentObservationCount >= this.OBSERVATION_BUDGET) break;
+      if (this.currentObservationCount >= adaptiveObservationBudget) break;
 
       const p = this.particles[i];
       
@@ -787,6 +802,32 @@ export class UniverseCore {
       }
     }
     return observedCount;
+  }
+
+  private calculateCriticality(p: ParticleCore): number {
+    let score = 0;
+    
+    // 1. Physical Significance (Mass & Energy)
+    score += Math.min(0.4, (p.weight * 10) + (p.energy * 0.01));
+    
+    // 2. Informational Significance (Traces/Memory)
+    score += Math.min(0.3, p.traces.length * 0.05);
+    
+    // 3. Observer Significance (Proximity)
+    if (this.observerPos) {
+      const dx = p.x - this.observerPos.x;
+      const dy = p.y - this.observerPos.y;
+      const distSq = dx * dx + dy * dy;
+      const r2 = this.observerPos.radius * this.observerPos.radius;
+      if (distSq < r2) {
+        score += 0.5 * (1 - Math.sqrt(distSq / r2));
+      }
+    }
+    
+    // 4. Structural Significance (Bound particles are part of a larger structure)
+    if (p.isBound) score += 0.2;
+    
+    return score;
   }
 
   public teleport(x: number, y: number) {
