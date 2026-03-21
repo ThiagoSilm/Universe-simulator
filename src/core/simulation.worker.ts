@@ -39,6 +39,7 @@ async function loadState() {
 
 let core: UniverseCore;
 let isRunning = true;
+let tickCount = 0;
 
 async function init() {
   const saved = await loadState();
@@ -75,6 +76,14 @@ function tick() {
     core.applyPhysicsInfluence(gFactor, lambdaFactor, entropyFactor);
     
     core.tick();
+    
+    tickCount++;
+    if (tickCount % 1000 === 0) {
+      self.postMessage({
+        type: 'AUTO_SNAPSHOT',
+        payload: core.getSnapshot()
+      });
+    }
   }
   setTimeout(tick, 1000 / 60);
 }

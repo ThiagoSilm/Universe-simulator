@@ -1,10 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Zap, Activity, Brain, Orbit, RefreshCw, Info, Layers, Cpu, Thermometer, Atom, Sigma } from 'lucide-react';
-import { UniverseEngine, PersistentState } from './UniverseEngine';
 import { UniverseState, Particle } from './types';
-
-const STORAGE_KEY = 'lazy_universe_state_v6';
 
 // ═══════════════════════════════════════════════════════════════════
 //  VISUALIZATION
@@ -235,38 +232,28 @@ function renderUniverse(ctx: CanvasRenderingContext2D, w: number, h: number, sta
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const engineRef = useRef<UniverseEngine | null>(null);
+  const workerRef = useRef<Worker | null>(null);
   const [state, setState] = useState<UniverseState | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const requestRef = useRef<number>(0);
 
-  const initEngine = useCallback((forceReset = false) => {
-    if (typeof window === 'undefined') return;
-    let saved: PersistentState | null = null;
-    if (!forceReset) {
-      try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? ''); } catch (_) {}
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-    engineRef.current = new UniverseEngine(saved || undefined);
-    setState(engineRef.current.step());
+  useEffect(() => {
+    workerRef.current = new Worker(new URL('./universe.worker.ts', import.meta.url));
+    workerRef.current.onmessage = (e) => {
+      if (e.data.type === 'snapshot') {
+        setState(e.data.state);
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const ctx = canvas.getContext('2d');
+          if (ctx) renderUniverse(ctx, canvas.width, canvas.height, e.data.state);
+        }
+      }
+    };
+    return () => workerRef.current?.terminate();
   }, []);
 
-  useEffect(() => { initEngine(); }, [initEngine]);
-
   const animate = useCallback(() => {
-    if (!engineRef.current) { requestRef.current = requestAnimationFrame(animate); return; }
-    const newState = engineRef.current.step();
-    setState(newState);
-    if (newState.tick % 120 === 0) {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(engineRef.current.getPersistentState())); }
-      catch (_) {}
-    }
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      if (ctx) renderUniverse(ctx, canvas.width, canvas.height, newState);
-    }
+    workerRef.current?.postMessage('snapshot');
     requestRef.current = requestAnimationFrame(animate);
   }, []);
 
@@ -305,7 +292,7 @@ export default function App() {
             </p>
           </div>
           <div className="flex gap-3 pointer-events-auto">
-            <button onClick={() => initEngine(true)}
+            <button onClick={() => workerRef.current?.postMessage('reset')}
               className="p-2 border border-white/10 hover:bg-red-500/80 transition-colors rounded-sm"
               title="Reset — Big Bang">
               <RefreshCw size={13} className="rotate-45" />

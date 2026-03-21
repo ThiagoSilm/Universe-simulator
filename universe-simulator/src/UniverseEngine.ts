@@ -124,6 +124,10 @@ export class UniverseEngine {
     return { state: this.state, energyGrid: Array.from(this.energyGrid.entries()) };
   }
 
+  public getState(): UniverseState {
+    return this.state;
+  }
+
   // ─────────────────────────────────────────────────────────────────
   private makeCharge(): number {
     const r = Math.random();
