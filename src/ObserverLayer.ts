@@ -85,6 +85,8 @@ export class ObserverLayer {
         this.lastSnapshot = e.data.payload;
         this.calculateMetrics(this.lastSnapshot);
         this.onStateUpdate(this.getState());
+      } else if (e.data.type === 'AUTO_SNAPSHOT') {
+        this.saveSnapshot(e.data.payload);
       }
     };
 
@@ -93,6 +95,32 @@ export class ObserverLayer {
     }
     
     this.worker.postMessage({ type: 'START' });
+  }
+
+  private saveSnapshot(snapshot: any) {
+    const tick = snapshot.tick;
+    const dataToSave = {
+      tick: tick,
+      metrics: {
+        persistenceScale: this.metrics.persistenceScale,
+        coherence: this.metrics.coherence,
+        entropy: this.metrics.entropy,
+        maxCurvature: this.metrics.maxCurvature,
+        particleCount: this.metrics.particleCount,
+        efficiency: this.metrics.efficiency,
+        activeTracesCount: this.metrics.activeTracesCount,
+      },
+      particles: snapshot.particles
+        .filter((p: any) => !p.isLatent)
+        .map((p: any) => ({
+          x: p.x,
+          y: p.y,
+          charge: p.charge,
+          energy: p.energy,
+          age: p.age
+        }))
+    };
+    localStorage.setItem(`snapshot_${tick}`, JSON.stringify(dataToSave));
   }
 
   public step() {
