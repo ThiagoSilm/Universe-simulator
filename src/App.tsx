@@ -93,8 +93,9 @@ function renderUniverse(
   latentMode: boolean,
   selectedParticleId: string | null,
   mousePos: { x: number; y: number } | null,
+  renderLimit: number,
 ) {
-  const { particles } = state;
+  const particles = state.particles.slice(0, renderLimit);
   if (particles.length === 0) return;
 
   // ── Layer 1: Background & Horizon ──────────────────────────────────
@@ -605,7 +606,11 @@ export default function App() {
   const horizonRadius = 5000;
   const [isObserving, setIsObserving] = useState(false);
   const [isSilentMode, setIsSilentMode] = useState(true);
+  const [snapshotView, setSnapshotView] = useState<UniverseState | null>(null);
+  const [renderLimit, setRenderLimit] = useState(5000);
   const [documentaryMode, setDocumentaryMode] = useState(false);
+  const fpsRef = useRef(60);
+  const lastTimeRef = useRef(performance.now());
   const isObservingRef = useRef(false);
   const isSilentModeRef = useRef(true);
   const documentaryModeRef = useRef(false);
@@ -646,12 +651,31 @@ export default function App() {
   }, [isObserving]);
 
   const handleObserve = () => {
-    setIsSilentMode(false);
-    setIsObserving(true);
+    setSnapshotView(null);
+    setIsSilentMode(!isSilentMode);
+    setIsObserving(isSilentMode);
+  };
+
+  const handleCaptureRichest = () => {
+    if (!engineRef.current) return;
+    engineRef.current.forceSnapshot();
+    
     setTimeout(() => {
-      setIsSilentMode(true);
-      setIsObserving(false);
-    }, 5000);
+        const snapshot = engineRef.current?.getState();
+        if (snapshot) {
+            const { x, y } = engineRef.current!.getRichestArea(snapshot);
+            const snapshotWithView = {
+                ...snapshot,
+                viewportX: x,
+                viewportY: y,
+                isSpectatorMode: true,
+                zoom: 0.5
+            };
+            setSnapshotView(snapshotWithView);
+            setIsSilentMode(true);
+            setIsObserving(false);
+        }
+    }, 100);
   };
 
   const getNarrative = () => {
@@ -839,40 +863,42 @@ export default function App() {
     engineRef.current.step();
 
     // If silent mode, we skip all expensive UI updates and rendering
+    // (The loop is now cancelled via useEffect, so this block is technically unreachable in silent mode)
     if (isSilentModeRef.current) {
-      // Clear canvas to show it's "off"
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.fillStyle = "#050505";
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          
-          // Show "SILENT MODE" text
-          ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-          ctx.font = "20px monospace";
-          ctx.fillText("MODO SILENCIOSO ATIVO", canvas.width / 2 - 120, canvas.height / 2);
-        }
-      }
       requestRef.current = requestAnimationFrame(animate);
       return;
     }
 
-    const currentState = stateRef.current;
+    // FPS Monitoring & Lazy Limit Adjustment
+    const now = performance.now();
+    const delta = now - lastTimeRef.current;
+    lastTimeRef.current = now;
+    const fps = 1000 / delta;
+    fpsRef.current = fps;
+
+    if (fps < 50) {
+      setRenderLimit(prev => Math.max(1000, prev - 500));
+    } else if (fps > 58) {
+      setRenderLimit(prev => Math.min(50000, prev + 500));
+    }
+
+    const currentState = snapshotView || stateRef.current;
     if (currentState) {
       // Spectator Mode Camera
-      if (currentState.isSpectatorMode && currentState.significantEvents && currentState.significantEvents.length > 0) {
-        const lastEvent =
-          currentState.significantEvents[currentState.significantEvents.length - 1];
-        // Smooth pan to event
-        currentState.viewportX += (lastEvent.x - currentState.viewportX) * 0.05;
-        currentState.viewportY += (lastEvent.y - currentState.viewportY) * 0.05;
-        currentState.zoom += (1.2 - currentState.zoom) * 0.02;
-      } else if (currentState.isSpectatorMode) {
-        // Default slow pan if no events
-        currentState.viewportX += Math.sin(currentState.tick * 0.01) * 2;
-        currentState.viewportY += Math.cos(currentState.tick * 0.01) * 2;
-        currentState.zoom += (0.8 - currentState.zoom) * 0.01;
+      if (currentState.isSpectatorMode && !snapshotView) { // Só move se for live
+         if (currentState.significantEvents && currentState.significantEvents.length > 0) {
+            const lastEvent =
+              currentState.significantEvents[currentState.significantEvents.length - 1];
+            // Smooth pan to event
+            currentState.viewportX += (lastEvent.x - currentState.viewportX) * 0.05;
+            currentState.viewportY += (lastEvent.y - currentState.viewportY) * 0.05;
+            currentState.zoom += (1.2 - currentState.zoom) * 0.02;
+          } else {
+            // Default slow pan if no events
+            currentState.viewportX += Math.sin(currentState.tick * 0.01) * 2;
+            currentState.viewportY += Math.cos(currentState.tick * 0.01) * 2;
+            currentState.zoom += (0.8 - currentState.zoom) * 0.01;
+          }
       }
 
       const canvas = canvasRef.current;
@@ -888,6 +914,7 @@ export default function App() {
             latentModeRef.current,
             selectedParticleIdRef.current,
             mousePosRef.current,
+            renderLimit,
           );
       }
     }
@@ -895,9 +922,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    requestRef.current = requestAnimationFrame(animate);
+    if (!isSilentMode) {
+      requestRef.current = requestAnimationFrame(animate);
+    } else {
+      cancelAnimationFrame(requestRef.current);
+    }
     return () => cancelAnimationFrame(requestRef.current);
-  }, [animate]);
+  }, [animate, isSilentMode]);
 
   const maxLevel = state?.maxLevel ?? 1;
   const dormant = state?.dormantCount ?? 0;
@@ -916,6 +947,11 @@ export default function App() {
       />
 
       <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-6 z-10">
+        {isSilentMode && (
+          <div className="absolute inset-0 z-5 flex items-center justify-center bg-black/80 pointer-events-none">
+            <p className="text-white text-2xl font-mono tracking-widest opacity-50">MODO SILENCIOSO ATIVO</p>
+          </div>
+        )}
         <header className="flex justify-between items-start">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -936,6 +972,14 @@ export default function App() {
               >
                 <Eye size={14} />
                 <span className="text-xs font-bold uppercase tracking-wider">OBSERVAR</span>
+              </button>
+
+              <button
+                onClick={handleCaptureRichest}
+                className="group relative flex items-center gap-2 px-4 py-2 border rounded-md transition-all bg-amber-500/20 border-amber-500/50 text-amber-400"
+              >
+                <Camera size={14} />
+                <span className="text-xs font-bold uppercase tracking-wider">CAPTURAR ÁREA RICA</span>
               </button>
 
               <button

@@ -130,6 +130,22 @@ export class ObserverLayer {
     }
   }
 
+  public getRichestArea(snapshot: any) {
+    const { particles } = snapshot;
+    if (!particles || particles.length === 0) return { x: 0, y: 0 };
+
+    // Simples centro de massa das partículas ativas
+    let sumX = 0, sumY = 0, count = 0;
+    for (const p of particles) {
+      if (!p.isLatent) {
+        sumX += p.x;
+        sumY += p.y;
+        count++;
+      }
+    }
+    return { x: sumX / (count || 1), y: sumY / (count || 1) };
+  }
+
   public forceSnapshot() {
     this.worker.postMessage({ type: 'GET_SNAPSHOT' });
   }
