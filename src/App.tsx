@@ -604,8 +604,10 @@ export default function App() {
   >("core");
   const horizonRadius = 5000;
   const [isObserving, setIsObserving] = useState(false);
+  const [isSilentMode, setIsSilentMode] = useState(true);
   const [documentaryMode, setDocumentaryMode] = useState(false);
   const isObservingRef = useRef(false);
+  const isSilentModeRef = useRef(true);
   const documentaryModeRef = useRef(false);
   const [scientistMode, setScientistMode] = useState(false);
   const [showNarrative, setShowNarrative] = useState(true);
@@ -625,9 +627,14 @@ export default function App() {
   }, [latentMode]);
 
   useEffect(() => {
+    isSilentModeRef.current = isSilentMode;
+  }, [isSilentMode]);
+
+  useEffect(() => {
     documentaryModeRef.current = documentaryMode;
     if (documentaryMode) {
       setIsObserving(false);
+      setIsSilentMode(true);
     }
   }, [documentaryMode]);
 
@@ -637,6 +644,15 @@ export default function App() {
       engineRef.current.isObserving = isObserving;
     }
   }, [isObserving]);
+
+  const handleObserve = () => {
+    setIsSilentMode(false);
+    setIsObserving(true);
+    setTimeout(() => {
+      setIsSilentMode(true);
+      setIsObserving(false);
+    }, 5000);
+  };
 
   const getNarrative = () => {
     if (!state) return "";
@@ -822,8 +838,8 @@ export default function App() {
     engineRef.current.isObserving = isObservingRef.current;
     engineRef.current.step();
 
-    // If not in observing mode, we skip all expensive UI updates and rendering
-    if (!isObservingRef.current) {
+    // If silent mode, we skip all expensive UI updates and rendering
+    if (isSilentModeRef.current) {
       // Clear canvas to show it's "off"
       const canvas = canvasRef.current;
       if (canvas) {
@@ -831,6 +847,11 @@ export default function App() {
         if (ctx) {
           ctx.fillStyle = "#050505";
           ctx.fillRect(0, 0, canvas.width, canvas.height);
+          
+          // Show "SILENT MODE" text
+          ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+          ctx.font = "20px monospace";
+          ctx.fillText("MODO SILENCIOSO ATIVO", canvas.width / 2 - 120, canvas.height / 2);
         }
       }
       requestRef.current = requestAnimationFrame(animate);
@@ -909,6 +930,14 @@ export default function App() {
           </div>
           <div className="flex flex-col items-end gap-3 pointer-events-auto">
             <div className="flex gap-3">
+              <button
+                onClick={handleObserve}
+                className="group relative flex items-center gap-2 px-4 py-2 border rounded-md transition-all bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
+              >
+                <Eye size={14} />
+                <span className="text-xs font-bold uppercase tracking-wider">OBSERVAR</span>
+              </button>
+
               <button
                 onClick={() => setDocumentaryMode(!documentaryMode)}
                 className={`group relative flex items-center gap-2 px-4 py-2 border rounded-md transition-all ${
