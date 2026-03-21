@@ -348,10 +348,13 @@ export class UniverseCore {
         // ----------------------------------------------------
 
         if (neighbors.length > 1) {
-          this.calculateForce(p, neighbors);
+          const { fx, fy } = this.calculateForce(p, neighbors);
+          p.vx += fx / p.weight;
+          p.vy += fy / p.weight;
           this.decisionsPerTick++;
           
-          // Collision handling: Kinetic -> Internal Heat
+          // Collision handling: Momentum & Information Exchange
+          let fused = false;
           for (const n of neighbors) {
             if (n.id === p.id || p.id > n.id) continue;
             const dx = n.x - p.x;
@@ -360,21 +363,53 @@ export class UniverseCore {
             const collisionThreshold = (p.weight + n.weight) * 500;
             
             if (distSq < collisionThreshold) {
+              // 1. Momentum Exchange (Elastic Collision)
+              const m1 = p.weight;
+              const m2 = n.weight;
+              const v1x = p.vx;
+              const v1y = p.vy;
+              const v2x = n.vx;
+              const v2y = n.vy;
+
+              const dist = Math.sqrt(distSq);
+              const nx = dx / dist;
+              const ny = dy / dist;
+              const v1n = v1x * nx + v1y * ny;
+              const v2n = v2x * nx + v2y * ny;
+
+              if (v1n - v2n > 0) { // Moving towards each other
+                const J = (2 * (v1n - v2n)) / (m1 + m2);
+                p.vx -= J * m2 * nx;
+                p.vy -= J * m2 * ny;
+                n.vx += J * m1 * nx;
+                n.vy += J * m1 * ny;
+              }
+
+              // 2. Heat Generation (Inelastic part)
               const keP = this.getKineticEnergy(p);
               const keN = this.getKineticEnergy(n);
-              
-              // Convert 10% of kinetic energy to internal heat
-              const heat = (keP + keN) * 0.1;
+              const heat = (keP + keN) * 0.05; 
               p.energy += heat / 2;
               n.energy += heat / 2;
-              
-              // Reduce kinetic energy (inelastic collision)
-              p.vx *= 0.9;
-              p.vy *= 0.9;
-              n.vx *= 0.9;
-              n.vy *= 0.9;
+
+              // 3. Trace Exchange (Information Conservation)
+              if (n.traces.length > 0) {
+                const sharedTraces = n.traces.slice(0, 2);
+                p.traces.push(...sharedTraces);
+                if (p.traces.length > this.BEKENSTEIN_LIMIT) p.traces.splice(0, sharedTraces.length);
+              }
+
+              // 4. Fusion Check (Extreme conditions)
+              const pressure = neighbors.length;
+              const temperature = p.energy + n.energy;
+              if (pressure > 20 && temperature > this.PLANCK_TEMP * 0.7) {
+                this.performFusion(p, n);
+                fused = true;
+                break; 
+              }
             }
           }
+          if (fused) continue;
         } else {
           p.energy -= 0.005;
         }
@@ -496,70 +531,43 @@ export class UniverseCore {
     const candidates = neighbors.filter(n => n.id !== p.id).slice(0, 10);
     if (candidates.length === 0) return { fx: 0, fy: 0 };
 
-    const affinities = candidates.map(n => {
+    let totalFx = 0;
+    let totalFy = 0;
+
+    for (const n of candidates) {
       const dx = n.x - p.x;
       const dy = n.y - p.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+      const distSq = dx * dx + dy * dy + this.EPS;
+      const dist = Math.sqrt(distSq);
       
-      // Causal Delay: Look up position at t - dist/c
-      const delay = Math.floor(dist / this.C);
-      const targetTick = this.tickCount - delay;
+      // Gravity (G)
+      const gravity = (this.effectiveG * p.weight * n.weight) / distSq;
       
-      // Find the latest position at or before targetTick
-      let delayedPos = { x: n.x, y: n.y };
-      for (let i = n.positionHistory.length - 1; i >= 0; i--) {
-        if (n.positionHistory[i].tick <= targetTick) {
-          delayedPos = { x: n.positionHistory[i].x, y: n.positionHistory[i].y };
-          break;
-        }
-      }
+      // Electrostatic (Coulomb-like)
+      // Same charge repels, opposite attracts
+      const electrostatic = -(p.charge * n.charge * 0.1) / distSq;
       
-      const ddx = delayedPos.x - p.x;
-      const ddy = delayedPos.y - p.y;
-      const distSq = ddx * ddx + ddy * ddy;
+      const netForce = gravity + electrostatic;
       
-      // Gravity (G) with Softening
-      const gravity = Math.min((this.effectiveG * p.weight * n.weight) / (distSq + this.EPS), 10.0);
-      
-      // Quantum Affinity (h)
-      const phaseDiff = Math.cos(p.phase - n.phase);
-      const chargeMatch = p.charge !== n.charge ? 1.5 : 0.5;
-      
-      const affinity = (gravity + (1 / (Math.sqrt(distSq) + 1))) * (1 + phaseDiff) * chargeMatch;
-      
-      return { particle: n, affinity, gravity, dx: ddx, dy: ddy, dist: Math.sqrt(distSq) };
-    });
+      totalFx += (dx / dist) * netForce;
+      totalFy += (dy / dist) * netForce;
 
-    // Probabilistic selection
-    const totalAffinity = affinities.reduce((sum, a) => sum + a.affinity, 0);
-    let r = Math.random() * totalAffinity;
-    let selected = affinities[0];
-    
-    for (const a of affinities) {
-      r -= a.affinity;
-      if (r <= 0) {
-        selected = a;
-        break;
+      // Information exchange (probabilistic)
+      if (Math.random() < 0.1) {
+        p.traces.push({ 
+          targetId: n.id,
+          affinity: Math.abs(netForce),
+          tick: this.tickCount
+        });
+        if (p.traces.length > this.BEKENSTEIN_LIMIT) p.traces.shift();
       }
     }
 
-    // Information exchange
-    p.traces.push({ 
-      targetId: selected.particle.id,
-      affinity: selected.affinity,
-      tick: this.tickCount
-    });
-    if (p.traces.length > this.BEKENSTEIN_LIMIT) p.traces.shift();
-    
     // Energy exchange (Quanta)
     p.energy = Math.min(this.PLANCK_TEMP, p.energy + this.H);
     p.lastActiveTick = this.tickCount;
 
-    // Return force vector
-    return {
-      fx: (selected.dx / selected.dist) * selected.gravity,
-      fy: (selected.dy / selected.dist) * selected.gravity
-    };
+    return { fx: totalFx, fy: totalFy };
   }
 
   private wakeUp(p: ParticleCore) {
@@ -741,5 +749,49 @@ export class UniverseCore {
         }
       }
     });
+  }
+
+  private performFusion(p1: ParticleCore, p2: ParticleCore) {
+    // 1. Remove parents
+    this.particles = this.particles.filter(p => p.id !== p1.id && p.id !== p2.id);
+    this.activeParticles.delete(p1);
+    this.activeParticles.delete(p2);
+
+    // 2. Create new particle
+    const totalWeight = p1.weight + p2.weight;
+    let newElement: 'H' | 'C' | 'O' | 'N' = 'H';
+    if (totalWeight > 0.1) newElement = 'C';
+    if (totalWeight > 0.2) newElement = 'O';
+    if (totalWeight > 0.3) newElement = 'N';
+
+    const fused: ParticleCore = {
+      id: `f-${this.tickCount}-${p1.id}-${p2.id}`,
+      x: (p1.x * p1.weight + p2.x * p2.weight) / totalWeight,
+      y: (p1.y * p1.weight + p2.y * p2.weight) / totalWeight,
+      vx: (p1.vx * p1.weight + p2.vx * p2.weight) / totalWeight,
+      vy: (p1.vy * p1.weight + p2.vy * p2.weight) / totalWeight,
+      weight: totalWeight,
+      charge: p1.charge + p2.charge,
+      isLatent: false,
+      lastActiveTick: this.tickCount,
+      age: 0,
+      energy: (p1.energy + p2.energy) * 0.8, // Some energy lost to binding
+      phase: (p1.phase + p2.phase) / 2,
+      amplitude: (p1.amplitude + p2.amplitude) / 2,
+      level: Math.max(p1.level, p2.level) + 1,
+      element: newElement,
+      generation: Math.max(p1.generation, p2.generation) + 1,
+      traces: [...p1.traces, ...p2.traces].slice(0, this.BEKENSTEIN_LIMIT),
+      isBlackHole: false,
+      isBound: false,
+      potentialHistories: [],
+      positionHistory: [],
+      ax: 0, ay: 0
+    };
+
+    this.particles.push(fused);
+    this.activeParticles.add(fused);
+    this.recentEvents.push(`Fusão Estelar: ${p1.element}+${p2.element} -> ${newElement}`);
+    if (this.recentEvents.length > 10) this.recentEvents.shift();
   }
 }
