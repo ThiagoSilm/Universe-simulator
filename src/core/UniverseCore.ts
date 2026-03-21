@@ -155,6 +155,10 @@ export class UniverseCore {
     this.LAMBDA_influence = lambdaFactor;
     this.ENTROPY_influence = entropyFactor;
   }
+
+  private getKineticEnergy(p: ParticleCore): number {
+    return 0.5 * p.weight * (p.vx * p.vx + p.vy * p.vy);
+  }
   
   // Metrics for ObserverLayer
   public decisionsPerTick: number = 0;
@@ -346,9 +350,37 @@ export class UniverseCore {
         if (neighbors.length > 1) {
           this.calculateForce(p, neighbors);
           this.decisionsPerTick++;
+          
+          // Collision handling: Kinetic -> Internal Heat
+          for (const n of neighbors) {
+            if (n.id === p.id || p.id > n.id) continue;
+            const dx = n.x - p.x;
+            const dy = n.y - p.y;
+            const distSq = dx * dx + dy * dy;
+            const collisionThreshold = (p.weight + n.weight) * 500;
+            
+            if (distSq < collisionThreshold) {
+              const keP = this.getKineticEnergy(p);
+              const keN = this.getKineticEnergy(n);
+              
+              // Convert 10% of kinetic energy to internal heat
+              const heat = (keP + keN) * 0.1;
+              p.energy += heat / 2;
+              n.energy += heat / 2;
+              
+              // Reduce kinetic energy (inelastic collision)
+              p.vx *= 0.9;
+              p.vy *= 0.9;
+              n.vx *= 0.9;
+              n.vy *= 0.9;
+            }
+          }
         } else {
           p.energy -= 0.005;
         }
+        
+        // Natural cooling
+        p.energy -= 0.001;
       }
 
       // 5. Planck Temperature Check
@@ -379,7 +411,7 @@ export class UniverseCore {
 
       // Energy death or inactivity
       // Absorbed particles (isBound) or exhausted particles go to sleep
-      if (p.isBound || p.energy <= 0) {
+      if (p.isBound || (p.energy + this.getKineticEnergy(p)) <= 0) {
         if (!p.isBlackHole) toSleep.push(p);
       } else if (this.tickCount - p.lastActiveTick > 1000 && !p.isBlackHole) {
         toSleep.push(p);
@@ -613,6 +645,15 @@ export class UniverseCore {
     this.observe(x, y, 5000);
   }
 
+  public getSystemTemperature(): number {
+    if (this.activeParticles.size === 0) return 0;
+    let totalKE = 0;
+    for (const p of this.activeParticles) {
+      totalKE += this.getKineticEnergy(p);
+    }
+    return totalKE / this.activeParticles.size;
+  }
+
   public getSnapshot() {
     // Lazy Snapshot: Only send active particles and a stable subset of latent ones
     // This significantly reduces worker postMessage overhead and main thread rendering load.
@@ -635,6 +676,7 @@ export class UniverseCore {
         avgCandidates: this.avgCandidates,
         totalSelfEnergy: this.totalSelfEnergy,
         activeTracesCount: this.activeTracesCount,
+        systemTemperature: this.getSystemTemperature(),
         events: this.recentEvents,
         universeHorizon: 50000 + this.tickCount * this.effectiveLAMBDA * 100
       }
