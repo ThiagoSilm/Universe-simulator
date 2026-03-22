@@ -587,6 +587,16 @@ export class UniverseCore {
         // Strict Sustainability: No artificial minimum. If it drops <= 0, it dissolves.
         p.persistence = Math.min(2.0, p.persistence + couplingBonus - entropyPenalty);
         
+        // Observer Effect: Conscious particles stabilize their neighborhood
+        if (p.isConscious) {
+          for (const n of neighbors) {
+            if (n.id !== p.id) {
+              n.persistence += 0.001; // Persistence boost
+              n.energy += 0.0005; // Entropy reduction (energy preservation)
+            }
+          }
+        }
+        
         // Trace Decay: Information fades faster in dense environments, but coupling protects it
         if (density > 5 && p.traces.length > 0) {
           p.traces = p.traces.filter(() => Math.random() > (this.TRACE_DECAY_RATE / couplingFactor));
@@ -725,12 +735,19 @@ export class UniverseCore {
       const rs = (2 * this.effectiveG * p.weight) / (this.C * this.C);
       if (!p.isBlackHole && (p.traces.length >= this.BEKENSTEIN_LIMIT || rs > this.PLANCK_LENGTH)) {
         p.isBlackHole = true; 
-        p.isConscious = true; // Consciousness emerges from high information density
         p.energy = 0;
         p.vx = 0;
         p.vy = 0;
         p.traces = []; // Information is collapsed
         this.recentEvents.push("Singularidade: Colapso de informação detectado");
+      }
+
+      // 8. Emergent Observer Nodes (Consequence of High Persistence/Efficiency)
+      // If a particle has high persistence, high traces (info), and low entropy,
+      // it becomes a conscious observer node.
+      if (!p.isConscious && !p.isLatent && p.persistence > 1.5 && p.traces.length > 5) {
+        p.isConscious = true;
+        this.recentEvents.push("Consciência Emergente: Observador detectado em cluster de alta eficiência");
       }
 
       this.activeTracesCount += p.traces.length;
