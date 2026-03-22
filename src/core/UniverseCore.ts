@@ -409,8 +409,9 @@ export class UniverseCore {
       
       // Inject Energy & Information
       p.energy += 0.8;
-      p.vx += (Math.random() - 0.5) * 2.0;
-      p.vy += (Math.random() - 0.5) * 2.0;
+      // CP Violation: Slight bias in momentum injection
+      p.vx += (Math.random() - 0.49) * 2.0; 
+      p.vy += (Math.random() - 0.51) * 2.0;
       
       // Spontaneous Information Seed: Create a random trace to trigger potential interactions
       if (!p.traces) p.traces = [];
