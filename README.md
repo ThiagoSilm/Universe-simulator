@@ -27,6 +27,7 @@ Todas as etapas do simulador estão documentadas em capturas de tela cronológic
 - **20-21/03/2026**: consolidação com eficiência extrema (>9000%), observador passivo dominante, e narrativas poéticas emergindo.
 
 Os timestamps curtos entre imagens refletem sessões intensas de "rode → observe → ajuste → formalize". A teoria formal (v13.2) veio **depois** destes dados empíricos.
+
 ---
 
 ## Quatro Estados Epistemológicos
