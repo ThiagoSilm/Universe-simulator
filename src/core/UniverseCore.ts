@@ -149,6 +149,31 @@ export class UniverseCore {
   private readonly MAX_VACUUM_MEMORY = 1000;
   private seed: number;
 
+  private compressTraces(p: ParticleCore) {
+    if (p.traces.length <= 2) return;
+    
+    // Summarize traces: find the most significant ones
+    // Sort by affinity
+    p.traces.sort((a, b) => b.affinity - a.affinity);
+    
+    // Keep only top 2 traces as a summary
+    const summary = p.traces.slice(0, 2);
+    
+    // Calculate average affinity
+    const avgAffinity = p.traces.reduce((acc, t) => acc + t.affinity, 0) / p.traces.length;
+    
+    p.traces = summary;
+    
+    // Add a "compressed" trace that represents the lost information
+    p.traces.push({
+      targetId: 'COMPRESSED_MEMORY',
+      affinity: avgAffinity * 0.5,
+      tick: this.tickCount
+    });
+    
+    this.recentEvents.push("Compressão de Informação: Memória otimizada para persistência");
+  }
+
   // Fundamental Constants
   private readonly C = 50; 
   private readonly H = 0.05; 
@@ -589,12 +614,20 @@ export class UniverseCore {
         
         // Observer Effect: Conscious particles stabilize their neighborhood
         if (p.isConscious) {
+          // Thermodynamic Cost: Stabilization consumes the observer's own persistence
+          p.persistence -= 0.002; 
+          
           for (const n of neighbors) {
             if (n.id !== p.id) {
               n.persistence += 0.001; // Persistence boost
               n.energy += 0.0005; // Entropy reduction (energy preservation)
             }
           }
+        }
+        
+        // Lossy RAG: If traces are getting too dense, compress them
+        if (p.traces.length > 5) {
+          this.compressTraces(p);
         }
         
         // Trace Decay: Information fades faster in dense environments, but coupling protects it
