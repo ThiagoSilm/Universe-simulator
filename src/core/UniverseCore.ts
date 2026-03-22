@@ -143,6 +143,7 @@ export class UniverseCore {
   private readonly EPS = 0.05; 
   private readonly PLANCK_TEMP = 1000; 
   private readonly BEKENSTEIN_LIMIT = 20; 
+  private readonly GENESIS_RATE = 0.008;
   
   // Influence Factors
   private G_influence = 1.0;
@@ -297,15 +298,29 @@ export class UniverseCore {
     this.activeTracesCount = 0;
     this.currentObservationCount = 0; // Reset budget
     
-    // Edge of Chaos: Prevent zero activity death
-    if (this.tickCount > 100 && this.activeParticles.size === 0 && this.particles.length > 0) {
+    // Continuous Genesis (Gênese Contínua)
+    // This represents the spontaneous emergence of new information/potential.
+    // It prevents the system from staying in an absorbing state (thermal death).
+    if (Math.random() < this.GENESIS_RATE && this.particles.length > 0) {
       const randomIdx = Math.floor(Math.random() * this.particles.length);
       const p = this.particles[randomIdx];
-      p.energy += 1.0;
-      p.vx += (Math.random() - 0.5) * 2;
-      p.vy += (Math.random() - 0.5) * 2;
+      
+      // Inject Energy & Information
+      p.energy += 0.8;
+      p.vx += (Math.random() - 0.5) * 2.0;
+      p.vy += (Math.random() - 0.5) * 2.0;
+      
+      // Spontaneous Information Seed: Create a random trace to trigger potential interactions
+      if (!p.traces) p.traces = [];
+      const targetIdx = Math.floor(Math.random() * this.particles.length);
+      p.traces.push({
+        targetId: this.particles[targetIdx].id,
+        affinity: 0.1,
+        tick: this.tickCount
+      });
+
       this.wakeUp(p);
-      this.recentEvents.push("Flutuação de Vácuo: Micro-atividade injetada");
+      this.recentEvents.push("Gênese Contínua: Nova informação emergindo do vácuo");
     }
 
     // Adaptive Budgets: Scale based on system efficiency and entropy
@@ -341,12 +356,15 @@ export class UniverseCore {
       qt.insert(p);
     }
 
+    const activityLevel = this.activeParticles.size / (this.particles.length || 1);
+    const expansionRate = this.effectiveLAMBDA * (activityLevel > 0.001 ? 1.0 : 0.05);
+
     for (const p of this.activeParticles) {
       // 1. Cosmological Expansion (Λ)
       // Space expands, pushing particles away from center
       if (!p.isBlackHole) {
-        p.x *= (1 + this.effectiveLAMBDA);
-        p.y *= (1 + this.effectiveLAMBDA);
+        p.x *= (1 + expansionRate);
+        p.y *= (1 + expansionRate);
       }
 
       // 2. Tempo Próprio & Relatividade (c)
@@ -943,14 +961,17 @@ export class UniverseCore {
     
     const photonCount = this.particles.filter(p => p.weight <= 0.001).length;
 
+    const activityLevel = this.activeParticles.size / (this.particles.length || 1);
+    const currentExpansionRate = this.effectiveLAMBDA * (activityLevel > 0.001 ? 1.0 : 0.05);
+
     return {
       tick: this.tickCount,
       particles: [...active, ...sampledLatent].map(p => {
         const { potentialHistories, ...rest } = p;
         return { ...rest };
       }),
-      activeCount: this.activeParticles.size,
-      totalCount: this.particles.length,
+      activeCount: Math.max(0, this.activeParticles.size),
+      totalCount: Math.max(1, this.particles.length),
       metrics: {
         decisionsPerTick: this.decisionsPerTick,
         avgCandidates: this.avgCandidates,
@@ -960,8 +981,9 @@ export class UniverseCore {
         thermalGradient: this.getThermalGradient(),
         coherence,
         photonCount,
+        genesisActivity: this.GENESIS_RATE,
         events: this.recentEvents,
-        universeHorizon: 50000 + this.tickCount * this.effectiveLAMBDA * 100
+        universeHorizon: 50000 + this.tickCount * currentExpansionRate * 100
       }
     };
   }

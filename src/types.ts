@@ -169,6 +169,7 @@ export interface UniverseState {
   systemTemperature: number;
   thermalGradient: number;
   persistenceScale: number;
+  genesisActivity: number;
 }
 
 export interface CycleHistory {

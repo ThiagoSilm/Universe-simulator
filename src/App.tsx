@@ -34,6 +34,7 @@ import {
   Maximize2,
   ScrollText,
   Camera,
+  Sparkles,
 } from "lucide-react";
 import { ObserverLayer, PersistentState, GRID_SIZE } from "./ObserverLayer";
 import { LazyDocumentary } from "./LazyDocumentary";
@@ -1084,13 +1085,24 @@ export default function App() {
                   {activeTab === "core" && (
                     <div className="space-y-2">
                       <Metric
+                        label="Gênese Contínua"
+                        value={state?.genesisActivity ?? 0}
+                        icon={<Sparkles size={11} />}
+                        color="text-purple-400"
+                        pct
+                        tooltip="Taxa de surgimento espontâneo de nova informação e energia do vácuo. Impede o colapso total do sistema."
+                        formula="Probabilidade de Gênese por Tick"
+                        range="0.5% - 1.5% (Estável)"
+                        scientistMode={scientistMode}
+                      />
+                      <Metric
                         label="Eficiência Lazy"
                         value={state?.efficiency ?? 0}
                         icon={<Zap size={11} />}
                         color="text-emerald-400"
                         pct
                         tooltip="Porcentagem de partículas latentes (não processadas). Quanto maior, mais eficiente é a simulação."
-                        formula="100 - (Active / Total) * 100"
+                        formula="1 - (Active / Total)"
                         range="90% - 99% (Ideal)"
                         scientistMode={scientistMode}
                       />

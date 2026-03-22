@@ -76,6 +76,7 @@ export class ObserverLayer {
     systemTemperature: 0,
     thermalGradient: 0,
     persistenceScale: 0,
+    genesisActivity: 0,
   };
 
   constructor(savedState?: any) {
@@ -170,7 +171,7 @@ export class ObserverLayer {
     this.metrics.horizonSize = 50000 + snapshot.tick * 0.0001 * 100;
     this.metrics.lazyCost = activeCount;
     this.metrics.eagerCost = totalCount;
-    this.metrics.efficiency = Math.max(0, Math.min(100, 100 - (activeCount / (totalCount || 1)) * 100));
+    this.metrics.efficiency = Math.max(0, Math.min(1, 1 - (activeCount / (totalCount || 1))));
     this.metrics.maxCurvature = maxCurv;
     this.metrics.particleCount = totalCount;
     this.metrics.maxLevel = maxLvl;
@@ -188,6 +189,7 @@ export class ObserverLayer {
       this.metrics.thermalGradient = coreMetrics.thermalGradient;
       this.metrics.photonCount = coreMetrics.photonCount;
       this.metrics.coherence = coreMetrics.coherence || 0;
+      this.metrics.genesisActivity = coreMetrics.genesisActivity || 0;
     }
     
     // Simulação de métricas complexas baseadas na densidade de atividade
@@ -202,7 +204,7 @@ export class ObserverLayer {
     const tau = totalAge / (activeCount || 1);
     const H_val = this.metrics.entropy || 1;
     const A_val = Math.min(1, bnd / (activeCount || 1)) + 0.01; // Temporal correlation proxy
-    const D_val = Math.max(0.001, 1.0 - (this.metrics.efficiency / 100)); // Dissipation factor (dimensionless)
+    const D_val = Math.max(0.001, 1.0 - this.metrics.efficiency); // Dissipation factor (dimensionless)
     
     this.metrics.persistenceScale = (k_avg * tau * H_val * A_val) / D_val;
   }
