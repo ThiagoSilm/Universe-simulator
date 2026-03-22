@@ -1242,6 +1242,15 @@ export default function App() {
                             scientistMode={scientistMode}
                           />
                           <div className="grid grid-cols-2 gap-2">
+                             <Stat
+                              label="Eficiência Info."
+                              value={(state?.informationEfficiency ?? 0).toFixed(4)}
+                              icon={<Sigma size={10} />}
+                              color="text-emerald-400"
+                              tooltip="Prova da Tese: Razão entre persistência total e custo energético. Quanto maior, mais eficiente é a organização da informação."
+                              range="Prova de Eficiência"
+                              scientistMode={scientistMode}
+                            />
                             <Stat
                               label="Decisões/Tick"
                               value={state?.decisionsPerTick ?? 0}

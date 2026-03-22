@@ -1309,6 +1309,16 @@ export class UniverseCore {
     }
   }
 
+  private getInformationEfficiency(): number {
+    const active = Array.from(this.activeParticles);
+    if (active.length === 0) return 0;
+    
+    const totalPersistence = active.reduce((acc, p) => acc + p.persistence, 0);
+    const totalEnergy = active.reduce((acc, p) => acc + p.energy, 0);
+    
+    return totalPersistence / (Math.abs(totalEnergy) + 0.001); // Avoid division by zero
+  }
+
   public getSnapshot(viewport?: { x: number, y: number, width: number, height: number, scale: number }) {
     // Lazy Snapshot: Only send active particles and a stable subset of latent ones
     // This significantly reduces worker postMessage overhead and main thread rendering load.
@@ -1374,6 +1384,7 @@ export class UniverseCore {
         explorationSuccessRate: this.totalExplorations > 0 ? this.successfulExplorations / this.totalExplorations : 0,
         nonLocalEfficiency: this.decisionsPerTick > 0 ? this.nonLocalInteractions / this.decisionsPerTick : 0,
         memoryUsage: this.activeParticles.size / this.particles.length,
+        informationEfficiency: this.getInformationEfficiency(),
         habitabilityMap: Array.from(this.habitabilityMap.entries()).map(([key, val]) => {
           const [gx, gy] = key.split(',').map(Number);
           return {

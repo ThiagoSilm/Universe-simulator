@@ -184,6 +184,7 @@ export interface UniverseState {
   explorationSuccessRate: number;
   nonLocalEfficiency: number;
   memoryUsage: number;
+  informationEfficiency: number;
   habitabilityMap?: HabitabilityCell[];
   
   // P(t) Equation Metrics
