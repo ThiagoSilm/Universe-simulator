@@ -18,6 +18,15 @@ Sistemas dinâmicos sob restrições de custo de observação e computação par
 
 Os três princípios foram formalizados, implementados no núcleo do motor de física do simulador, e verificados em comportamento emergente. Implicações para sistemas físicos são discutidas, mas não assumidas.
 
+## Registro Visual do Desenvolvimento
+
+Todas as etapas do simulador estão documentadas em capturas de tela cronológicas na pasta [`/docs/images`](https://github.com/ThiagoSilm/Universe-simulator/tree/main/docs/images). Elas mostram a evolução real:
+
+- **18/03/2026**: primeiros runs, lazy evaluation já ativa (~48%), métricas ainda brutas.
+- **19/03/2026**: transição para eficiência crescente, P(t) começando a ser derivada.
+- **20-21/03/2026**: consolidação com eficiência extrema (>9000%), observador passivo dominante, e narrativas poéticas emergindo.
+
+Os timestamps curtos entre imagens refletem sessões intensas de "rode → observe → ajuste → formalize". A teoria formal (v13.2) veio **depois** destes dados empíricos.
 ---
 
 ## Quatro Estados Epistemológicos
