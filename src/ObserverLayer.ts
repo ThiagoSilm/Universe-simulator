@@ -148,6 +148,10 @@ export class ObserverLayer {
     this.metrics.isSpectatorMode = enabled;
   }
 
+  public setInfluence(type: 'G' | 'LAMBDA', value: number) {
+    this.worker.postMessage({ type: 'SET_INFLUENCE', payload: { type, value } });
+  }
+
   private calculateMetrics(snapshot: any) {
     const { particles, activeCount, totalCount, metrics: coreMetrics } = snapshot;
     let tempSum = 0;
@@ -204,6 +208,7 @@ export class ObserverLayer {
       this.metrics.explorationSuccessRate = coreMetrics.explorationSuccessRate || 0;
       this.metrics.nonLocalEfficiency = coreMetrics.nonLocalEfficiency || 0;
       this.metrics.memoryUsage = coreMetrics.memoryUsage || 0;
+      this.metrics.interactionDensity = (coreMetrics.activeTracesCount || 0) / (activeCount || 1);
     }
     
     // Real Habitability-based Life Calculation

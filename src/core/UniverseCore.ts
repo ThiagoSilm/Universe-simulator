@@ -184,9 +184,18 @@ export class UniverseCore {
   private readonly PLANCK_TEMP = 1000; 
   private readonly BEKENSTEIN_LIMIT = 20; 
   private readonly MEMORY_THRESHOLD = 2000; // Ticks a particle stays active after being observed
+  private readonly INTERACTION_THRESHOLD = 0.15; // Minimum force required for meaningful interaction
   private currentGenesisRate = 0.008;
   private habitabilityMap: Map<string, { potential: number, coherence: number, density: number, activity: number }> = new Map();
+  private vacuumMemoryMap: Map<string, number> = new Map();
   private readonly HABITABILITY_GRID_SIZE = 800;
+  private readonly VACUUM_MEMORY_GRID_SIZE = 100;
+
+  private getGridKey(x: number, y: number, size: number): string {
+    const gx = Math.floor(x / size);
+    const gy = Math.floor(y / size);
+    return `${gx},${gy}`;
+  }
   private successfulExplorations = 0;
   private totalExplorations = 0;
   private nonLocalInteractions = 0;
@@ -195,6 +204,11 @@ export class UniverseCore {
   private G_influence = 1.0;
   private LAMBDA_influence = 1.0;
   private ENTROPY_influence = 1.0;
+
+  public setInfluence(type: 'G' | 'LAMBDA', value: number) {
+    if (type === 'G') this.G_influence = value;
+    if (type === 'LAMBDA') this.LAMBDA_influence = value;
+  }
 
   private get effectiveG() { return Math.max(0.001, Math.min(0.1, this.G * this.G_influence)); }
   private get effectiveLAMBDA() { return Math.max(0.0001, Math.min(0.01, this.LAMBDA * this.LAMBDA_influence)); }
@@ -374,6 +388,18 @@ export class UniverseCore {
     
     this.currentGenesisRate = baseInstability + (alpha * (1 - coherence)) + (beta * (1 - activityLevel));
     
+    // ── Vacuum Memory Decay ──────────────────
+    if (this.tickCount % 100 === 0) {
+      for (const [key, density] of this.vacuumMemoryMap.entries()) {
+        const newDensity = density * 0.99;
+        if (newDensity < 0.0001) {
+          this.vacuumMemoryMap.delete(key);
+        } else {
+          this.vacuumMemoryMap.set(key, newDensity);
+        }
+      }
+    }
+    
     // Continuous Genesis (Gênese Contínua)
     // This represents the spontaneous emergence of new information/potential.
     // It prevents the system from staying in an absorbing state (thermal death).
@@ -492,6 +518,30 @@ export class UniverseCore {
           p.vx = (p.vx / speed) * this.C;
           p.vy = (p.vy / speed) * this.C;
         }
+
+        // ── Vacuum Memory Influence (Quantum Probing) ──────────────────
+        const probeCount = 3;
+        let bestPath = { vx: p.vx, vy: p.vy, resistance: Infinity };
+        
+        for (let i = 0; i < probeCount; i++) {
+          const angle = (Math.random() - 0.5) * Math.PI / 2; // Probe +/- 45 degrees
+          const probeVx = p.vx * Math.cos(angle) - p.vy * Math.sin(angle);
+          const probeVy = p.vx * Math.sin(angle) + p.vy * Math.cos(angle);
+          
+          const probeX = p.x + probeVx * this.DT;
+          const probeY = p.y + probeVy * this.DT;
+          
+          const key = this.getGridKey(probeX, probeY, this.VACUUM_MEMORY_GRID_SIZE);
+          const resistance = this.vacuumMemoryMap.get(key) || 0;
+          
+          if (resistance < bestPath.resistance) {
+            bestPath = { vx: probeVx, vy: probeVy, resistance };
+          }
+        }
+        
+        // Collapse to the path of least resistance
+        p.vx = bestPath.vx;
+        p.vy = bestPath.vy;
 
         p.x += p.vx * this.DT;
         p.y += p.vy * this.DT;
@@ -987,7 +1037,11 @@ export class UniverseCore {
       }
 
       // Information exchange (probabilistic)
-      if (Math.random() < 0.1) {
+      if (Math.abs(netForce) > this.INTERACTION_THRESHOLD) {
+        const key = this.getGridKey(p.x, p.y, this.VACUUM_MEMORY_GRID_SIZE);
+        const currentMemory = this.vacuumMemoryMap.get(key) || 0;
+        this.vacuumMemoryMap.set(key, currentMemory + Math.abs(netForce) * 0.001);
+
         p.traces.push({ 
           targetId: n.id,
           affinity: Math.abs(netForce),
@@ -1363,6 +1417,11 @@ export class UniverseCore {
     const activityLevel = this.activeParticles.size / (this.particles.length || 1);
     const currentExpansionRate = this.effectiveLAMBDA * (activityLevel > 0.001 ? 1.0 : 0.05);
 
+    const vacuumMemoryMap = Array.from(this.vacuumMemoryMap.entries()).map(([key, density]) => {
+      const [gx, gy] = key.split(',').map(Number);
+      return { x: gx * this.VACUUM_MEMORY_GRID_SIZE, y: gy * this.VACUUM_MEMORY_GRID_SIZE, density };
+    });
+
     return {
       tick: this.tickCount,
       particles: [...active, ...sampledLatent].map(p => {
@@ -1371,6 +1430,7 @@ export class UniverseCore {
       }),
       activeCount: Math.max(0, this.activeParticles.size),
       totalCount: Math.max(1, this.particles.length),
+      vacuumMemoryMap,
       metrics: {
         decisionsPerTick: this.decisionsPerTick,
         avgCandidates: this.avgCandidates,

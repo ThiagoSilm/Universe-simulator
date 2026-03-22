@@ -681,6 +681,7 @@ export default function App() {
     | "horizon"
     | "log"
     | "manifesto"
+    | "deep"
   >("core");
   const horizonRadius = 5000;
   const [isObserving, setIsObserving] = useState(false);
@@ -1204,6 +1205,7 @@ export default function App() {
                           "horizon",
                           "log",
                           "manifesto",
+                          "deep",
                         ] as const
                       ).map((tab) => (
                         <button
@@ -1314,6 +1316,16 @@ export default function App() {
                               range="Relatividade"
                               scientistMode={scientistMode}
                             />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 mt-4">
+                            <div className="space-y-1">
+                              <label className="text-[9px] text-white/50 uppercase">Gravidade (G)</label>
+                              <input type="range" min="0.1" max="2" step="0.1" defaultValue="1" onChange={(e) => engineRef.current?.setInfluence('G', parseFloat(e.target.value))} className="w-full" />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] text-white/50 uppercase">Expansão (Λ)</label>
+                              <input type="range" min="0.1" max="2" step="0.1" defaultValue="1" onChange={(e) => engineRef.current?.setInfluence('LAMBDA', parseFloat(e.target.value))} className="w-full" />
+                            </div>
                           </div>
                         </div>
                       )}

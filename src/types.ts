@@ -94,6 +94,12 @@ export interface HabitabilityCell {
   activity: number;
 }
 
+export interface VacuumMemoryCell {
+  x: number;
+  y: number;
+  density: number;
+}
+
 export interface UniverseState {
   particles: Particle[];
   entropy: number;
@@ -185,7 +191,9 @@ export interface UniverseState {
   nonLocalEfficiency: number;
   memoryUsage: number;
   informationEfficiency: number;
+  interactionDensity: number;
   habitabilityMap?: HabitabilityCell[];
+  vacuumMemoryMap?: VacuumMemoryCell[];
   
   // P(t) Equation Metrics
   ptEquation: {
