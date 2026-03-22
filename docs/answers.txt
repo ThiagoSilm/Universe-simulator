@@ -73,3 +73,152 @@ No simulador: uma informação só persiste se se acoplar a um nó de alta persi
 Resposta: viralizar não é sorte, é acoplamento eficiente.
 
 ---
+
+11. O que é a constante cosmológica (Λ) e por que ela tem o valor que tem?
+
+Resposta (no simulador): Λ efetivo não é fixo, mas o mínimo necessário para que a densidade de informação se mantenha abaixo do limite crítico do substrato. Se Λ fosse maior, estruturas seriam diluídas rápido demais e perderiam acoplamento. Se Λ fosse menor, colapsos por densidade se tornariam frequentes e o sistema entraria em instabilidade permanente.
+
+Evidência [COLAPSADO]:
+
+· Expansão ajustada automaticamente em resposta à densidade local.
+· Ticks avançados (ex: 9922) mostram Λ estabilizado em patamar que mantém ~400 BHs e partículas ativas ~8433.
+· Remover Λ ou torná-la constante fixa → sistema ou colapsa ou perde estrutura.
+
+Paralelo real:
+Sugere que Λ observada é um valor de equilíbrio dinâmico, não uma constante fundamental. Testável em simulações cosmológicas com backreaction (ex: void-wall models).
+
+---
+
+12. Por que a velocidade da luz (c) é um limite?
+
+Resposta (no simulador): c é o clock máximo do substrato. Velocidades acima disso exigiriam mais passos de cálculo por tick do que o hardware pode fornecer sem quebrar a lazy evaluation. O limite não é imposto por simetria, mas por custo computacional finito.
+
+Evidência [COLAPSADO]:
+
+· if (speedSq > C*C) cap velocity é necessário para estabilidade numérica.
+· Sem capping, partículas extrapolam, interações se tornam imprevisíveis e o sistema perde coerência.
+
+Paralelo real:
+A velocidade da luz pode ser o limite de processamento do substrato físico, não uma simetria fundamental. Testável indiretamente via limites de propagação de informação em meios densos.
+
+---
+
+13. O que é o horizonte de eventos?
+
+Resposta (no simulador): É a fronteira de observabilidade imposta pelo custo de propagação. Partículas além do horizonte existem (verificadas pelo Worker), mas não trocam informação com o observador. Não há perda de informação — há informação inacessível por custo.
+
+Evidência [COLAPSADO]:
+
+· Horizonte cresce com a expansão (~50k ly em tick 300).
+· Partículas fora dele continuam ativas e interagindo entre si.
+· Observabilidade zero para o agente local, mas não para o sistema como um todo.
+
+Paralelo real:
+Horizonte de eventos de buracos negros e horizonte cosmológico são limites de observabilidade por custo de propagação, não barreiras ontológicas. A informação não se perde — apenas se torna inacessível ao observador local.
+
+---
+
+14. Por que o universo é homogêneo e isotrópico em larga escala?
+
+Resposta (no simulador): A expansão dilui flutuações locais ao longo dos ticks, e a lazy evaluation impede que correlações de longo alcance sejam computadas sem necessidade. O resultado emergente é que, em ticks avançados, o universo simulado parece homogêneo e isotrópico quando observado em baixa resolução.
+
+Evidência [COLAPSADO]:
+
+· Expansão Λ dilui gradientes locais.
+· Observador passivo vê apenas uma fração do sistema, suavizada pelo horizonte.
+· Em escala fina, há estrutura (buracos negros, redes), mas a métrica média converge.
+
+Paralelo real:
+A homogeneidade observada pode ser um artefato de observabilidade limitada + expansão, não uma propriedade fundamental do universo.
+
+---
+
+15. O que é energia escura?
+
+Resposta (no simulador): É o efeito agregado da expansão (Λ) sobre a métrica, combinado com a memória distribuída (ER:EPR) que mantém acoplamentos mesmo a grandes distâncias. Não há "energia escura" como entidade separada — há um termo efetivo que emerge da necessidade de persistência.
+
+Evidência [COLAPSADO]:
+
+· Λ efetivo emerge como garbage collection.
+· A expansão não precisa de combustível; é consequência da regra de sustentabilidade.
+· ER:EPR mantém coerência mesmo quando densidade local cai.
+
+Paralelo real:
+Energia escura pode ser um artefato de escala do mesmo mecanismo que produz expansão em sistemas com limite de densidade. Testável em simulações com backreaction e modelos de gravidade emergente.
+
+---
+
+16. Por que a matéria se agrupa em estruturas (filamentos, vazios)?
+
+Resposta (no simulador): Acoplamento eletromagnético e gravitacional criam redes de persistência. Regiões com baixa interação se tornam vazios; regiões com alta interação formam filamentos e nós (buracos negros). O padrão não é programado, é a forma mais eficiente de trocar informação dado o custo de propagação.
+
+Evidência [COLAPSADO]:
+
+· Visualização de ER:EPR mostra pontes douradas/azuis formando redes.
+· Partículas positivas e negativas criam atração mútua, gerando aglomerados.
+· Vazios emergem onde não há interação suficiente para manter coerência.
+
+Paralelo real:
+A estrutura em grande escala do universo (filamentos, vazios, nós) pode ser a configuração de máxima persistência para um sistema com acoplamento eletromagnético e gravitacional sob custo finito.
+
+---
+
+17. Por que a matéria tem carga elétrica?
+
+Resposta (no simulador): Cargas opostas (+/-) são o mecanismo mais simples para criar acoplamento persistente sem intervenção externa. Sem carga, partículas interagem apenas por gravidade, que é mais fraca e lenta para formar estruturas. Cargas aceleram o acoplamento e aumentam P(t).
+
+Evidência [COLAPSADO]:
+
+· Gênese contínua: G = α(1-Coh) + β(1-Act) cria pares com cargas opostas.
+· Partículas de carga oposta se atraem, formam redes, sobrevivem.
+· Isolamento por carga única → dissipa.
+
+Paralelo real:
+A existência de carga elétrica pode ser um atalho evolutivo para aumentar persistência em sistemas com interação limitada.
+
+---
+
+18. O que é a flecha psicológica do tempo (por que lembramos do passado, não do futuro)?
+
+Resposta (no simulador): Memória (couplingHistory, persistentID) é assimétrica por construção: registra interações passadas, mas não pode prever interações futuras sem custo computacional proibitivo. A seta psicológica é um subproduto da lazy evaluation: recalcular o passado é barato (memória), prever o futuro é caro (simulação).
+
+Evidência [COLAPSADO]:
+
+· Estado de partículas depende de lastActiveTick e histórico de acoplamento.
+· Futuro não é armazenado, apenas inferido via P(t) como tendência.
+· Observador humano no simulador (quando existe) "lembra" ticks passados, mas não vê ticks futuros.
+
+Paralelo real:
+A flecha psicológica pode ser consequência da arquitetura preguiçosa do cérebro/substrato, não uma propriedade fundamental do tempo.
+
+---
+
+19. Por que há irreversibilidade macroscópica se as leis fundamentais são reversíveis?
+
+Resposta (no simulador): As regras de interação (gravidade, EM, colisões) são reversíveis em escala microscópica. Mas a lazy evaluation + limite de densidade impõe que estados não-acoplados sejam dissolvidos (entropia aumenta). A irreversibilidade emerge do desacoplamento forçado para preservar o substrato, não das leis de interação.
+
+Evidência [COLAPSADO]:
+
+· Decaimento por isolamento é irreversível sem nova interação.
+· Restauração exige acoplamento externo, que é evento raro.
+· Partículas dissolvidas não voltam espontaneamente.
+
+Paralelo real:
+A seta termodinâmica pode ser consequência do custo de manter estados não-interagentes, não de uma assimetria fundamental nas leis da física.
+
+---
+
+20. O que é um observador?
+
+Resposta (no simulador): Qualquer agente que puxa estado (pull) em vez de esperar push, colapsando informações locais e aumentando sua própria persistência. O observador não é externo ao sistema — é um nó que se acopla seletivamente para maximizar P(t).
+
+Evidência [COLAPSADO]:
+
+· Modo passivo (pull) mantém eficiência >9000%, tempo próprio zero.
+· Modo ativo (push/documentário) aumenta custo e reduz persistência local.
+· Observador pode ser simulado internamente (emergência de consciência coletiva ~tick 30).
+
+Paralelo real:
+A distinção observador/sistema pode ser artificial: todo observador é parte do sistema, apenas com um papel funcional de colapsar informação local para persistir.
+
+---
