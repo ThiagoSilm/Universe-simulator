@@ -24,6 +24,14 @@ export interface ParticleCore {
   traces: ParticleTrace[];
   isBlackHole: boolean;
   isBound: boolean;
+  isCollapsed: boolean;
+  waveRadius: number;
+  spin: number;
+  color: string;
+  isDarkMatter: boolean;
+  isPhoton: boolean;
+  isConscious: boolean;
+  moleculeId?: string | null;
   potentialHistories: { x: number; y: number; vx: number; vy: number }[];
   positionHistory: { x: number; y: number; tick: number }[];
   ax: number;
@@ -137,6 +145,8 @@ export class UniverseCore {
   private activeParticles: Set<ParticleCore> = new Set();
   private particleMap: Map<string, ParticleCore> = new Map();
   private cosmicMemory: Map<string, ParticleTrace[]> = new Map();
+  private vacuumMemory: { phase: number; traces: ParticleTrace[]; energy: number }[] = [];
+  private readonly MAX_VACUUM_MEMORY = 1000;
   private seed: number;
 
   // Fundamental Constants
@@ -257,6 +267,14 @@ export class UniverseCore {
         traces: [],
         isBlackHole: false,
         isBound: false,
+        isCollapsed: !isLatent,
+        waveRadius: isMassless ? 0 : 20,
+        spin: nextR() < 0.5 ? 1 : -1,
+        color: isMassless ? 'rgba(255,255,255,0.8)' : (charge > 0 ? 'rgba(255,120,60,0.2)' : 'rgba(60,120,255,0.2)'),
+        isDarkMatter: nextR() < 0.2, // 20% dark matter
+        isPhoton: isMassless,
+        isConscious: false,
+        moleculeId: null,
         potentialHistories: [],
         positionHistory: [],
         ax: 0,
@@ -352,6 +370,14 @@ export class UniverseCore {
         tick: this.tickCount
       });
 
+      // Lazy RAG: Query vacuum memory for initial state
+      if (this.vacuumMemory.length > 0 && Math.random() < 0.3) { // 30% chance to inherit culture
+        const culture = this.vacuumMemory[Math.floor(Math.random() * this.vacuumMemory.length)];
+        p.phase = culture.phase;
+        p.energy = Math.max(1.0, culture.energy * 0.5); // Inherit some energy
+        p.traces.push(...culture.traces.slice(0, 2)); // Inherit up to 2 traces
+      }
+
       this.wakeUp(p);
       this.recentEvents.push("Gênese Contínua: Instabilidade do vácuo detectada");
     }
@@ -377,20 +403,11 @@ export class UniverseCore {
 
     const toSleep: ParticleCore[] = [];
     const toWake: ParticleCore[] = [];
+    const toDissolve: ParticleCore[] = [];
 
-    // 0. Lazy Path Integral for Latent Particles
-    // Latent particles evolve their potential histories without collapsing
-    for (const p of this.particles) {
-      if (p.isLatent && !p.isBound) {
-        for (const history of p.potentialHistories) {
-          history.x += history.vx;
-          history.y += history.vy;
-          // Subtle drift in potential velocities
-          history.vx += (Math.random() - 0.5) * 0.1;
-          history.vy += (Math.random() - 0.5) * 0.1;
-        }
-      }
-    }
+    // 0. Lazy Path Integral for Latent Particles (O(1) True Lazy Evaluation)
+    // The loop was removed. Latent particles now only calculate their accumulated
+    // drift mathematically when they are awakened (in wakeUp).
 
     // Rebuild Quadtree for active particles
     const qt = new Quadtree(0, 0, 100000); // Expanded for cosmological growth
@@ -405,7 +422,20 @@ export class UniverseCore {
     const currentActivityLevel = this.activeParticles.size / (this.particles.length || 1);
     const expansionRate = this.effectiveLAMBDA * (currentActivityLevel > 0.001 ? 1.0 : 0.05);
 
+    const COLLAPSE_THRESHOLD = 100;
+
     for (const p of this.activeParticles) {
+      // Update waveRadius based on momentum (de Broglie wavelength)
+      const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 0.001;
+      const momentum = p.weight * speed;
+      p.waveRadius = momentum > 0 ? (20 / (1 + momentum * 10)) : 50;
+
+      // Decoherence: Particles collapse when observed, and slowly return to wave state
+      // Observability is a function of persistence. Low persistence = loss of definition.
+      if (p.persistence < 0.5 || (this.tickCount - p.lastObservedTick > COLLAPSE_THRESHOLD)) {
+        p.isCollapsed = false;
+      }
+
       // 1. Cosmological Expansion (Λ)
       // Space expands, pushing particles away from center
       if (!p.isBlackHole) {
@@ -554,11 +584,17 @@ export class UniverseCore {
         // Persistence grows in stable environments (coupling) and decays in high-entropy ones.
         const couplingBonus = p.traces.length * 0.001;
         const entropyPenalty = density * 0.0001;
-        p.persistence = Math.max(0.1, Math.min(2.0, p.persistence + couplingBonus - entropyPenalty));
+        // Strict Sustainability: No artificial minimum. If it drops <= 0, it dissolves.
+        p.persistence = Math.min(2.0, p.persistence + couplingBonus - entropyPenalty);
         
         // Trace Decay: Information fades faster in dense environments, but coupling protects it
         if (density > 5 && p.traces.length > 0) {
           p.traces = p.traces.filter(() => Math.random() > (this.TRACE_DECAY_RATE / couplingFactor));
+        }
+        
+        // Strict Bekenstein Limit: If spatial density exceeds substrate capacity, force dissipation
+        if (density > 30) {
+           p.persistence -= 0.2; // Massive penalty for exceeding information density limit
         }
         // ----------------------------------------------------
 
@@ -570,8 +606,8 @@ export class UniverseCore {
           
           // ── ER=EPR: Non-local Bridge ───────────────────────────────
           // If entangled, interact directly regardless of distance.
-          if (p.entangledWith) {
-            const entangledPartner = this.particles.find(part => part.id === p.entangledWith);
+          if (p.entangledId) {
+            const entangledPartner = this.particles.find(part => part.id === p.entangledId);
             if (entangledPartner && entangledPartner.isLatent === false) {
               const { fx: efx, fy: efy } = this.calculateNonLocalForce(p, entangledPartner);
               p.vx += (efx / p.weight) * this.DT;
@@ -582,7 +618,7 @@ export class UniverseCore {
               p.lastObservedTick = this.tickCount;
               entangledPartner.lastObservedTick = this.tickCount;
             } else if (!entangledPartner) {
-              p.entangledWith = undefined; // Partner lost
+              p.entangledId = undefined; // Partner lost
             }
           }
           
@@ -689,10 +725,12 @@ export class UniverseCore {
       const rs = (2 * this.effectiveG * p.weight) / (this.C * this.C);
       if (!p.isBlackHole && (p.traces.length >= this.BEKENSTEIN_LIMIT || rs > this.PLANCK_LENGTH)) {
         p.isBlackHole = true; 
+        p.isConscious = true; // Consciousness emerges from high information density
         p.energy = 0;
         p.vx = 0;
         p.vy = 0;
         p.traces = []; // Information is collapsed
+        this.recentEvents.push("Singularidade: Colapso de informação detectado");
       }
 
       this.activeTracesCount += p.traces.length;
@@ -702,7 +740,25 @@ export class UniverseCore {
       // Memory Check: If recently observed, it stays active
       const isRemembered = (this.tickCount - p.lastObservedTick) < this.MEMORY_THRESHOLD;
       
-      if (p.isBound || (p.energy + this.getKineticEnergy(p)) <= 0) {
+      if (p.persistence <= 0) {
+        // ER=EPR Survival Mechanism (Quantum Insurance)
+        // If entangled, try to drain persistence from partner to survive
+        let savedByEntanglement = false;
+        if (p.entangledId) {
+          const partner = this.particleMap.get(p.entangledId);
+          if (partner && !partner.isLatent && partner.persistence > 0.5) {
+            partner.persistence -= 0.3; // Cost of saving the partner
+            p.persistence += 0.3; // Drained through the wormhole
+            savedByEntanglement = true;
+            this.recentEvents.push("ER=EPR: Partícula salva por entrelaçamento não-local");
+          }
+        }
+        
+        if (!savedByEntanglement) {
+          // Strict Sustainability: Dissolve completely
+          toDissolve.push(p);
+        }
+      } else if (p.isBound || (p.energy + this.getKineticEnergy(p)) <= 0) {
         if (!p.isBlackHole && !isRemembered) toSleep.push(p);
       } else if (this.tickCount - p.lastActiveTick > 1000 && !p.isBlackHole && !isRemembered) {
         toSleep.push(p);
@@ -726,6 +782,25 @@ export class UniverseCore {
 
     for (const p of toWake) this.wakeUp(p);
     for (const p of toSleep) this.sleep(p);
+    
+    if (toDissolve.length > 0) {
+      const dissolveSet = new Set(toDissolve.map(p => p.id));
+      this.particles = this.particles.filter(p => !dissolveSet.has(p.id));
+      for (const p of toDissolve) {
+        this.activeParticles.delete(p);
+        this.particleMap.delete(p.id);
+        this.cosmicMemory.delete(p.id);
+        
+        // Lazy RAG: Save culture to vacuum memory
+        if (p.traces.length > 0 || p.energy > 1.5) {
+          this.vacuumMemory.push({ phase: p.phase, traces: [...p.traces], energy: p.energy });
+          if (this.vacuumMemory.length > this.MAX_VACUUM_MEMORY) {
+            this.vacuumMemory.shift(); // Keep only recent/most relevant culture
+          }
+        }
+      }
+      this.recentEvents.push(`Sustentabilidade: ${toDissolve.length} partículas dissipadas (P(t) <= 0)`);
+    }
   }
 
   private generateBeyondHorizon(count: number) {
@@ -759,6 +834,14 @@ export class UniverseCore {
         traces: [],
         isBlackHole: false,
         isBound: false,
+        isCollapsed: false,
+        waveRadius: isMassless ? 0 : 20,
+        spin: Math.random() < 0.5 ? 1 : -1,
+        color: isMassless ? 'rgba(255,255,255,0.8)' : (Math.random() < 0.5 ? 'rgba(255,120,60,0.2)' : 'rgba(60,120,255,0.2)'),
+        isDarkMatter: Math.random() < 0.2,
+        isPhoton: isMassless,
+        isConscious: false,
+        moleculeId: null,
         potentialHistories: [],
         positionHistory: [],
         ax: 0,
@@ -938,6 +1021,14 @@ export class UniverseCore {
       traces: [{ targetId: target.id, affinity: 1, tick: this.tickCount }], // Knows where it's going
       isBlackHole: false,
       isBound: false,
+      isCollapsed: true,
+      waveRadius: 0,
+      spin: 1,
+      color: 'rgba(255,255,255,0.8)',
+      isDarkMatter: false,
+      isPhoton: true,
+      isConscious: false,
+      moleculeId: null,
       potentialHistories: [],
       positionHistory: [],
       ax: 0,
@@ -956,6 +1047,21 @@ export class UniverseCore {
   private wakeUp(p: ParticleCore) {
     if (p.isLatent) {
       p.isLatent = false;
+      
+      // True Lazy Evaluation: Calculate elapsed time and apply drift in O(1)
+      const deltaTicks = this.tickCount - p.lastActiveTick;
+      if (deltaTicks > 0) {
+        for (const history of p.potentialHistories) {
+          // Apply accumulated drift mathematically
+          history.x += history.vx * deltaTicks;
+          history.y += history.vy * deltaTicks;
+          // Add accumulated noise (random walk variance scales with sqrt(time))
+          const noiseScale = 0.1 * Math.sqrt(deltaTicks);
+          history.vx += (Math.random() - 0.5) * noiseScale;
+          history.vy += (Math.random() - 0.5) * noiseScale;
+        }
+      }
+
       p.lastActiveTick = this.tickCount;
       p.energy = 1.0;
       
@@ -1023,6 +1129,8 @@ export class UniverseCore {
         });
 
         if (inRange) {
+          p.isCollapsed = true; // Collapse on observation
+          p.lastObservedTick = this.tickCount;
           this.wakeUp(p);
           observedCount++;
           this.currentObservationCount++;
@@ -1032,6 +1140,11 @@ export class UniverseCore {
         const dy = p.y - y;
         if (dx * dx + dy * dy <= r2) {
           p.lastActiveTick = this.tickCount;
+          p.lastObservedTick = this.tickCount;
+          p.isCollapsed = true; // Collapse on observation
+          // Active Observation Cost: Measuring the system extracts a toll on its persistence
+          p.persistence -= 0.05; 
+          p.energy += 0.01; // Small heat injection from observation
           observedCount++;
         }
       }
@@ -1192,7 +1305,7 @@ export class UniverseCore {
     return {
       tick: this.tickCount,
       particles: [...active, ...sampledLatent].map(p => {
-        const { potentialHistories, ...rest } = p;
+        const { potentialHistories, positionHistory, ...rest } = p;
         return { ...rest };
       }),
       activeCount: Math.max(0, this.activeParticles.size),
@@ -1245,6 +1358,14 @@ export class UniverseCore {
         weight: p.weight,
         isBlackHole: p.isBlackHole,
         isBound: p.isBound,
+        isCollapsed: p.isCollapsed,
+        waveRadius: p.waveRadius,
+        spin: p.spin,
+        color: p.color,
+        isDarkMatter: p.isDarkMatter,
+        isPhoton: p.isPhoton,
+        isConscious: p.isConscious,
+        moleculeId: p.moleculeId,
         potentialHistories: p.potentialHistories
       }))
     };
@@ -1276,6 +1397,14 @@ export class UniverseCore {
         p.weight = trace.weight ?? 1.0;
         p.isBlackHole = trace.isBlackHole ?? false;
         p.isBound = trace.isBound ?? false;
+        p.isCollapsed = trace.isCollapsed ?? !trace.isLatent;
+        p.waveRadius = trace.waveRadius ?? 20;
+        p.spin = trace.spin ?? 1;
+        p.color = trace.color ?? 'rgba(255,255,255,0.2)';
+        p.isDarkMatter = trace.isDarkMatter ?? false;
+        p.isPhoton = trace.isPhoton ?? false;
+        p.isConscious = trace.isConscious ?? false;
+        p.moleculeId = trace.moleculeId ?? null;
         p.potentialHistories = trace.potentialHistories ?? [];
         if (!p.isLatent) {
           this.activeParticles.add(p);
@@ -1320,6 +1449,14 @@ export class UniverseCore {
       traces: [...p1.traces, ...p2.traces].slice(0, this.BEKENSTEIN_LIMIT),
       isBlackHole: false,
       isBound: false,
+      isCollapsed: true,
+      waveRadius: 10,
+      spin: p1.spin,
+      color: p1.color,
+      isDarkMatter: p1.isDarkMatter || p2.isDarkMatter,
+      isPhoton: false,
+      isConscious: p1.isConscious || p2.isConscious,
+      moleculeId: null,
       potentialHistories: [],
       positionHistory: [],
       ax: 0, ay: 0,

@@ -80,6 +80,14 @@ export class ObserverLayer {
     explorationSuccessRate: 0,
     nonLocalEfficiency: 0,
     memoryUsage: 0,
+    ptEquation: {
+      avgCoupling: 0,
+      avgPersistence: 0,
+      horizon: 0,
+      activeObservation: 0,
+      density: 0,
+      pt: 0
+    }
   };
 
   constructor(savedState?: any) {
@@ -220,6 +228,15 @@ export class ObserverLayer {
     const D_val = Math.max(0.001, 1.0 - this.metrics.efficiency); // Dissipation factor (dimensionless)
     
     this.metrics.persistenceScale = (k_avg * tau * H_val * A_val) / D_val;
+    
+    this.metrics.ptEquation = {
+      avgCoupling: k_avg,
+      avgPersistence: tau,
+      horizon: H_val,
+      activeObservation: A_val,
+      density: D_val,
+      pt: this.metrics.persistenceScale
+    };
   }
 
   public getState(): UniverseState {
