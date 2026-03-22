@@ -1,3 +1,5 @@
+import { LocalPhysics } from '../types';
+
 export interface ParticleTrace {
   targetId: string;
   affinity: number;
@@ -195,6 +197,18 @@ export class UniverseCore {
     const gx = Math.floor(x / size);
     const gy = Math.floor(y / size);
     return `${gx},${gy}`;
+  }
+
+  private getLocalPhysics(x: number, y: number): LocalPhysics {
+    const key = this.getGridKey(x, y, this.VACUUM_MEMORY_GRID_SIZE);
+    const memory = this.vacuumMemoryMap.get(key) || 0;
+    
+    // Laws are emergent: High memory = slower light (C), more stability (lower alpha/beta)
+    return {
+      c: this.C * (1 / (1 + memory * 0.1)),
+      alpha: 0.006 * (1 / (1 + memory * 0.5)),
+      beta: 0.014 * (1 / (1 + memory * 0.5))
+    };
   }
   private successfulExplorations = 0;
   private totalExplorations = 0;
@@ -407,6 +421,8 @@ export class UniverseCore {
       const randomIdx = Math.floor(Math.random() * this.particles.length);
       const p = this.particles[randomIdx];
       
+      const { alpha, beta } = this.getLocalPhysics(p.x, p.y);
+      
       // Inject Energy & Information
       p.energy += 0.8;
       // CP Violation: Slight bias in momentum injection
@@ -544,6 +560,15 @@ export class UniverseCore {
         p.vx = bestPath.vx;
         p.vy = bestPath.vy;
 
+        // Enforce local C
+        const { c } = this.getLocalPhysics(p.x, p.y);
+        const speedSq = p.vx * p.vx + p.vy * p.vy;
+        if (speedSq > c * c) {
+            const speed = Math.sqrt(speedSq);
+            p.vx = (p.vx / speed) * c;
+            p.vy = (p.vy / speed) * c;
+        }
+
         p.x += p.vx * this.DT;
         p.y += p.vy * this.DT;
         
@@ -610,8 +635,8 @@ export class UniverseCore {
 
         // Movement Cost (Search Penalty)
         // Changing state/position costs persistence
-        const speedSq = p.vx * p.vx + p.vy * p.vy;
-        const movementCost = speedSq * 0.05; // Increased cost to compete with gains
+        const movementSpeedSq = p.vx * p.vx + p.vy * p.vy;
+        const movementCost = movementSpeedSq * 0.05; // Increased cost to compete with gains
         p.persistence -= movementCost;
         
         // Boundary check (Universe Horizon)

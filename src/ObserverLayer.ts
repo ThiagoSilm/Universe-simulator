@@ -26,6 +26,7 @@ export class ObserverLayer {
     entropy: 1,
     coherence: 0,
     totalInformation: 0,
+    interactionDensity: 0,
     pairProductionCount: 0,
     annihilationCount: 0,
     fissionCount: 0,

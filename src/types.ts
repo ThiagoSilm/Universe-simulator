@@ -100,6 +100,12 @@ export interface VacuumMemoryCell {
   density: number;
 }
 
+export interface LocalPhysics {
+  c: number;
+  alpha: number;
+  beta: number;
+}
+
 export interface UniverseState {
   particles: Particle[];
   entropy: number;
