@@ -390,8 +390,8 @@ function renderUniverse(
 
   for (const p of particles) {
     // Entanglement
-    if (p.entangledWith && !drawnLinks.has(p.id + p.entangledWith)) {
-      const partner = particleMap.get(p.entangledWith);
+    if (p.entangledId && !drawnLinks.has(p.id + p.entangledId)) {
+      const partner = particleMap.get(p.entangledId);
       if (partner) {
         ctx.strokeStyle = "rgba(255, 100, 255, 0.15)";
         ctx.lineWidth = Math.max(0.5, 0.5 * scale);
@@ -426,6 +426,38 @@ function renderUniverse(
     }
   }
   ctx.setLineDash([]);
+  ctx.restore();
+
+  // ── Layer 4.5: ER=EPR Bridges (Non-local Entanglement) ──────────
+  ctx.save();
+  ctx.lineWidth = 0.5;
+  for (const p of particles) {
+    if (p.entangledId && !p.isLatent) {
+      const target = particles.find(pt => pt.id === p.entangledId);
+      if (target && !target.isLatent && p.id < target.id) {
+        const x1 = toX(p.x), y1 = toY(p.y);
+        const x2 = toX(target.x), y2 = toY(target.y);
+        
+        // Draw a subtle, pulsing bridge
+        const dist = Math.sqrt((x2-x1)**2 + (y2-y1)**2);
+        if (dist > 50) { // Only draw long-range bridges
+          const grad = ctx.createLinearGradient(x1, y1, x2, y2);
+          const alpha = 0.1 + Math.sin(Date.now() * 0.005) * 0.05;
+          grad.addColorStop(0, `rgba(168, 85, 247, ${alpha})`); // Purple
+          grad.addColorStop(0.5, `rgba(236, 72, 153, ${alpha * 1.5})`); // Pink
+          grad.addColorStop(1, `rgba(168, 85, 247, ${alpha})`);
+          
+          ctx.strokeStyle = grad;
+          ctx.setLineDash([5, 15]);
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+    }
+  }
   ctx.restore();
 
   // ── Layer 5: collapsed particles ────────────────────────────────────
@@ -1255,6 +1287,24 @@ export default function App() {
                           color="text-orange-400"
                           tooltip="Taxa de sucesso das partículas ao explorar novas configurações de fase e velocidade para aumentar a persistência."
                           range="Exploração do espaço de estados"
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Ponte ER=EPR"
+                          value={((state?.nonLocalEfficiency ?? 0) * 100).toFixed(1) + "%"}
+                          icon={<Network size={10} />}
+                          color="text-indigo-400"
+                          tooltip="Eficiência das interações não-locais via entrelaçamento. Permite comunicação instantânea entre partículas distantes sem custo de espaço intermediário."
+                          range="Não-localidade"
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Memória Ativa"
+                          value={((state?.memoryUsage ?? 0) * 100).toFixed(1) + "%"}
+                          icon={<Cpu size={10} />}
+                          color="text-blue-400"
+                          tooltip="Proporção de partículas que estão sendo 'lembradas' ou observadas. Partículas na memória consomem processamento ativo."
+                          range="Custo de Atenção"
                           scientistMode={scientistMode}
                         />
                       </div>

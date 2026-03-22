@@ -78,6 +78,8 @@ export class ObserverLayer {
     persistenceScale: 0,
     genesisActivity: 0,
     explorationSuccessRate: 0,
+    nonLocalEfficiency: 0,
+    memoryUsage: 0,
   };
 
   constructor(savedState?: any) {
@@ -192,6 +194,8 @@ export class ObserverLayer {
       this.metrics.coherence = coreMetrics.coherence || 0;
       this.metrics.genesisActivity = coreMetrics.genesisActivity || 0;
       this.metrics.explorationSuccessRate = coreMetrics.explorationSuccessRate || 0;
+      this.metrics.nonLocalEfficiency = coreMetrics.nonLocalEfficiency || 0;
+      this.metrics.memoryUsage = coreMetrics.memoryUsage || 0;
     }
     
     // Real Habitability-based Life Calculation

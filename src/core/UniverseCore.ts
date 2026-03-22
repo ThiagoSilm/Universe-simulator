@@ -31,6 +31,8 @@ export interface ParticleCore {
   persistence: number;
   lastReward?: number;
   lastMutation?: { type: 'phase' | 'direction' | 'energy'; value: number };
+  entangledId?: string;
+  lastObservedTick: number;
 }
 
 class Quadtree {
@@ -133,6 +135,7 @@ export class UniverseCore {
   private expansionStarted: boolean = false;
   private currentHorizon: number = 50;
   private activeParticles: Set<ParticleCore> = new Set();
+  private particleMap: Map<string, ParticleCore> = new Map();
   private cosmicMemory: Map<string, ParticleTrace[]> = new Map();
   private seed: number;
 
@@ -145,11 +148,13 @@ export class UniverseCore {
   private readonly EPS = 0.05; 
   private readonly PLANCK_TEMP = 1000; 
   private readonly BEKENSTEIN_LIMIT = 20; 
+  private readonly MEMORY_THRESHOLD = 2000; // Ticks a particle stays active after being observed
   private currentGenesisRate = 0.008;
   private habitabilityMap: Map<string, { potential: number, coherence: number, density: number, activity: number }> = new Map();
   private readonly HABITABILITY_GRID_SIZE = 800;
   private successfulExplorations = 0;
   private totalExplorations = 0;
+  private nonLocalInteractions = 0;
   
   // Influence Factors
   private G_influence = 1.0;
@@ -241,6 +246,7 @@ export class UniverseCore {
         charge,
         isLatent,
         lastActiveTick: 0,
+        lastObservedTick: 0,
         age: 0,
         energy: 1.0,
         phase: Math.floor((nextR() * Math.PI * 2) / this.H) * this.H,
@@ -356,6 +362,7 @@ export class UniverseCore {
     if (this.tickCount % 1000 === 0) {
       this.successfulExplorations = 0;
       this.totalExplorations = 0;
+      this.nonLocalInteractions = 0;
     }
 
     // Adaptive Budgets: Scale based on system efficiency and entropy
@@ -387,8 +394,12 @@ export class UniverseCore {
 
     // Rebuild Quadtree for active particles
     const qt = new Quadtree(0, 0, 100000); // Expanded for cosmological growth
-    for (const p of this.activeParticles) {
-      qt.insert(p);
+    this.particleMap.clear();
+    for (const p of this.particles) {
+      this.particleMap.set(p.id, p);
+      if (this.activeParticles.has(p)) {
+        qt.insert(p);
+      }
     }
 
     const currentActivityLevel = this.activeParticles.size / (this.particles.length || 1);
@@ -557,6 +568,24 @@ export class UniverseCore {
           p.vy += (fy / p.weight) * this.DT;
           this.decisionsPerTick++;
           
+          // ── ER=EPR: Non-local Bridge ───────────────────────────────
+          // If entangled, interact directly regardless of distance.
+          if (p.entangledWith) {
+            const entangledPartner = this.particles.find(part => part.id === p.entangledWith);
+            if (entangledPartner && entangledPartner.isLatent === false) {
+              const { fx: efx, fy: efy } = this.calculateNonLocalForce(p, entangledPartner);
+              p.vx += (efx / p.weight) * this.DT;
+              p.vy += (efy / p.weight) * this.DT;
+              this.nonLocalInteractions++;
+              
+              // Entanglement counts as observation for both
+              p.lastObservedTick = this.tickCount;
+              entangledPartner.lastObservedTick = this.tickCount;
+            } else if (!entangledPartner) {
+              p.entangledWith = undefined; // Partner lost
+            }
+          }
+          
           // Collision handling: Momentum & Information Exchange
           let fused = false;
           for (const n of neighbors) {
@@ -670,9 +699,12 @@ export class UniverseCore {
 
       // Energy death or inactivity
       // Absorbed particles (isBound) or exhausted particles go to sleep
+      // Memory Check: If recently observed, it stays active
+      const isRemembered = (this.tickCount - p.lastObservedTick) < this.MEMORY_THRESHOLD;
+      
       if (p.isBound || (p.energy + this.getKineticEnergy(p)) <= 0) {
-        if (!p.isBlackHole) toSleep.push(p);
-      } else if (this.tickCount - p.lastActiveTick > 1000 && !p.isBlackHole) {
+        if (!p.isBlackHole && !isRemembered) toSleep.push(p);
+      } else if (this.tickCount - p.lastActiveTick > 1000 && !p.isBlackHole && !isRemembered) {
         toSleep.push(p);
       }
     }
@@ -716,6 +748,7 @@ export class UniverseCore {
         charge: isMassless ? 0 : (Math.random() < 0.5 ? 1 : -1), // Photons have no charge
         isLatent: true,
         lastActiveTick: this.tickCount,
+        lastObservedTick: this.tickCount,
         age: 0,
         energy: 1.0,
         phase: Math.random() * Math.PI * 2,
@@ -758,7 +791,21 @@ export class UniverseCore {
   }
 
   private calculateForce(p: ParticleCore, neighbors: ParticleCore[]): { fx: number; fy: number } {
-    const candidates = neighbors.filter(n => n.id !== p.id).slice(0, 10);
+    // ── ER=EPR Non-Local Bridge ──────────────────────────────────
+    // We add entangled partners (from traces) that might be outside the standard query radius.
+    // This allows long-range interactions without intermediate space computation.
+    const nonLocalPartners: ParticleCore[] = [];
+    for (const trace of p.traces) {
+      if (trace.affinity > 0.5) { // Only strong entanglements form bridges
+        const partner = this.particleMap.get(trace.targetId);
+        if (partner && !neighbors.some(n => n.id === partner.id)) {
+          nonLocalPartners.push(partner);
+          this.nonLocalInteractions++;
+        }
+      }
+    }
+
+    const candidates = [...neighbors.filter(n => n.id !== p.id), ...nonLocalPartners].slice(0, 12);
     if (candidates.length === 0) return { fx: 0, fy: 0 };
 
     let totalFx = 0;
@@ -813,6 +860,13 @@ export class UniverseCore {
           tick: this.tickCount
         });
         if (p.traces.length > this.BEKENSTEIN_LIMIT) p.traces.shift();
+
+        // EPR Entanglement Creation
+        // If interaction is strong and they aren't entangled, they might entangle.
+        if (!p.entangledId && !n.entangledId && Math.abs(netForce) > 0.5 && Math.random() < 0.05) {
+          p.entangledId = n.id;
+          n.entangledId = p.id;
+        }
       }
     }
 
@@ -821,6 +875,38 @@ export class UniverseCore {
     p.lastActiveTick = this.tickCount;
 
     return { fx: totalFx, fy: totalFy };
+  }
+
+  private calculateNonLocalForce(p: ParticleCore, n: ParticleCore): { fx: number; fy: number } {
+    // ER=EPR Bridge: Interaction without intermediate space.
+    // We simulate a "virtual distance" that is very small.
+    const dx = n.x - p.x;
+    const dy = n.y - p.y;
+    const realDistSq = dx * dx + dy * dy;
+    
+    // The "wormhole" distance is fixed and small, regardless of real distance.
+    const wormholeDistSq = 10.0 + this.EPS; 
+    const dist = Math.sqrt(wormholeDistSq);
+    
+    // Gravity (G) - always attractive
+    const gravity = (this.effectiveG * p.weight * n.weight) / wormholeDistSq;
+    
+    // Electrostatic (Coulomb-like)
+    const electrostatic = -(p.charge * n.charge * 0.5) / wormholeDistSq;
+    
+    // Quantum Repulsion (Pauli Exclusion) - weaker in wormhole to allow coupling
+    const quantumRepulsion = - (0.1) / (wormholeDistSq * wormholeDistSq);
+    
+    const netForce = gravity + electrostatic + quantumRepulsion;
+    const clampedForce = Math.max(-this.MAX_FORCE, Math.min(this.MAX_FORCE, netForce));
+    
+    // Direction is still based on real space to maintain causal orientation, 
+    // but magnitude is non-local.
+    const realDist = Math.sqrt(realDistSq) || 1;
+    return { 
+      fx: (dx / realDist) * clampedForce, 
+      fy: (dy / realDist) * clampedForce 
+    };
   }
 
   private emitVirtualPhoton(source: ParticleCore, target: ParticleCore) {
@@ -841,6 +927,7 @@ export class UniverseCore {
       charge: 0, // Photons have no charge
       isLatent: false, // Active immediately
       lastActiveTick: this.tickCount,
+      lastObservedTick: this.tickCount,
       age: 0,
       energy: this.H * 2, // Carries a quantum of energy
       phase: source.phase, // Carries phase information
@@ -1121,6 +1208,8 @@ export class UniverseCore {
         photonCount,
         genesisActivity: this.currentGenesisRate,
         explorationSuccessRate: this.totalExplorations > 0 ? this.successfulExplorations / this.totalExplorations : 0,
+        nonLocalEfficiency: this.decisionsPerTick > 0 ? this.nonLocalInteractions / this.decisionsPerTick : 0,
+        memoryUsage: this.activeParticles.size / this.particles.length,
         habitabilityMap: Array.from(this.habitabilityMap.entries()).map(([key, val]) => {
           const [gx, gy] = key.split(',').map(Number);
           return {
@@ -1218,6 +1307,7 @@ export class UniverseCore {
       charge: p1.charge + p2.charge,
       isLatent: false,
       lastActiveTick: this.tickCount,
+      lastObservedTick: this.tickCount,
       age: 0,
       // 10% TLTE Rule: Only 10% of the combined energy is retained as useful internal energy.
       // 90% is dissipated as entropy (heat lost to the universe) during the violent fusion process.

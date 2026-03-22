@@ -22,7 +22,7 @@ export interface Particle {
   isBlackHole?: boolean;     // collapsed state
   latentTraces?: LatentTrace[];
   potentialHistories?: { x: number; y: number; vx: number; vy: number }[];
-  entangledWith?: string | null; // Quantum entanglement partner ID
+  entangledId?: string | null; // Quantum entanglement partner ID
   isDarkMatter?: boolean;    // Interacts only gravitationally
   
   // New properties for chemistry/biology
@@ -45,6 +45,7 @@ export interface Particle {
   phase: number;
   lastInteractionType?: 'interference' | 'entanglement' | 'collision';
   contextualBias: number;
+  lastObservedTick: number;
 
   // Relativity & Photons
   isPhoton?: boolean;
@@ -180,6 +181,8 @@ export interface UniverseState {
   persistenceScale: number;
   genesisActivity: number;
   explorationSuccessRate: number;
+  nonLocalEfficiency: number;
+  memoryUsage: number;
   habitabilityMap?: HabitabilityCell[];
 }
 
