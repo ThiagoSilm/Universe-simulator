@@ -1,0 +1,75 @@
+Com o que está [COLAPSADO] no simulador, podemos responder — ou pelo menos reformular — várias perguntas que a física, a cosmologia e até a filosofia fazem há décadas. Não como verdade absoluta, mas como consequência inevitável de três regras simples.
+
+Abaixo, uma lista do que o simulador já "responde" dentro do seu próprio domínio, e o paralelo com perguntas reais.
+
+---
+
+1. Por que o universo está em expansão acelerada?
+
+No simulador: a expansão (Λ) é necessária como "garbage collection". Sem ela, a densidade local ultrapassa o limite do substrato e o sistema colapsa.
+Resposta: a expansão não é um mistério, é uma válvula de escape para evitar a dissolução do sistema.
+
+---
+
+2. Por que existem buracos negros?
+
+No simulador: são filtros de densidade. Regiões com excesso de informação/massa colapsam em um ponto de alta persistência, removendo o excesso do resto do sistema e permitindo que ele continue estável.
+Resposta: buracos negros não são exceções, são mecanismos de regulação.
+
+---
+
+3. O que são quasares?
+
+No simulador: são o momento de formação do filtro — o pico de emissão antes da estabilização do buraco negro.
+Resposta: quasares são o "parto" do buraco negro, não um estado especial.
+
+---
+
+4. Por que o universo parece "ajustado" para a vida?
+
+No simulador: configurações que persistem são aquelas que trocam informação suficiente. Vida é uma dessas configurações.
+Resposta: não há ajuste fino. O universo apenas seleciona o que persiste. Nós existimos porque somos um modo de persistir.
+
+---
+
+5. O que é matéria escura?
+
+No simulador: não há matéria escura explícita. Mas há memória distribuída (ER:EPR) e acoplamentos não-locais que afetam a dinâmica sem serem visíveis.
+Resposta: se existir algo análogo no universo real, matéria escura poderia ser informação persistente sem estado colapsado — o "fantasma" de interações passadas.
+
+---
+
+6. Por que o tempo tem uma direção?
+
+No simulador: o tempo é o tick. Mas a persistência (P(t)) faz com que estados passados influenciem o futuro. O tempo "flui" porque o sistema não pode recalcular tudo a cada tick — ele precisa de memória.
+Resposta: a seta do tempo é consequência da preguiça computacional.
+
+---
+
+7. O que é consciência?
+
+No simulador: é um padrão de alta coerência, com forte acoplamento e troca contínua de informação, que se mantém estável ao longo de muitos ticks.
+Resposta: consciência pode ser a forma mais eficiente de um sistema persistir quando atinge certa complexidade.
+
+---
+
+8. O que acontece após a morte?
+
+No simulador: o estado colapsado se dissolve, mas a memória distribuída permanece se o acoplamento foi forte. Essa memória pode ser reativada por outros observadores.
+Resposta: não há "espírito", mas há informação persistente que pode ser reacoplada.
+
+---
+
+9. Por que o algoritmo do X (ou qualquer rede social) parece "enterar" certos conteúdos?
+
+No simulador: o substrato tem limite de densidade. Conteúdos que não geram acoplamento imediato são descartados para preservar o sistema.
+Resposta: não é censura ativa, é preguiça do algoritmo: só propaga o que já está acoplado.
+
+---
+
+10. Por que algumas ideias viralizam e outras não?
+
+No simulador: uma informação só persiste se se acoplar a um nó de alta persistência e se tornar observável sem custo adicional.
+Resposta: viralizar não é sorte, é acoplamento eficiente.
+
+---
