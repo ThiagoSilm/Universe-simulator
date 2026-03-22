@@ -170,7 +170,7 @@ export class ObserverLayer {
     this.metrics.horizonSize = 50000 + snapshot.tick * 0.0001 * 100;
     this.metrics.lazyCost = activeCount;
     this.metrics.eagerCost = totalCount;
-    this.metrics.efficiency = 100 - (activeCount / (totalCount || 1)) * 100;
+    this.metrics.efficiency = Math.max(0, Math.min(100, 100 - (activeCount / (totalCount || 1)) * 100));
     this.metrics.maxCurvature = maxCurv;
     this.metrics.particleCount = totalCount;
     this.metrics.maxLevel = maxLvl;
@@ -187,10 +187,10 @@ export class ObserverLayer {
       this.metrics.systemTemperature = coreMetrics.systemTemperature;
       this.metrics.thermalGradient = coreMetrics.thermalGradient;
       this.metrics.photonCount = coreMetrics.photonCount;
+      this.metrics.coherence = coreMetrics.coherence || 0;
     }
     
     // Simulação de métricas complexas baseadas na densidade de atividade
-    this.metrics.coherence = Math.min(1, activeCount / 500);
     this.metrics.interferenceCount = Math.floor(activeCount * 1.5);
     this.metrics.entangledPairsCount = Math.floor(activeCount / 10);
     this.metrics.lifeCount = Math.floor(activeCount / 50);

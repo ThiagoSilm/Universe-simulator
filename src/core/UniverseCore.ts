@@ -297,6 +297,17 @@ export class UniverseCore {
     this.activeTracesCount = 0;
     this.currentObservationCount = 0; // Reset budget
     
+    // Edge of Chaos: Prevent zero activity death
+    if (this.tickCount > 100 && this.activeParticles.size === 0 && this.particles.length > 0) {
+      const randomIdx = Math.floor(Math.random() * this.particles.length);
+      const p = this.particles[randomIdx];
+      p.energy += 1.0;
+      p.vx += (Math.random() - 0.5) * 2;
+      p.vy += (Math.random() - 0.5) * 2;
+      this.wakeUp(p);
+      this.recentEvents.push("Flutuação de Vácuo: Micro-atividade injetada");
+    }
+
     // Adaptive Budgets: Scale based on system efficiency and entropy
     // If efficiency is high, we can afford more resolution.
     // If entropy is high, we need more resolution to maintain coherence.
@@ -638,7 +649,9 @@ export class UniverseCore {
     this.totalSelfEnergy += cost;
     
     // Quantized phase evolution (h)
-    p.phase = (p.phase + this.H) % (Math.PI * 2);
+    // Edge of Chaos: Add small stochastic noise to phase to prevent perfect crystallization
+    const phaseNoise = (Math.random() - 0.5) * 0.01;
+    p.phase = (p.phase + this.H + phaseNoise) % (Math.PI * 2);
     p.amplitude = 0.5 + 0.5 * Math.cos(p.phase);
   }
 
@@ -894,6 +907,25 @@ export class UniverseCore {
     // This significantly reduces worker postMessage overhead and main thread rendering load.
     let active = Array.from(this.activeParticles);
     
+    // Calculate real Coherence (Order Parameter)
+    let sumCos = 0;
+    let sumSin = 0;
+    const n = active.length || 1;
+    for (const p of active) {
+      sumCos += Math.cos(p.phase);
+      sumSin += Math.sin(p.phase);
+    }
+    const coherence = Math.sqrt(sumCos * sumCos + sumSin * sumSin) / n;
+
+    // Edge of Chaos: Inject phase variance if coherence is too high (Crystallization Prevention)
+    if (coherence > 0.95 && active.length > 10) {
+      for (const p of active) {
+        if (Math.random() < 0.1) {
+          p.phase += (Math.random() - 0.5) * 0.5;
+        }
+      }
+    }
+
     // Viewport Filtering: If viewport is provided, prioritize particles inside it
     if (viewport) {
       const margin = 500 / viewport.scale; // Extra margin for smooth entry
@@ -926,6 +958,7 @@ export class UniverseCore {
         activeTracesCount: this.activeTracesCount,
         systemTemperature: this.getSystemTemperature(),
         thermalGradient: this.getThermalGradient(),
+        coherence,
         photonCount,
         events: this.recentEvents,
         universeHorizon: 50000 + this.tickCount * this.effectiveLAMBDA * 100
