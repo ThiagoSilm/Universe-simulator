@@ -183,6 +183,8 @@ export class UniverseCore {
   // Resource Budgets (Anti-Avalanche)
   private readonly BASE_OBSERVATION_BUDGET = 100;
   private readonly BASE_RESOLUTION_BUDGET = 3000;
+  private readonly DT = 0.1; // Integration time step
+  private readonly MAX_FORCE = 5.0; // Force saturation limit
   private currentObservationCount = 0;
   private observerPos: { x: number; y: number; radius: number } | null = null;
 
@@ -360,23 +362,25 @@ export class UniverseCore {
           p.vy = (p.vy / speed) * this.C;
         }
 
-        p.x += p.vx;
-        p.y += p.vy;
+        p.x += p.vx * this.DT;
+        p.y += p.vy * this.DT;
         
         // Velocity Drag (Energy Dissipation)
-        p.vx *= 0.99;
-        p.vy *= 0.99;
+        p.vx *= 0.98; // Slightly increased drag for stability
+        p.vy *= 0.98;
 
         // Stochastic Noise (Simulated Annealing)
         // Prevents getting stuck in local minima, allows discovery of new states
-        const noiseScale = 0.01 * (1.0 + this.getThermalGradient() * 0.1);
-        p.vx += (Math.random() - 0.5) * noiseScale;
-        p.vy += (Math.random() - 0.5) * noiseScale;
+        const noiseScale = Math.min(0.05, 0.01 * (1.0 + this.getThermalGradient() * 0.1));
+        const nx = (Math.random() - 0.5) * noiseScale;
+        const ny = (Math.random() - 0.5) * noiseScale;
+        p.vx += nx;
+        p.vy += ny;
 
         // Movement Cost (Search Penalty)
         // Changing state/position costs persistence
         const speedSq = p.vx * p.vx + p.vy * p.vy;
-        const movementCost = speedSq * 0.001;
+        const movementCost = speedSq * 0.05; // Increased cost to compete with gains
         p.persistence -= movementCost;
         
         // Boundary check (Universe Horizon)
@@ -436,8 +440,8 @@ export class UniverseCore {
 
         if (neighbors.length > 1) {
           const { fx, fy } = this.calculateForce(p, neighbors);
-          p.vx += fx / p.weight;
-          p.vy += fy / p.weight;
+          p.vx += (fx / p.weight) * this.DT;
+          p.vy += (fy / p.weight) * this.DT;
           this.decisionsPerTick++;
           
           // Collision handling: Momentum & Information Exchange
@@ -668,15 +672,17 @@ export class UniverseCore {
       // It pushes away, so it's a negative force contribution.
       const quantumRepulsion = - (0.5) / (distSq * distSq);
       
-      // Stability Gradient (P-Field)
+      // Stability Gradient (P-Field) with Logistic Saturation
       // Particles are pushed towards regions of higher stability (persistence)
       // This is not "seeking", but responding to a local gradient.
-      const stabilityGradient = (n.persistence * 0.05) / distSq;
+      const rawStabilityGradient = (n.persistence * 0.05) / distSq;
+      const stabilityGradient = rawStabilityGradient / (1 + Math.abs(rawStabilityGradient));
       
       const netForce = gravity + electrostatic + quantumRepulsion + stabilityGradient;
+      const clampedForce = Math.max(-this.MAX_FORCE, Math.min(this.MAX_FORCE, netForce));
       
-      totalFx += (dx / dist) * netForce;
-      totalFy += (dy / dist) * netForce;
+      totalFx += (dx / dist) * clampedForce;
+      totalFy += (dy / dist) * clampedForce;
 
       // Virtual Photon Emission (Information exchange via field)
       // If there's a strong EM interaction, emit a virtual photon
