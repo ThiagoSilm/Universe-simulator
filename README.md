@@ -129,6 +129,8 @@ A mudança mais profunda na física do simulador: interações físicas não sã
 
 ## Seção 7: Isomorfismo com Sistemas Éticos e Religiosos — Evidência de Universalidade Observada
 
+> o mapeamento religioso/social é uma metáfora funcional testável, não uma afirmação sobre a veracidade de sistemas de crença.
+
 Os três princípios invariantes — lazy evaluation, observabilidade limitada e sustentabilidade por troca de informação — não emergem apenas no simulador. Eles aparecem como **padrão recorrente** em domínios radicalmente diferentes, sem que haja cópia direta ou influência causal óbvia entre eles.
 
 ### 7.1 Evidências de Universalidade
