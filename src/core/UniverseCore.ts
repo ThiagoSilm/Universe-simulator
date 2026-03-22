@@ -397,10 +397,11 @@ export class UniverseCore {
 
       // Lazy RAG: Query vacuum memory for initial state
       if (this.vacuumMemory.length > 0 && Math.random() < 0.3) { // 30% chance to inherit culture
-        const culture = this.vacuumMemory[Math.floor(Math.random() * this.vacuumMemory.length)];
+        const culture = this.vacuumMemory.splice(Math.floor(Math.random() * this.vacuumMemory.length), 1)[0];
         p.phase = culture.phase;
         p.energy = Math.max(1.0, culture.energy * 0.5); // Inherit some energy
         p.traces.push(...culture.traces.slice(0, 2)); // Inherit up to 2 traces
+        this.recentEvents.push("Reencarnação: Informação ancestral integrada");
       }
 
       this.wakeUp(p);
