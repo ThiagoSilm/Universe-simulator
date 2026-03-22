@@ -77,6 +77,7 @@ export class ObserverLayer {
     thermalGradient: 0,
     persistenceScale: 0,
     genesisActivity: 0,
+    explorationSuccessRate: 0,
   };
 
   constructor(savedState?: any) {
@@ -190,14 +191,22 @@ export class ObserverLayer {
       this.metrics.photonCount = coreMetrics.photonCount;
       this.metrics.coherence = coreMetrics.coherence || 0;
       this.metrics.genesisActivity = coreMetrics.genesisActivity || 0;
+      this.metrics.explorationSuccessRate = coreMetrics.explorationSuccessRate || 0;
     }
     
-    // Simulação de métricas complexas baseadas na densidade de atividade
-    this.metrics.interferenceCount = Math.floor(activeCount * 1.5);
-    this.metrics.entangledPairsCount = Math.floor(activeCount / 10);
-    this.metrics.lifeCount = Math.floor(activeCount / 50);
-    this.metrics.culture = Math.min(100, activeCount / 20);
-    this.metrics.technology = Math.min(100, activeCount / 10);
+    // Real Habitability-based Life Calculation
+    if (coreMetrics?.habitabilityMap) {
+      this.metrics.lifeCount = coreMetrics.habitabilityMap.reduce((acc: number, cell: any) => acc + (cell.potential > 0.6 ? 1 : 0), 0);
+      this.metrics.culture = Math.min(100, coreMetrics.habitabilityMap.reduce((acc: number, cell: any) => acc + cell.potential, 0) * 5);
+      this.metrics.technology = Math.min(100, this.metrics.culture * 1.2);
+    } else {
+      // Fallback
+      this.metrics.interferenceCount = Math.floor(activeCount * 1.5);
+      this.metrics.entangledPairsCount = Math.floor(activeCount / 10);
+      this.metrics.lifeCount = Math.floor(activeCount / 50);
+      this.metrics.culture = Math.min(100, activeCount / 20);
+      this.metrics.technology = Math.min(100, activeCount / 10);
+    }
 
     // Persistence Scale P(t) = (⟨k⟩ × τ × H × A) / D
     const k_avg = this.metrics.activeTracesCount / (activeCount || 1);

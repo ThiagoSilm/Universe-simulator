@@ -35,6 +35,7 @@ import {
   ScrollText,
   Camera,
   Sparkles,
+  Compass,
 } from "lucide-react";
 import { ObserverLayer, PersistentState, GRID_SIZE } from "./ObserverLayer";
 import { LazyDocumentary } from "./LazyDocumentary";
@@ -230,6 +231,28 @@ function renderUniverse(
     ctx.fill();
   }
   ctx.restore();
+
+  // ── Layer 1.5: Habitability Map (Emergent Life Zones) ──────────
+  if (state.habitabilityMap && state.habitabilityMap.length > 0) {
+    ctx.save();
+    for (const cell of state.habitabilityMap) {
+      const x = toX(cell.x);
+      const y = toY(cell.y);
+      const cellSize = 800 * scale; // Match HABITABILITY_GRID_SIZE
+      
+      const alpha = cell.potential * 0.12;
+      // Emerald green for habitability
+      ctx.fillStyle = `rgba(16, 185, 129, ${alpha})`;
+      ctx.fillRect(x - cellSize/2, y - cellSize/2, cellSize, cellSize);
+      
+      if (cell.potential > 0.7) {
+        ctx.strokeStyle = `rgba(16, 185, 129, ${alpha * 2})`;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x - cellSize/2, y - cellSize/2, cellSize, cellSize);
+      }
+    }
+    ctx.restore();
+  }
 
   // ── Layer 2: void / latent particles (quantum superposition) ────────
   ctx.save();
@@ -1090,9 +1113,9 @@ export default function App() {
                         icon={<Sparkles size={11} />}
                         color="text-purple-400"
                         pct
-                        tooltip="Taxa de surgimento espontâneo de nova informação e energia do vácuo. Impede o colapso total do sistema."
-                        formula="Probabilidade de Gênese por Tick"
-                        range="0.5% - 1.5% (Estável)"
+                        tooltip="Taxa emergente de criação. O vácuo torna-se instável quando há baixa coerência ou vazio informacional."
+                        formula="G = α(1-Coh) + β(1-Act)"
+                        range="Emergente / Dinâmico"
                         scientistMode={scientistMode}
                       />
                       <Metric
@@ -1225,6 +1248,15 @@ export default function App() {
                           range="0.0 - 1.0"
                           scientistMode={scientistMode}
                         />
+                        <Stat
+                          label="Exploração"
+                          value={((state?.explorationSuccessRate ?? 0) * 100).toFixed(1) + "%"}
+                          icon={<Compass size={10} />}
+                          color="text-orange-400"
+                          tooltip="Taxa de sucesso das partículas ao explorar novas configurações de fase e velocidade para aumentar a persistência."
+                          range="Exploração do espaço de estados"
+                          scientistMode={scientistMode}
+                        />
                       </div>
                     </div>
                   )}
@@ -1232,14 +1264,14 @@ export default function App() {
                   {activeTab === "life" && (
                     <div className="space-y-2">
                       <Metric
-                        label="Fertilidade"
-                        value={state?.fertility ?? 0}
-                        icon={<Activity size={11} />}
-                        color="text-orange-400"
-                        trend={getTrend(state?.fertility, prevStats.fertility)}
-                        tooltip="Capacidade do ambiente de sustentar vida. Depende de densidade orgânica e reciclagem de matéria."
-                        formula="(OrgDensity * 10) + (Recycle * 5)"
-                        range="> 5.0 (Bio-favorável)"
+                        label="Habitabilidade"
+                        value={(state?.habitabilityMap?.reduce((acc, c) => acc + c.potential, 0) || 0) / (state?.habitabilityMap?.length || 1)}
+                        icon={<Globe size={11} />}
+                        color="text-emerald-400"
+                        pct
+                        tooltip="Média global de habitabilidade. Mede o quão propício o universo é para a emergência de complexidade."
+                        formula="Σ L(x) / N"
+                        range="0.4 - 0.7 (Ideal)"
                         scientistMode={scientistMode}
                       />
                       <div className="grid grid-cols-2 gap-2">
@@ -1252,27 +1284,30 @@ export default function App() {
                           scientistMode={scientistMode}
                         />
                         <Stat
-                          label="Orgânicas"
-                          value={state?.organicCount ?? 0}
-                          icon={<Zap size={10} />}
-                          color="text-emerald-500"
-                          tooltip="Moléculas complexas baseadas em carbono."
-                          scientistMode={scientistMode}
-                        />
-                        <Stat
-                          label="Replicantes"
-                          value={state?.replicantCount ?? 0}
-                          icon={<RefreshCw size={10} />}
-                          color="text-violet-400"
-                          tooltip="Moléculas capazes de auto-cópia."
-                          scientistMode={scientistMode}
-                        />
-                        <Stat
-                          label="Vida"
+                          label="Zonas de Vida"
                           value={state?.lifeCount ?? 0}
                           icon={<Heart size={10} />}
-                          color="text-red-400"
-                          tooltip="Partículas com metabolismo ativo."
+                          color="text-pink-400"
+                          tooltip="Número de regiões que atingiram o limiar de habitabilidade crítica (Edge of Chaos)."
+                          range="L(x) > 0.6"
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Cultura"
+                          value={state?.culture ?? 0}
+                          icon={<ScrollText size={10} />}
+                          color="text-amber-400"
+                          tooltip="Acúmulo de informação persistente em zonas habitáveis."
+                          range="Memória coletiva"
+                          scientistMode={scientistMode}
+                        />
+                        <Stat
+                          label="Tecnologia"
+                          value={state?.technology ?? 0}
+                          icon={<Cpu size={10} />}
+                          color="text-cyan-400"
+                          tooltip="Capacidade de manipulação do ambiente baseada em informação acumulada."
+                          range="Eficiência informacional"
                           scientistMode={scientistMode}
                         />
                       </div>

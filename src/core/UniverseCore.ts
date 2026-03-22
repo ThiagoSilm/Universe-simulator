@@ -29,6 +29,8 @@ export interface ParticleCore {
   ax: number;
   ay: number;
   persistence: number;
+  lastReward?: number;
+  lastMutation?: { type: 'phase' | 'direction' | 'energy'; value: number };
 }
 
 class Quadtree {
@@ -143,7 +145,11 @@ export class UniverseCore {
   private readonly EPS = 0.05; 
   private readonly PLANCK_TEMP = 1000; 
   private readonly BEKENSTEIN_LIMIT = 20; 
-  private readonly GENESIS_RATE = 0.008;
+  private currentGenesisRate = 0.008;
+  private habitabilityMap: Map<string, { potential: number, coherence: number, density: number, activity: number }> = new Map();
+  private readonly HABITABILITY_GRID_SIZE = 800;
+  private successfulExplorations = 0;
+  private totalExplorations = 0;
   
   // Influence Factors
   private G_influence = 1.0;
@@ -297,11 +303,32 @@ export class UniverseCore {
     this.totalSelfEnergy = 0;
     this.activeTracesCount = 0;
     this.currentObservationCount = 0; // Reset budget
+
+    // Emergent Genesis Calculation: G = f(Chaos, Void)
+    // This makes the "Vacuum Instability" a consequence of the system's state.
+    const activeCount = this.activeParticles.size;
+    const totalCount = this.particles.length || 1;
+    const activityLevel = activeCount / totalCount;
+    
+    let sumCos = 0;
+    let sumSin = 0;
+    for (const p of this.activeParticles) {
+      sumCos += Math.cos(p.phase);
+      sumSin += Math.sin(p.phase);
+    }
+    const coherence = activeCount > 0 ? Math.sqrt(sumCos * sumCos + sumSin * sumSin) / activeCount : 0;
+
+    // Parameters for the Genesis Function
+    const alpha = 0.006; // Chaos sensitivity (low coherence -> high genesis)
+    const beta = 0.014;  // Void sensitivity (low activity -> high genesis)
+    const baseInstability = 0.001; // Minimum quantum jitter
+    
+    this.currentGenesisRate = baseInstability + (alpha * (1 - coherence)) + (beta * (1 - activityLevel));
     
     // Continuous Genesis (Gênese Contínua)
     // This represents the spontaneous emergence of new information/potential.
     // It prevents the system from staying in an absorbing state (thermal death).
-    if (Math.random() < this.GENESIS_RATE && this.particles.length > 0) {
+    if (Math.random() < this.currentGenesisRate && this.particles.length > 0) {
       const randomIdx = Math.floor(Math.random() * this.particles.length);
       const p = this.particles[randomIdx];
       
@@ -320,7 +347,15 @@ export class UniverseCore {
       });
 
       this.wakeUp(p);
-      this.recentEvents.push("Gênese Contínua: Nova informação emergindo do vácuo");
+      this.recentEvents.push("Gênese Contínua: Instabilidade do vácuo detectada");
+    }
+
+    this.updateHabitabilityMap();
+
+    // Reset exploration counters periodically to maintain a "recent" success rate
+    if (this.tickCount % 1000 === 0) {
+      this.successfulExplorations = 0;
+      this.totalExplorations = 0;
     }
 
     // Adaptive Budgets: Scale based on system efficiency and entropy
@@ -356,8 +391,8 @@ export class UniverseCore {
       qt.insert(p);
     }
 
-    const activityLevel = this.activeParticles.size / (this.particles.length || 1);
-    const expansionRate = this.effectiveLAMBDA * (activityLevel > 0.001 ? 1.0 : 0.05);
+    const currentActivityLevel = this.activeParticles.size / (this.particles.length || 1);
+    const expansionRate = this.effectiveLAMBDA * (currentActivityLevel > 0.001 ? 1.0 : 0.05);
 
     for (const p of this.activeParticles) {
       // 1. Cosmological Expansion (Λ)
@@ -394,6 +429,55 @@ export class UniverseCore {
         p.x += p.vx * this.DT;
         p.y += p.vy * this.DT;
         
+        // ── Exploratory Dynamics: State Space Search ──────────────────
+        // Particles explore local configurations to maximize persistence.
+        // This is "learning without consciousness" via local feedback.
+        if (this.tickCount % 5 === 0) {
+          const currentReward = p.persistence + (p.isBound ? 2.0 : 0);
+          this.totalExplorations++;
+
+          if (p.lastReward !== undefined && currentReward < p.lastReward) {
+            // Revert last mutation if it was detrimental
+            if (p.lastMutation) {
+              if (p.lastMutation.type === 'phase') p.phase -= p.lastMutation.value;
+              if (p.lastMutation.type === 'direction') {
+                const invAngle = -p.lastMutation.value;
+                const cos = Math.cos(invAngle);
+                const sin = Math.sin(invAngle);
+                const rx = p.vx * cos - p.vy * sin;
+                const ry = p.vx * sin + p.vy * cos;
+                p.vx = rx;
+                p.vy = ry;
+              }
+              if (p.lastMutation.type === 'energy') p.energy -= p.lastMutation.value;
+            }
+          } else if (p.lastReward !== undefined && currentReward > p.lastReward) {
+            this.successfulExplorations++;
+          }
+
+          // Test a new variation
+          p.lastReward = currentReward;
+          const mutationType = Math.random();
+          if (mutationType < 0.33) {
+            const dPhase = (Math.random() - 0.5) * 0.15;
+            p.phase += dPhase;
+            p.lastMutation = { type: 'phase', value: dPhase };
+          } else if (mutationType < 0.66) {
+            const dAngle = (Math.random() - 0.5) * 0.08;
+            const cos = Math.cos(dAngle);
+            const sin = Math.sin(dAngle);
+            const rx = p.vx * cos - p.vy * sin;
+            const ry = p.vx * sin + p.vy * cos;
+            p.vx = rx;
+            p.vy = ry;
+            p.lastMutation = { type: 'direction', value: dAngle };
+          } else {
+            const dEnergy = (Math.random() - 0.5) * 0.05;
+            p.energy += dEnergy;
+            p.lastMutation = { type: 'energy', value: dEnergy };
+          }
+        }
+
         // Velocity Drag (Energy Dissipation)
         p.vx *= 0.98; // Slightly increased drag for stability
         p.vy *= 0.98;
@@ -920,6 +1004,60 @@ export class UniverseCore {
     return Math.sqrt(varianceSum / this.activeParticles.size);
   }
 
+  private updateHabitabilityMap() {
+    // We only update the map every few ticks to save performance
+    if (this.tickCount % 10 !== 0) return;
+
+    this.habitabilityMap.clear();
+    const grid: Map<string, { 
+      sumPhaseCos: number, 
+      sumPhaseSin: number, 
+      count: number, 
+      sumEnergy: number 
+    }> = new Map();
+
+    // Aggregate active particles into grid cells
+    for (const p of this.activeParticles) {
+      const gx = Math.floor(p.x / this.HABITABILITY_GRID_SIZE);
+      const gy = Math.floor(p.y / this.HABITABILITY_GRID_SIZE);
+      const key = `${gx},${gy}`;
+
+      let cell = grid.get(key);
+      if (!cell) {
+        cell = { sumPhaseCos: 0, sumPhaseSin: 0, count: 0, sumEnergy: 0 };
+        grid.set(key, cell);
+      }
+
+      cell.sumPhaseCos += Math.cos(p.phase);
+      cell.sumPhaseSin += Math.sin(p.phase);
+      cell.count++;
+      cell.sumEnergy += p.energy;
+    }
+
+    // Calculate habitability for each cell
+    for (const [key, data] of grid.entries()) {
+      const coherence = Math.sqrt(data.sumPhaseCos ** 2 + data.sumPhaseSin ** 2) / data.count;
+      const density = data.count;
+      const activity = data.sumEnergy / data.count;
+
+      // Habitability Function L(x)
+      // 1. Coherence: Edge of Chaos (0.4 < coherence < 0.9)
+      const coherenceScore = coherence > 0.4 && coherence < 0.9 ? 1.0 : (coherence > 0.9 ? 0.2 : 0.1);
+      
+      // 2. Density: Moderate density is best (not too isolated, not a black hole)
+      const densityScore = density > 2 && density < 15 ? 1.0 : (density >= 15 ? 0.3 : 0.1);
+      
+      // 3. Activity: Stable energy flow
+      const activityScore = activity > 0.5 && activity < 2.5 ? 1.0 : 0.2;
+
+      const potential = coherenceScore * densityScore * activityScore;
+
+      if (potential > 0.1) {
+        this.habitabilityMap.set(key, { potential, coherence, density, activity });
+      }
+    }
+  }
+
   public getSnapshot(viewport?: { x: number, y: number, width: number, height: number, scale: number }) {
     // Lazy Snapshot: Only send active particles and a stable subset of latent ones
     // This significantly reduces worker postMessage overhead and main thread rendering load.
@@ -981,7 +1119,16 @@ export class UniverseCore {
         thermalGradient: this.getThermalGradient(),
         coherence,
         photonCount,
-        genesisActivity: this.GENESIS_RATE,
+        genesisActivity: this.currentGenesisRate,
+        explorationSuccessRate: this.totalExplorations > 0 ? this.successfulExplorations / this.totalExplorations : 0,
+        habitabilityMap: Array.from(this.habitabilityMap.entries()).map(([key, val]) => {
+          const [gx, gy] = key.split(',').map(Number);
+          return {
+            x: gx * this.HABITABILITY_GRID_SIZE + this.HABITABILITY_GRID_SIZE / 2,
+            y: gy * this.HABITABILITY_GRID_SIZE + this.HABITABILITY_GRID_SIZE / 2,
+            ...val
+          };
+        }),
         events: this.recentEvents,
         universeHorizon: 50000 + this.tickCount * currentExpansionRate * 100
       }

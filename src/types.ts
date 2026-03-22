@@ -83,6 +83,15 @@ export interface LatentInformation {
   intensity: number;
 }
 
+export interface HabitabilityCell {
+  x: number;
+  y: number;
+  potential: number;
+  coherence: number;
+  density: number;
+  activity: number;
+}
+
 export interface UniverseState {
   particles: Particle[];
   entropy: number;
@@ -170,6 +179,8 @@ export interface UniverseState {
   thermalGradient: number;
   persistenceScale: number;
   genesisActivity: number;
+  explorationSuccessRate: number;
+  habitabilityMap?: HabitabilityCell[];
 }
 
 export interface CycleHistory {
