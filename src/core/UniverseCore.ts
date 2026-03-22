@@ -28,6 +28,7 @@ export interface ParticleCore {
   positionHistory: { x: number; y: number; tick: number }[];
   ax: number;
   ay: number;
+  persistence: number;
 }
 
 class Quadtree {
@@ -245,6 +246,7 @@ export class UniverseCore {
         positionHistory: [],
         ax: 0,
         ay: 0,
+        persistence: 1.0,
       };
       // Initialize potential histories
       for (let j = 0; j < 3; j++) {
@@ -346,14 +348,14 @@ export class UniverseCore {
 
       if (!p.isBlackHole) {
         // Cap velocity at c
-        const speedSq = p.vx * p.vx + p.vy * p.vy;
-        if (speedSq > this.C * this.C) {
-          const speed = Math.sqrt(speedSq);
+        const currentSpeedSq = p.vx * p.vx + p.vy * p.vy;
+        if (currentSpeedSq > this.C * this.C) {
+          const speed = Math.sqrt(currentSpeedSq);
           p.vx = (p.vx / speed) * this.C;
           p.vy = (p.vy / speed) * this.C;
-        } else if (p.weight <= 0.001 && speedSq < this.C * this.C * 0.99) {
+        } else if (p.weight <= 0.001 && currentSpeedSq < this.C * this.C * 0.99) {
           // Massless particles always travel at c
-          const speed = Math.sqrt(speedSq) || 1;
+          const speed = Math.sqrt(currentSpeedSq) || 1;
           p.vx = (p.vx / speed) * this.C;
           p.vy = (p.vy / speed) * this.C;
         }
@@ -364,6 +366,18 @@ export class UniverseCore {
         // Velocity Drag (Energy Dissipation)
         p.vx *= 0.99;
         p.vy *= 0.99;
+
+        // Stochastic Noise (Simulated Annealing)
+        // Prevents getting stuck in local minima, allows discovery of new states
+        const noiseScale = 0.01 * (1.0 + this.getThermalGradient() * 0.1);
+        p.vx += (Math.random() - 0.5) * noiseScale;
+        p.vy += (Math.random() - 0.5) * noiseScale;
+
+        // Movement Cost (Search Penalty)
+        // Changing state/position costs persistence
+        const speedSq = p.vx * p.vx + p.vy * p.vy;
+        const movementCost = speedSq * 0.001;
+        p.persistence -= movementCost;
         
         // Boundary check (Universe Horizon)
         const horizon = this.expansionStarted ? (100 + this.decisionsPerTick * 0.1) : 50;
@@ -407,6 +421,12 @@ export class UniverseCore {
         
         const entropyCost = (this.ENTROPY_COST_BASE + (density * this.effectiveENTROPY_DENSITY_FACTOR)) / couplingFactor;
         p.energy -= entropyCost;
+
+        // Persistence Update (Dynamic Stability)
+        // Persistence grows in stable environments (coupling) and decays in high-entropy ones.
+        const couplingBonus = p.traces.length * 0.001;
+        const entropyPenalty = density * 0.0001;
+        p.persistence = Math.max(0.1, Math.min(2.0, p.persistence + couplingBonus - entropyPenalty));
         
         // Trace Decay: Information fades faster in dense environments, but coupling protects it
         if (density > 5 && p.traces.length > 0) {
@@ -592,7 +612,8 @@ export class UniverseCore {
         potentialHistories: [],
         positionHistory: [],
         ax: 0,
-        ay: 0
+        ay: 0,
+        persistence: 1.0
       };
       for (let j = 0; j < 3; j++) {
         p.potentialHistories.push({
@@ -647,7 +668,12 @@ export class UniverseCore {
       // It pushes away, so it's a negative force contribution.
       const quantumRepulsion = - (0.5) / (distSq * distSq);
       
-      const netForce = gravity + electrostatic + quantumRepulsion;
+      // Stability Gradient (P-Field)
+      // Particles are pushed towards regions of higher stability (persistence)
+      // This is not "seeking", but responding to a local gradient.
+      const stabilityGradient = (n.persistence * 0.05) / distSq;
+      
+      const netForce = gravity + electrostatic + quantumRepulsion + stabilityGradient;
       
       totalFx += (dx / dist) * netForce;
       totalFy += (dy / dist) * netForce;
@@ -707,7 +733,8 @@ export class UniverseCore {
       potentialHistories: [],
       positionHistory: [],
       ax: 0,
-      ay: 0
+      ay: 0,
+      persistence: 1.0
     };
 
     this.particles.push(photon);
@@ -997,7 +1024,8 @@ export class UniverseCore {
       isBound: false,
       potentialHistories: [],
       positionHistory: [],
-      ax: 0, ay: 0
+      ax: 0, ay: 0,
+      persistence: (p1.persistence + p2.persistence) / 2
     };
 
     this.particles.push(fused);
