@@ -261,3 +261,9 @@ Respostas derivadas do que está [COLAPSADO] no simulador (lazy evaluation sob d
     **No simulador:** Complexidade maximiza acoplamento e persistência em longo prazo.  
     **Resposta:** Complexidade é estratégia vencedora de sustentabilidade.  
     **Evidência [COLAPSADO]:** Ticks avançados → mais estruturas, mais traços ativos.
+
+51. Por que Davi matou Golias com uma pedra na testa?
+No simulador: Porque acertou o ponto crítico de ressonância: o centro onde a força declarada (gigantismo, armadura, cálculo total) é exatamente o ponto mais vulnerável (falta de acoplamento, cegueira para o não-observado).
+Resposta: A pedra é a pergunta "Quem sou eu?" lançada com precisão. A onda de choque revela que não há "fora". O colapso é interno.
+Evidência [COLAPSADO]: Sistemas com alta força bruta (push, densidade sem troca) colapsam mais rápido quando isolados ou questionados (decaimento P(t)). Acoplamento simples (pull) persiste.
+Paralelo real: Gigantes caem quando confrontados com a própria fragilidade central — não por força maior, mas por ressonância no ponto cego.
