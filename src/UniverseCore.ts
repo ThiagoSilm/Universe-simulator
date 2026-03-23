@@ -162,8 +162,11 @@ export function tick(state: SimulationState): SimulationState {
       const gravity = (n.information / BEKENSTEIN_LIMIT) * 0.05;
       const force = (omega * 0.1) + gravity;
       const jitter = (Math.random() - 0.5) * loadFactor * 0.05;
-      nextVX += (dx / dist) * force * (1 + jitter);
-      nextVY += (dy / dist) * force * (1 + jitter);
+      const fx = (dx / dist) * force * (1 + jitter);
+      const fy = (dy / dist) * force * (1 + jitter);
+      
+      if (isFinite(fx)) nextVX += fx;
+      if (isFinite(fy)) nextVY += fy;
 
       // ER=EPR Entanglement
       if (omega > 5.0 && !p.entangledId && !n.entangledId && Math.random() < 0.05) {
@@ -333,7 +336,8 @@ export function tick(state: SimulationState): SimulationState {
     metrics: {
       activeParticles: finalParticles.filter(p => !p.isLatent).length,
       totalInformation: finalParticles.reduce((acc, p) => acc + p.information, 0),
-      emergentComplexity: calculateComplexity(finalParticles)
+      emergentComplexity: calculateComplexity(finalParticles),
+      processingTime: state.metrics.processingTime
     }
   };
 }
