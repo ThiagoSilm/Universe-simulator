@@ -159,7 +159,8 @@ export default function App() {
 
     socket.on("universe-update", (nextState: SimulationState) => {
       setState(nextState);
-      setMetrics(calculateObserverMetrics(nextState));
+      const nextMetrics = calculateObserverMetrics(nextState);
+      setMetrics(nextMetrics);
       const newEvents = documentaryRef.current.observe(nextState);
       if (newEvents.length > 0) {
         setEvents(prev => [...newEvents, ...prev].slice(0, 50));
@@ -210,7 +211,7 @@ export default function App() {
         <div className="absolute top-6 left-6 right-6 flex justify-between pointer-events-none">
           <div className="flex gap-4">
             <MetricCard icon={<Activity className="w-4 h-4 text-cyan-400" />} label="Culture" value={metrics.culture.toFixed(1)} />
-            <MetricCard icon={<Cpu className="w-4 h-4 text-purple-400" />} label="Tech" value={metrics.technology.toFixed(1)} />
+            <MetricCard icon={<Cpu className="w-4 h-4 text-purple-400" />} label="Load" value={(state.metrics.processingTime).toFixed(0) + "ms"} />
             <MetricCard icon={<Zap className="w-4 h-4 text-yellow-400" />} label="Efficiency" value={(metrics.efficiency * 100).toFixed(1) + "%"} />
             <MetricCard icon={<Database className="w-4 h-4 text-red-400" />} label="Entropy" value={(metrics.entropy * 100).toFixed(1) + "%"} />
           </div>

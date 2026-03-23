@@ -39,6 +39,7 @@ export interface SimulationState {
     activeParticles: number;
     totalInformation: number;
     emergentComplexity: number;
+    processingTime: number; // Added for hardware-as-substrate
   };
 }
 

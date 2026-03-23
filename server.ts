@@ -28,7 +28,8 @@ async function startServer() {
     metrics: {
       activeParticles: 0,
       totalInformation: 0,
-      emergentComplexity: 0
+      emergentComplexity: 0,
+      processingTime: 0
     }
   };
 
@@ -86,7 +87,9 @@ async function startServer() {
 
   // Simulation Loop (Independente da aba)
   setInterval(() => {
+    const start = Date.now();
     state = tick(state);
+    state.metrics.processingTime = Date.now() - start;
     
     // Broadcast state to all connected observers
     io.emit("universe-update", state);

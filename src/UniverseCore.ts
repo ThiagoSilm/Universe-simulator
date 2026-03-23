@@ -77,6 +77,7 @@ export const BEKENSTEIN_LIMIT = 1000; // Bits per area unit
 
 export function tick(state: SimulationState): SimulationState {
   const { particles, bounds } = state;
+  const loadFactor = Math.max(1, state.metrics.processingTime / 33);
   const qt = new Quadtree({ x: 0, y: 0, w: bounds.width, h: bounds.height });
   
   // 1. Insert active particles into Quadtree
@@ -87,8 +88,8 @@ export function tick(state: SimulationState): SimulationState {
   const newParticles = particles.map(p => {
     if (p.isCollapsed) return p;
 
-    // 2. Lazy Persistence Decay
-    let persistence = p.persistence - 0.001;
+    // 2. Lazy Persistence Decay (with thermal noise)
+    let persistence = p.persistence - (0.001 * loadFactor);
     if (persistence < 0) persistence = 0;
     
     let isLatent = persistence < 0.1;
@@ -160,8 +161,9 @@ export function tick(state: SimulationState): SimulationState {
       // Emergent Gravity (Density-driven)
       const gravity = (n.information / BEKENSTEIN_LIMIT) * 0.05;
       const force = (omega * 0.1) + gravity;
-      nextVX += (dx / dist) * force;
-      nextVY += (dy / dist) * force;
+      const jitter = (Math.random() - 0.5) * loadFactor * 0.05;
+      nextVX += (dx / dist) * force * (1 + jitter);
+      nextVY += (dy / dist) * force * (1 + jitter);
 
       // ER=EPR Entanglement
       if (omega > 5.0 && !p.entangledId && !n.entangledId && Math.random() < 0.05) {
