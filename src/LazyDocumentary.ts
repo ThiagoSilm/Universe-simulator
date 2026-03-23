@@ -22,7 +22,7 @@ export class LazyDocumentary {
 
     if (singularities > 0 && state.tick % 300 === 0) {
       newEvents.push({
-        id: `singularity-${state.tick}`,
+        id: `singularity-${state.tick}-${Math.random()}`,
         type: "COLLAPSE",
         description: `Black Hole detected: Substrate limit exceeded. Information is being compressed into a non-computable point.`,
         tick: state.tick
@@ -31,7 +31,7 @@ export class LazyDocumentary {
 
     if (stars > 0 && state.tick % 400 === 0) {
       newEvents.push({
-        id: `star-${state.tick}`,
+        id: `star-${state.tick}-${Math.random()}`,
         type: "EMERGENCE",
         description: `Star Birth: Density threshold reached. The substrate has ignited into a high-rhythm information node.`,
         tick: state.tick
@@ -40,7 +40,7 @@ export class LazyDocumentary {
 
     if (nebulas > 0 && state.tick % 500 === 0) {
       newEvents.push({
-        id: `nebula-${state.tick}`,
+        id: `nebula-${state.tick}-${Math.random()}`,
         type: "EMERGENCE",
         description: `Nebula Cluster: Collective persistence redistribution is seeding new entities in a slow-rhythm cluster.`,
         tick: state.tick
@@ -53,7 +53,7 @@ export class LazyDocumentary {
     const highSpeed = state.particles.filter(p => Math.sqrt(p.vx * p.vx + p.vy * p.vy) > 5).length;
     if (highSpeed > 2 && state.tick % 150 === 0) {
       newEvents.push({
-        id: `exclusion-${state.tick}`,
+        id: `exclusion-${state.tick}-${Math.random()}`,
         type: "PHYSICS",
         description: "Dissonance Exclusion: Phase misalignment generating emergent repulsion.",
         tick: state.tick
@@ -63,7 +63,7 @@ export class LazyDocumentary {
     // 3. Detect Resonant Coupling
     if (state.metrics.activeParticles > 10 && state.tick % 200 === 0) {
       newEvents.push({
-        id: `coupling-${state.tick}`,
+        id: `coupling-${state.tick}-${Math.random()}`,
         type: "EMERGENCE",
         description: "Coherence Emergence: Nodes are achieving mutual observation and persistence.",
         tick: state.tick
@@ -76,14 +76,14 @@ export class LazyDocumentary {
     newParticles.forEach(p => {
       if (p.id.startsWith("mitosis")) {
         newEvents.push({
-          id: `mitosis-${p.id}`,
+          id: `mitosis-${p.id}-${Math.random()}`,
           type: "BIOGENESIS",
           description: "Mitosis: A high-persistence node has divided, paying the full cost of replication.",
           tick: state.tick
         });
       } else if (p.id.startsWith("sexual")) {
         newEvents.push({
-          id: `sexual-${p.id}`,
+          id: `sexual-${p.id}-${Math.random()}`,
           type: "BIOGENESIS",
           description: "Sexual Coupling: Two resonant nodes have merged their information to seed a new entity.",
           tick: state.tick
@@ -99,7 +99,7 @@ export class LazyDocumentary {
     const leaders = state.particles.filter(p => p.role === "leader").length;
     if (leaders > 0 && state.tick % 250 === 0) {
       newEvents.push({
-        id: `editing-${state.tick}`,
+        id: `editing-${state.tick}-${Math.random()}`,
         type: "EDITING",
         description: `Internal Observation: ${leaders} nodes have assumed leadership to stabilize reality.`,
         tick: state.tick

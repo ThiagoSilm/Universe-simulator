@@ -10,8 +10,8 @@ import {
   Layers,
   Cpu,
 } from "lucide-react";
-import { io, Socket } from "socket.io-client";
 import { SimulationState } from "./types";
+import { tick } from "./UniverseCore";
 import { calculateObserverMetrics, ObserverMetrics } from "./ObserverLayer";
 import { LazyDocumentary, DocumentaryEvent } from "./LazyDocumentary";
 
@@ -139,45 +139,109 @@ function renderSimulation(
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  INITIAL STATE
+// ═══════════════════════════════════════════════════════════════════
+
+const INITIAL_STATE: SimulationState = {
+  particles: [
+    {
+      id: "alpha",
+      type: "matter",
+      role: "leader",
+      charge: 1,
+      frequency: 0.5,
+      phase: 0,
+      x: 400,
+      y: 500,
+      vx: 0,
+      vy: 0,
+      persistence: 1,
+      information: 100,
+      entropy: 0,
+      composition: { C: 1, H: 4 },
+      isLatent: false,
+      isCollapsed: false
+    },
+    {
+      id: "beta",
+      type: "matter",
+      role: "leader",
+      charge: -1,
+      frequency: 0.5,
+      phase: Math.PI,
+      x: 600,
+      y: 500,
+      vx: 0,
+      vy: 0,
+      persistence: 1,
+      information: 100,
+      entropy: 0,
+      composition: { C: 1, H: 4 },
+      isLatent: false,
+      isCollapsed: false
+    }
+  ],
+  tick: 0,
+  bounds: { width: 1000, height: 1000 },
+  metrics: {
+    activeParticles: 0,
+    totalInformation: 0,
+    emergentComplexity: 0,
+    processingTime: 0
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════
 //  APP
 // ═══════════════════════════════════════════════════════════════════
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const socketRef = useRef<Socket | null>(null);
   const documentaryRef = useRef(new LazyDocumentary());
   
-  const [state, setState] = useState<SimulationState | null>(null);
+  const [state, setState] = useState<SimulationState>(() => {
+    const saved = localStorage.getItem("universe-state");
+    return saved ? JSON.parse(saved) : INITIAL_STATE;
+  });
   const [metrics, setMetrics] = useState<ObserverMetrics | null>(null);
   const [events, setEvents] = useState<DocumentaryEvent[]>([]);
   const [showLogs, setShowLogs] = useState(true);
 
-  // ── Socket Initialization ─────────────────────────────────────────
+  // ── Simulation Loop ───────────────────────────────────────────────
   useEffect(() => {
-    const socket = io(window.location.origin, {
-      path: "/socket.io/",
-      transports: ["websocket"]
-    });
-    socketRef.current = socket;
+    const interval = setInterval(() => {
+      const start = Date.now();
+      setState(prevState => {
+        const nextState = tick(prevState);
+        nextState.metrics.processingTime = Date.now() - start;
+        
+        // Persist every 100 ticks
+        if (nextState.tick % 100 === 0) {
+          localStorage.setItem("universe-state", JSON.stringify(nextState));
+        }
+        
+        return nextState;
+      });
+    }, 33);
 
-    socket.on("connect", () => {
-      console.log("Conectado ao substrato!");
-    });
-
-    socket.on("universe-update", (nextState: SimulationState) => {
-      setState(nextState);
-      const nextMetrics = calculateObserverMetrics(nextState);
-      setMetrics(nextMetrics);
-      const newEvents = documentaryRef.current.observe(nextState);
-      if (newEvents.length > 0) {
-        setEvents(prev => [...newEvents, ...prev].slice(0, 50));
-      }
-    });
-
-    return () => {
-      socket.disconnect();
-    };
+    return () => clearInterval(interval);
   }, []);
+
+  // ── Metrics & Documentary ─────────────────────────────────────────
+  useEffect(() => {
+    if (!state) return;
+    const nextMetrics = calculateObserverMetrics(state);
+    
+    setMetrics(prev => {
+        if (prev && prev.culture === nextMetrics.culture && prev.technology === nextMetrics.technology && prev.efficiency === nextMetrics.efficiency && prev.entropy === nextMetrics.entropy) return prev;
+        return nextMetrics;
+    });
+    
+    const newEvents = documentaryRef.current.observe(state);
+    if (newEvents.length > 0) {
+      setEvents(prev => [...newEvents, ...prev].slice(0, 50));
+    }
+  }, [state]);
 
   // ── Rendering Loop ────────────────────────────────────────────────
   useEffect(() => {
@@ -199,11 +263,23 @@ export default function App() {
   }, [state]);
 
   const handleCanvasClick = (e: React.MouseEvent) => {
-    socketRef.current?.emit("stimulus", { x: e.clientX, y: e.clientY, radius: 100 });
+    setState(prevState => {
+      const newState = { ...prevState };
+      newState.particles.forEach(p => {
+        const dx = e.clientX - p.x;
+        const dy = e.clientY - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 100) {
+          p.vx += (dx / dist) * 5;
+          p.vy += (dy / dist) * 5;
+          p.persistence = Math.min(1, p.persistence + 0.1);
+        }
+      });
+      return newState;
+    });
   };
 
   if (!state || !metrics) {
-    console.error("Initialization hang: state or metrics missing", { state: !!state, metrics: !!metrics });
     return <div className="h-screen w-screen bg-black flex items-center justify-center text-white font-mono animate-pulse">Initializing Substrate...</div>;
   }
 
