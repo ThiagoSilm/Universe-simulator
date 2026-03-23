@@ -203,7 +203,11 @@ export default function App() {
     const saved = localStorage.getItem("universe-state");
     return saved ? JSON.parse(saved) : INITIAL_STATE;
   });
-  const [metrics, setMetrics] = useState<ObserverMetrics | null>(null);
+  const [metrics, setMetrics] = useState<ObserverMetrics>(() => {
+    const saved = localStorage.getItem("universe-state");
+    const initialState = saved ? JSON.parse(saved) : INITIAL_STATE;
+    return calculateObserverMetrics(initialState);
+  });
   const [events, setEvents] = useState<DocumentaryEvent[]>([]);
   const [showLogs, setShowLogs] = useState(true);
 
