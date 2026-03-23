@@ -1,4 +1,4 @@
-import { UniverseState, Particle } from './types';
+import { UniverseState } from './types';
 
 export const GRID_SIZE = 60;
 
@@ -26,7 +26,6 @@ export class ObserverLayer {
     entropy: 1,
     coherence: 0,
     totalInformation: 0,
-    interactionDensity: 0,
     pairProductionCount: 0,
     annihilationCount: 0,
     fissionCount: 0,
@@ -81,6 +80,7 @@ export class ObserverLayer {
     explorationSuccessRate: 0,
     nonLocalEfficiency: 0,
     memoryUsage: 0,
+    interactionDensity: 0,
     ptEquation: {
       avgCoupling: 0,
       avgPersistence: 0,
@@ -268,7 +268,7 @@ export class ObserverLayer {
     this.worker.postMessage({ type: 'RESET' });
   }
 
-  public static describeEvent(p: any, tick: number) {
+  public static describeEvent(p: any) {
     return {
       funcaoOnda: `ψ = ${(p.amplitude || 0).toFixed(3)} * e^(i${(p.phase || 0).toFixed(3)})`,
       matrizDensidade: `ρ = |${((p.amplitude || 0) ** 2).toFixed(3)}| (Contexto: ${(p.contextualBias || 0).toFixed(2)})`,

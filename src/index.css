@@ -1,18 +1,14 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
 @import "tailwindcss";
 
 @theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
 body {
+  background-color: #000;
+  color: #fff;
+  overflow: hidden;
   margin: 0;
   padding: 0;
-  background-color: #050505;
-  overflow: hidden;
 }
-
-canvas {
-  filter: contrast(1.1) brightness(1.1);
-}
-
