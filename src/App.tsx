@@ -154,8 +154,15 @@ export default function App() {
 
   // ── Socket Initialization ─────────────────────────────────────────
   useEffect(() => {
-    const socket = io();
+    const socket = io(window.location.origin, {
+      path: "/socket.io/",
+      transports: ["websocket"]
+    });
     socketRef.current = socket;
+
+    socket.on("connect", () => {
+      console.log("Conectado ao substrato!");
+    });
 
     socket.on("universe-update", (nextState: SimulationState) => {
       setState(nextState);
@@ -195,7 +202,10 @@ export default function App() {
     socketRef.current?.emit("stimulus", { x: e.clientX, y: e.clientY, radius: 100 });
   };
 
-  if (!state || !metrics) return <div className="h-screen w-screen bg-black flex items-center justify-center text-white font-mono animate-pulse">Initializing Substrate...</div>;
+  if (!state || !metrics) {
+    console.error("Initialization hang: state or metrics missing", { state: !!state, metrics: !!metrics });
+    return <div className="h-screen w-screen bg-black flex items-center justify-center text-white font-mono animate-pulse">Initializing Substrate...</div>;
+  }
 
   return (
     <div className="flex h-screen w-screen bg-[#020203] text-white font-mono overflow-hidden">

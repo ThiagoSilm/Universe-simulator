@@ -92,6 +92,11 @@ async function startServer() {
     state.metrics.processingTime = Date.now() - start;
     
     // Broadcast state to all connected observers
+    // Sanity check
+    if (!state.metrics || isNaN(state.metrics.processingTime)) {
+      state.metrics.processingTime = 0;
+    }
+    
     io.emit("universe-update", state);
 
     // Save every 1000 ticks for persistence
@@ -101,12 +106,13 @@ async function startServer() {
   }, 33); // ~30 FPS simulation
 
   io.on("connection", (socket) => {
-    console.log("Novo observador conectado ao substrato.");
+    console.log("Novo observador conectado ao substrato. ID:", socket.id);
     
     // Emit immediate state upon connection
     socket.emit("universe-update", state);
     
     socket.on("stimulus", (payload) => {
+      console.log("Stimulus recebido de", socket.id, payload);
       // Apply stimulus to the server-side state
       state.particles.forEach(p => {
         const dx = payload.x - p.x;
@@ -123,11 +129,13 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    console.log("Configurando middleware Vite...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
+    console.log("Middleware Vite configurado.");
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
@@ -137,7 +145,8 @@ async function startServer() {
   }
 
   httpServer.listen(PORT, "0.0.0.0", () => {
-    console.log(`Substrato Auto-Observador rodando em http://localhost:${PORT}`);
+    console.log(`Substrato Auto-Observador rodando em http://0.0.0.0:${PORT}`);
+    console.log("Socket.IO inicializado:", !!io);
   });
 }
 
