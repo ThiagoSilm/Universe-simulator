@@ -1,95 +1,120 @@
-import {
-  Particle,
-  initializeBigBang,
-  contextualWeight,
-  shouldCouple,
-  redistribute,
-  emergentAcceleration,
-  updateMotion,
-  quantizePersistence,
-  continuousGenesis,
-  EPS,
-  DT
+import { 
+  Particle, 
+  Stimulus, 
+  expandSpace, 
+  calculateContextualWeight, 
+  redistributePt, 
+  distance, 
+  dotProduct,
+  initializeWorld,
+  THETA_F,
+  THETA_A
 } from './physics';
 
 export class Universe {
   particles: Particle[];
-  tickCount: number;
-  currentLeader: Particle | null;
-  leaderPeakWeight: number;
-  leaderHistory: any[];
-  eventMemory: Map<string, number>;
+  stimuli: Stimulus[];
+  tickCount: number = 0;
+  leaderHistory: { tick: number; leaderId: number; peakWeight: number }[] = [];
 
   constructor() {
-    this.particles = initializeBigBang();
-    this.tickCount = 0;
-    this.currentLeader = null;
-    this.leaderPeakWeight = 0;
-    this.leaderHistory = [];
-    this.eventMemory = new Map();
+    const { particles, stimuli } = initializeWorld();
+    this.particles = particles;
+    this.stimuli = stimuli;
   }
 
-  tick() {
+  tick(): void {
     this.tickCount++;
 
-    // Salva estado
-    for (const p of this.particles) p.saveState(this.tickCount);
+    // 1. Expande o espaço (Λ)
+    expandSpace(this.particles, this.stimuli);
 
-    // Reseta conexões
-    for (const p of this.particles) p.connections = 0;
+    // 2. Agrupa partículas em clusters (por proximidade)
+    // No guia, clusters são recalculados a cada tick.
+    // Vamos processar cada estímulo e encontrar seu cluster de influência.
+    for (const stimulus of this.stimuli) {
+      const clusterRadius = 5.0; // Raio de influência fixo ou emergente
+      const cluster = this.particles.filter(p => distance(p.position, stimulus.position) < clusterRadius);
 
-    // Seleciona líder
-    const leader = this.particles.reduce((a, b) => contextualWeight(a, this.particles) > contextualWeight(b, this.particles) ? a : b);
-    const wcLeader = contextualWeight(leader, this.particles);
+      if (cluster.length === 0) continue;
 
-    if (this.currentLeader !== leader) {
-      if (this.currentLeader && this.leaderPeakWeight > 1e-6) {
-        this.leaderHistory.push({ tick: this.tickCount, leaderId: this.currentLeader.id, peakWeight: this.leaderPeakWeight });
+      // 3. Para cada cluster com estímulo ativo:
+      
+      // · Filtra por ressonância de frequência
+      // Ressonância: diferença relativa < 10%
+      const resonant = cluster.filter(p => {
+        const pf = p.getFrequency();
+        const diff = Math.abs(pf - stimulus.frequency);
+        return diff < THETA_F;
+      });
+
+      if (resonant.length === 0) continue;
+
+      // · Filtra por alinhamento de vetor interno
+      // Vetor do cluster: vamos usar o vetor do estímulo (simplificando para uma direção radial ou fixa)
+      // Ou a média dos vetores das partículas (emergente)
+      const clusterVector = { x: 1, y: 0 }; // Exemplo: direção X
+      const aligned = resonant.filter(p => {
+        const alignment = dotProduct(p.internalVector, clusterVector);
+        return alignment > THETA_A;
+      });
+
+      if (aligned.length === 0) continue;
+
+      // · Calcula contextualWeight para cada partícula filtrada
+      for (const p of aligned) {
+        p.contextualWeight = calculateContextualWeight(p, stimulus);
       }
-      this.currentLeader = leader;
-      this.leaderPeakWeight = wcLeader;
-    } else if (wcLeader > this.leaderPeakWeight) {
-      this.leaderPeakWeight = wcLeader;
+
+      // · Elegge a líder (maior peso)
+      const leader = aligned.reduce((prev, current) => 
+        (prev.contextualWeight > current.contextualWeight) ? prev : current
+      );
+
+      // · A líder processa o estímulo
+      // "Ela sente o estímulo, pode ter seu P(t) afetado, gera registro de memória"
+      const deltaPt = 0.01 * stimulus.relevance; // Ganho de potencial
+      
+      // · Redistribui ΣP(t) entre as partículas do cluster
+      redistributePt(leader, aligned, deltaPt);
+
+      // Registro de memória
+      for (const p of aligned) {
+        p.memories.push({
+          event: `STIMULUS_${stimulus.id}`,
+          weight: p.contextualWeight,
+          tick: this.tickCount
+        });
+      }
+
+      // Histórico para a UI
+      if (this.tickCount % 10 === 0) {
+        this.leaderHistory.push({
+          tick: this.tickCount,
+          leaderId: leader.id,
+          peakWeight: leader.contextualWeight
+        });
+        if (this.leaderHistory.length > 20) this.leaderHistory.shift();
+      }
     }
 
-    // Processa estímulo (apenas líder)
-    leader.phi = (leader.phi + 0.1) % (2 * Math.PI);
-    leader.f = leader.f * 1.001;
-    leader.updateStateVector();
-    const result = { x: leader.pt, y: leader.phi, z: leader.f };
-
-    // Identifica acoplados
-    const coupled = this.particles.filter(p => p !== leader && shouldCouple(p, leader));
-
-    // Redistribui
-    redistribute(leader, result, coupled, this.particles);
-
-    // Memória (apenas registro)
-    const eventId = `leader_${leader.id}_tick_${this.tickCount}`;
-    const oldWeight = this.eventMemory.get(eventId) || 0;
-    this.eventMemory.set(eventId, oldWeight * 0.95 + wcLeader);
-    for (const [key, val] of this.eventMemory.entries()) {
-      if (val < EPS) this.eventMemory.delete(key);
-    }
-
-    // Aceleração emergente
-    const acc = emergentAcceleration(this.particles, this.tickCount);
+    // 4. Atualiza memórias (pesos dissipam naturalmente)
     for (const p of this.particles) {
-      const a = acc.get(p);
-      if (a) {
-        p.v.x += a.x * DT;
-        p.v.y += a.y * DT;
-        p.v.z += a.z * DT;
-      }
+      p.dissipateMemories();
+      // 5. Aplica limites estruturais (nada ultrapassa C, nada menor que H persiste)
+      // Frequência já é limitada em getFrequency()
+      // P(t) já é limitado em redistributePt()
+      
+      // Atualiza fase
+      p.updatePhase();
     }
+  }
 
-    // Dinâmica espacial + expansão
-    updateMotion(this.particles);
-
-    // Quantização
-    quantizePersistence(this.particles);
-
-    // Gênese contínua
-    continuousGenesis(this.particles, this.tickCount);
+  get currentLeader(): Particle | null {
+    // Retorna a partícula com maior peso no último tick (aproximação)
+    if (this.particles.length === 0) return null;
+    return this.particles.reduce((prev, curr) => 
+      (prev.contextualWeight > curr.contextualWeight) ? prev : curr
+    );
   }
 }
