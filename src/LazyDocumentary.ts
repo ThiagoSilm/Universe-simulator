@@ -1,113 +1,59 @@
-import { SimulationState } from "./types";
+import { Particle, UniverseState } from './types';
+import { ObserverLayer } from './ObserverLayer';
 
-export interface DocumentaryEvent {
+export interface DocumentaryRegion {
   id: string;
-  type: "COLLAPSE" | "EMERGENCE" | "ENTANGLEMENT" | "PHYSICS" | "BIOGENESIS" | "EDITING";
-  description: string;
-  tick: number;
+  particles: Particle[];
+  significance: number;
+  center: { x: number; y: number };
 }
 
 export class LazyDocumentary {
-  events: DocumentaryEvent[] = [];
-  lastTick = 0;
-  lastParticleCount = 0;
+  private universe: ObserverLayer;
+  private historico: any[] = [];
+  private economia: number = 0;
+  private LIMIAR: number = 0.5;
 
-  observe(state: SimulationState): DocumentaryEvent[] {
-    const newEvents: DocumentaryEvent[] = [];
+  constructor(universe: ObserverLayer) {
+    this.universe = universe;
+  }
 
-    // 1. Detect Cosmic Transitions
-    const singularities = state.particles.filter(p => p.type === "singularity").length;
-    const stars = state.particles.filter(p => p.type === "star").length;
-    const nebulas = state.particles.filter(p => p.type === "nebula").length;
-
-    if (singularities > 0 && state.tick % 300 === 0) {
-      newEvents.push({
-        id: `singularity-${state.tick}-${Math.random()}`,
-        type: "COLLAPSE",
-        description: `Black Hole detected: Substrate limit exceeded. Information is being compressed into a non-computable point.`,
-        tick: state.tick
-      });
-    }
-
-    if (stars > 0 && state.tick % 400 === 0) {
-      newEvents.push({
-        id: `star-${state.tick}-${Math.random()}`,
-        type: "EMERGENCE",
-        description: `Star Birth: Density threshold reached. The substrate has ignited into a high-rhythm information node.`,
-        tick: state.tick
-      });
-    }
-
-    if (nebulas > 0 && state.tick % 500 === 0) {
-      newEvents.push({
-        id: `nebula-${state.tick}-${Math.random()}`,
-        type: "EMERGENCE",
-        description: `Nebula Cluster: Collective persistence redistribution is seeding new entities in a slow-rhythm cluster.`,
-        tick: state.tick
-      });
-    }
-
-    // 2. Detect Dissonance Exclusion (Negative Omega)
-    // We'll use a heuristic for now since we don't store totalOmega in the particle state
-    // But we can check for high velocity separation
-    const highSpeed = state.particles.filter(p => Math.sqrt(p.vx * p.vx + p.vy * p.vy) > 5).length;
-    if (highSpeed > 2 && state.tick % 150 === 0) {
-      newEvents.push({
-        id: `exclusion-${state.tick}-${Math.random()}`,
-        type: "PHYSICS",
-        description: "Dissonance Exclusion: Phase misalignment generating emergent repulsion.",
-        tick: state.tick
-      });
-    }
-
-    // 3. Detect Resonant Coupling
-    if (state.metrics.activeParticles > 10 && state.tick % 200 === 0) {
-      newEvents.push({
-        id: `coupling-${state.tick}-${Math.random()}`,
-        type: "EMERGENCE",
-        description: "Coherence Emergence: Nodes are achieving mutual observation and persistence.",
-        tick: state.tick
-      });
-    }
-
-    // 4. Detect Reproduction (Mitosis vs Sexual)
-    const newParticles = state.particles.filter(p => !p.isLatent && p.id.includes("-") && parseInt(p.id.split("-").pop() || "0") === state.tick);
+  // Só processa o que VALE A PENA (Lazy Evaluation)
+  capturarMomento() {
+    const state = this.universe.getState();
+    const totalEntidades = state.particleCount || 0;
+    const activeCount = state.lazyCost || 0;
+    const latentCount = totalEntidades - activeCount;
     
-    newParticles.forEach(p => {
-      if (p.id.startsWith("mitosis")) {
-        newEvents.push({
-          id: `mitosis-${p.id}-${Math.random()}`,
-          type: "BIOGENESIS",
-          description: "Mitosis: A high-persistence node has divided, paying the full cost of replication.",
-          tick: state.tick
-        });
-      } else if (p.id.startsWith("sexual")) {
-        newEvents.push({
-          id: `sexual-${p.id}-${Math.random()}`,
-          type: "BIOGENESIS",
-          description: "Sexual Coupling: Two resonant nodes have merged their information to seed a new entity.",
-          tick: state.tick
-        });
-      }
-    });
+    // Simula a economia baseada no que NÃO está sendo calculado (latentes)
+    this.economia = state.efficiency / 100;
+    
+    // Captura eventos significativos (baseado no histórico de eventos do motor)
+    const eventosRecentes = state.events && state.events.length > 0 
+      ? state.events.slice(-3).map(text => ({
+          text,
+          importancia: 0.6 + Math.random() * 0.4, // High importance for recent events
+          timestamp: state.tick
+        }))
+      : [];
 
-    if (newParticles.length > 0) {
-      this.lastParticleCount = state.particles.length;
-    }
+    return {
+      eventos: eventosRecentes,
+      economia: `${(this.economia * 100).toFixed(2)}% economizado`,
+      latentesPct: (latentCount / (totalEntidades || 1) * 100).toFixed(2),
+      calculandoPct: (activeCount / (totalEntidades || 1) * 100).toFixed(2)
+    };
+  }
 
-    // 5. Detect Cluster Editing
-    const leaders = state.particles.filter(p => p.role === "leader").length;
-    if (leaders > 0 && state.tick % 250 === 0) {
-      newEvents.push({
-        id: `editing-${state.tick}-${Math.random()}`,
-        type: "EDITING",
-        description: `Internal Observation: ${leaders} nodes have assumed leadership to stabilize reality.`,
-        tick: state.tick
-      });
-    }
-
-    this.events = [...newEvents, ...this.events].slice(0, 50); // Keep last 50 events
-    this.lastTick = state.tick;
-    return newEvents;
+  getMetrics() {
+    const state = this.universe.getState();
+    const momento = this.capturarMomento();
+    return {
+      economy: momento.economia,
+      latentesPct: momento.latentesPct,
+      calculandoPct: momento.calculandoPct,
+      event: momento.eventos[0]?.text || 'Observação Estática',
+      nextScan: state.tick + 10
+    };
   }
 }
