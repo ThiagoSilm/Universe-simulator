@@ -106,10 +106,17 @@ function renderSimulation(
     else if (p.isResonant) color = "#00ffff";
     else if (p.isInCluster) color = "#4444ff";
 
+    // Lazy Evaluation Visualization: Latent particles are ghostly
+    const opacity = p.isLatent ? 0.15 : 1.0;
+    ctx.globalAlpha = opacity;
+
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
     ctx.fill();
+
+    // Reset alpha for other elements
+    ctx.globalAlpha = 1.0;
 
     // User Halo
     if (p.isUser) {
@@ -305,8 +312,10 @@ const stateRef = useRef(state);
                         <div className="text-xs font-bold">{(user.frequency || 0).toFixed(1)} Hz</div>
                       </div>
                       <div className="bg-white/5 p-2 rounded">
-                        <div className="text-[8px] text-white/40 uppercase">P(t) Potential</div>
-                        <div className="text-xs font-bold">{user.pt.toFixed(1)}</div>
+                        <div className="text-[8px] text-white/40 uppercase">State</div>
+                        <div className={`text-xs font-bold ${user.isLatent ? "text-white/20" : "text-fuchsia-500"}`}>
+                          {user.isLatent ? "LATENT" : "COLLAPSED"}
+                        </div>
                       </div>
                     </div>
                     

@@ -96,7 +96,9 @@ export function tick(state: SimulationState, width: number, height: number, user
       const resonance = Math.max(0, 1 - Math.abs(p.frequency! - s.frequency) / c);
       
       // Force = Direction * Weight * Resonance
-      if (resonance > resonanceThreshold) {
+      const isLatent = resonance < resonanceThreshold;
+
+      if (!isLatent) {
         totalFX += (dx / dist) * weight * resonance * 0.1;
         totalFY += (dy / dist) * weight * resonance * 0.1;
         
@@ -104,7 +106,15 @@ export function tick(state: SimulationState, width: number, height: number, user
           maxWeight = weight;
           p.contextualWeight = weight;
           p.isResonant = true;
+          p.isLatent = false;
+          p.amplitude = 1.0;
         }
+      } else {
+        // Lazy: Minimal drift when latent
+        totalFX += (Math.random() - 0.5) * 0.01;
+        totalFY += (Math.random() - 0.5) * 0.01;
+        p.isLatent = true;
+        p.amplitude = 0.1;
       }
     });
 

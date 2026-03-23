@@ -25,6 +25,8 @@ export interface Particle {
   frequency?: number;
   isResonant?: boolean;
   isAligned?: boolean;
+  isLatent?: boolean;
+  amplitude?: number;
 }
 
 export interface Stimulus {
