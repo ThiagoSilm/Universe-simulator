@@ -1,65 +1,44 @@
-export interface MemoryRecord {
-  id: string;
-  description: string;
-  weight: number;
-  tick: number;
-}
+export type ParticleType = "matter" | "energy" | "singularity" | "life";
 
 export interface Particle {
   id: string;
+  type: ParticleType;
   x: number;
   y: number;
-  vx: number; // Internal vector x
-  vy: number; // Internal vector y
-  pt: number; // P(t) Potential total
-  charge: number;
-  phase: number;
-  isUser?: boolean;
-  memory: MemoryRecord[];
+  vx: number;
+  vy: number;
   
-  // UI/Visualization specific
-  contextualWeight?: number;
-  isLeader?: boolean;
-  isInCluster?: boolean;
-  clusterId?: string;
-  frequency?: number;
-  isResonant?: boolean;
-  isAligned?: boolean;
-  isLatent?: boolean;
-  amplitude?: number;
-}
-
-export interface Stimulus {
-  id: string;
-  x: number;
-  y: number;
-  scaleRelevance: number;
-  frequency: number;
-  vector: { x: number; y: number };
-}
-
-export interface Cluster {
-  id: string;
-  particleIds: string[];
-  stimulusId?: string;
-  dominantFrequency?: number;
-  averageVector?: { x: number; y: number };
+  // Lazy Universe Properties
+  persistence: number;    // 0 to 1: How "real" the particle is. < 0.1 = Latent.
+  information: number;    // Accumulated "bits" of interaction.
+  entropy: number;        // Decay rate of information/persistence.
+  
+  // Quantum/Emergent Properties
+  entangledId?: string;   // ER=EPR bridge
+  composition: Record<string, number>; // C, H, O, N, etc.
+  
+  // State
+  isLatent: boolean;
+  isCollapsed: boolean;
 }
 
 export interface SimulationState {
   particles: Particle[];
-  stimuli: Stimulus[];
-  clusters: Cluster[];
   tick: number;
-  
-  // Constants/Parameters
-  lambda: number; // Expansion
-  c: number;      // Max frequency
-  h: number;      // Min memory weight
-  resonanceThreshold: number;
-  alignmentThreshold: number;
-  dissipationRate: number;
-  influenceRadius: number;
+  bounds: { width: number; height: number };
+  metrics: {
+    activeParticles: number;
+    totalInformation: number;
+    emergentComplexity: number;
+  };
 }
 
-export type UniverseState = SimulationState;
+export interface WorkerMessage {
+  type: "TICK" | "INIT" | "STIMULUS";
+  payload?: any;
+}
+
+export interface WorkerResponse {
+  type: "STATE_UPDATE";
+  payload: SimulationState;
+}
