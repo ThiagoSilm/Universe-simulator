@@ -15,13 +15,34 @@ export class LazyDocumentary {
   observe(state: SimulationState): DocumentaryEvent[] {
     const newEvents: DocumentaryEvent[] = [];
 
-    // 1. Detect State Collapses
-    const newCollapses = state.particles.filter(p => p.isCollapsed && !p.isLatent);
-    if (newCollapses.length > 0 && state.tick % 100 === 0) {
+    // 1. Detect Cosmic Transitions
+    const singularities = state.particles.filter(p => p.type === "singularity").length;
+    const stars = state.particles.filter(p => p.type === "star").length;
+    const nebulas = state.particles.filter(p => p.type === "nebula").length;
+
+    if (singularities > 0 && state.tick % 300 === 0) {
       newEvents.push({
-        id: `collapse-${state.tick}`,
+        id: `singularity-${state.tick}`,
         type: "COLLAPSE",
-        description: `Bekenstein Limit reached. Substrate is compressing information into singular points.`,
+        description: `Black Hole detected: Substrate limit exceeded. Information is being compressed into a non-computable point.`,
+        tick: state.tick
+      });
+    }
+
+    if (stars > 0 && state.tick % 400 === 0) {
+      newEvents.push({
+        id: `star-${state.tick}`,
+        type: "EMERGENCE",
+        description: `Star Birth: Density threshold reached. The substrate has ignited into a high-rhythm information node.`,
+        tick: state.tick
+      });
+    }
+
+    if (nebulas > 0 && state.tick % 500 === 0) {
+      newEvents.push({
+        id: `nebula-${state.tick}`,
+        type: "EMERGENCE",
+        description: `Nebula Cluster: Collective persistence redistribution is seeding new entities in a slow-rhythm cluster.`,
         tick: state.tick
       });
     }
@@ -49,14 +70,28 @@ export class LazyDocumentary {
       });
     }
 
-    // 4. Detect Replication
-    if (state.particles.length > this.lastParticleCount + 5) {
-      newEvents.push({
-        id: `replication-${state.tick}`,
-        type: "BIOGENESIS",
-        description: "Replication Event: High-persistence nodes are dividing and evolving.",
-        tick: state.tick
-      });
+    // 4. Detect Reproduction (Mitosis vs Sexual)
+    const newParticles = state.particles.filter(p => !p.isLatent && p.id.includes("-") && parseInt(p.id.split("-").pop() || "0") === state.tick);
+    
+    newParticles.forEach(p => {
+      if (p.id.startsWith("mitosis")) {
+        newEvents.push({
+          id: `mitosis-${p.id}`,
+          type: "BIOGENESIS",
+          description: "Mitosis: A high-persistence node has divided, paying the full cost of replication.",
+          tick: state.tick
+        });
+      } else if (p.id.startsWith("sexual")) {
+        newEvents.push({
+          id: `sexual-${p.id}`,
+          type: "BIOGENESIS",
+          description: "Sexual Coupling: Two resonant nodes have merged their information to seed a new entity.",
+          tick: state.tick
+        });
+      }
+    });
+
+    if (newParticles.length > 0) {
       this.lastParticleCount = state.particles.length;
     }
 

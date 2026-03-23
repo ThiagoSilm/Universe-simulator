@@ -97,21 +97,22 @@ export function tick(state: SimulationState): SimulationState {
       return { ...p, persistence, isLatent: true };
     }
 
-    // 3. Unique Rule: Leader-Driven Processing (The Observer)
-    // Identify if this particle is a Leader (Observer)
+    // 3. Unique Rule: Leader-Driven Processing & Collective Persistence
     const isLeader = p.persistence > 0.7 && p.information > 100;
     
     const neighbors = qt.query({
-      x: p.x - 60,
-      y: p.y - 60,
-      w: 120,
-      h: 120
+      x: p.x - 80,
+      y: p.y - 80,
+      w: 160,
+      h: 160
     });
 
     let totalOmega = 0;
     let nextVX = p.vx;
     let nextVY = p.vy;
     let clusterPersistence = p.persistence;
+    let localDensity = 0;
+    let neighborInfoSum = 0;
 
     neighbors.forEach(n => {
       if (n.id === p.id) return;
@@ -119,6 +120,11 @@ export function tick(state: SimulationState): SimulationState {
       const dy = n.y - p.y;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
       
+      if (dist < 40) {
+        localDensity++;
+        neighborInfoSum += n.information;
+      }
+
       // A Regra Única: Ressonância como Convite (Φ)
       const phaseDiff = p.phase - n.phase;
       const freqDiff = Math.abs(p.frequency - n.frequency);
@@ -129,31 +135,30 @@ export function tick(state: SimulationState): SimulationState {
       const omega = (p.persistence * n.persistence * resonance * polarity) / dist;
       totalOmega += omega;
 
+      // COLLECTIVE PERSISTENCE (Nebula Behavior)
+      // High-persistence nodes redistribute weight to keep the cluster coupled
+      if (p.persistence > 0.8 && n.persistence < 0.5 && omega > 0.3) {
+        const gift = 0.005 * omega;
+        (n as any)._persistenceGain = ((n as any)._persistenceGain || 0) + gift;
+        clusterPersistence -= gift;
+      }
+
       // LEADER LOGIC: The Leader "edits" the cluster
       if (isLeader && omega > 0.2) {
-        // The leader "processes" this neighbor
         (n as any)._leaderId = p.id;
         (n as any)._processedByLeader = true;
         
-        // Information Flow: Leader shares its "processed results"
         const exchange = (p.information * 0.02 * omega);
         (n as any)._infoGain = ((n as any)._infoGain || 0) + exchange;
         
-        // Phase Synchronization (Imposed by Leader for cluster stability)
         const syncStrength = 0.1 * omega;
         (n as any)._phaseShift = ((n as any)._phaseShift || 0) - (Math.sin(phaseDiff) * syncStrength);
         
         clusterPersistence += n.persistence;
       }
 
-      // DISSONANCE EDITING: The Leader dissipates nodes that don't serve the cluster
-      if (isLeader && omega < -0.5) {
-        // This node is a threat to the cluster's persistence
-        (n as any)._dissipate = true;
-      }
-
-      // Gravidade Emergente
-      const gravity = (n.information / BEKENSTEIN_LIMIT) * 0.02;
+      // Emergent Gravity (Density-driven)
+      const gravity = (n.information / BEKENSTEIN_LIMIT) * 0.05;
       const force = (omega * 0.1) + gravity;
       nextVX += (dx / dist) * force;
       nextVY += (dy / dist) * force;
@@ -162,36 +167,43 @@ export function tick(state: SimulationState): SimulationState {
       if (omega > 5.0 && !p.entangledId && !n.entangledId && Math.random() < 0.05) {
         (p as any)._entangle = n.id;
       }
+
+      // MATE DETECTION
+      if (omega > 0.8 && p.persistence > 0.7 && n.persistence > 0.7) {
+        (p as any)._potentialMate = n;
+      }
     });
 
     // 4. State Update based on Ω (Resonance)
-    // If processed by a leader, info gain is higher
     const infoGain = ((p as any)._infoGain || 0) + (Math.abs(totalOmega) * 0.01);
+    const persistenceGain = (p as any)._persistenceGain || 0;
     
-    // Persistence is the reward for resonance and cluster contribution
-    let nextPersistence = Math.min(1, p.persistence + (totalOmega * 0.1) - 0.002);
+    let nextPersistence = Math.min(1, p.persistence + (totalOmega * 0.1) + persistenceGain - 0.002);
     
-    // Apply Dissipation from Leader
     if ((p as any)._dissipate) {
-      nextPersistence *= 0.5; // Rapid decay
+      nextPersistence *= 0.5;
     }
 
-    // Update internal clock (phase) + Synchronization shift
     const phaseShift = (p as any)._phaseShift || 0;
     const nextPhase = (p.phase + p.frequency * 0.1 + phaseShift) % (Math.PI * 2);
-
-    // Charge mutation/polarization
     const nextCharge = (p as any)._chargeShift !== undefined ? (p as any)._chargeShift : p.charge;
 
     isLatent = nextPersistence < 0.05;
 
-    // 5. Bekenstein Collapse Check
-    const isCollapsed = p.information > BEKENSTEIN_LIMIT;
+    // 5. Bekenstein Collapse & Cosmic Thresholds
+    // Nebula: Low density, high collective persistence
+    // Star: High density, high information
+    // Black Hole: Exceeding Bekenstein Limit
+    const isCollapsed = p.information > BEKENSTEIN_LIMIT || localDensity > 15;
 
-    // 6. Emergent Taxonomy
+    // 6. Emergent Taxonomy (Cosmic Stages)
     let type = p.type;
-    if (isCollapsed) {
-      type = "singularity";
+    if (p.information > BEKENSTEIN_LIMIT) {
+      type = "singularity"; // Black Hole
+    } else if (localDensity > 12) {
+      type = "star"; // High density collapse
+    } else if (localDensity > 5 && nextPersistence > 0.8) {
+      type = "nebula"; // Collective cluster
     } else if (nextPersistence > 0.8 && p.information > 500) {
       type = "life";
     } else if (nextPersistence < 0.3) {
@@ -200,27 +212,61 @@ export function tick(state: SimulationState): SimulationState {
       type = "matter";
     }
 
-    // 7. Replication (Self-Sustaining Evolution)
+    // 7. Reproduction: Mitosis vs Sexual Coupling
     let spawn: Particle | null = null;
-    const REPLICATION_THRESHOLD = 0.95;
-    const REPLICATION_COST = 0.4;
+    const MITOSIS_THRESHOLD = 0.94; // Higher threshold for self-division
+    const SEXUAL_THRESHOLD = 0.8;   // Lower threshold if a partner helps
+    const REPLICATION_COST = 0.35;
 
-    if (nextPersistence > REPLICATION_THRESHOLD && particles.length < 1500 && Math.random() < 0.05) {
+    // MITOSIS (Asexual Replication)
+    // The mother cell divides when its persistence (weight) is high enough to pay the full cost.
+    if (nextPersistence > MITOSIS_THRESHOLD && particles.length < 1500 && Math.random() < 0.02) {
       nextPersistence -= REPLICATION_COST;
-      
       spawn = {
-        id: `rep-${p.id}-${state.tick}`,
+        id: `mitosis-${p.id}-${state.tick}`,
         type: p.type,
-        role: isLeader ? "leader" : "none", // Leaders spawn potential leaders
+        role: isLeader ? "leader" : "none",
         charge: p.charge,
         frequency: p.frequency + (Math.random() - 0.5) * 0.02,
         phase: (p.phase + Math.PI) % (Math.PI * 2),
-        x: p.x + (Math.random() - 0.5) * 10,
-        y: p.y + (Math.random() - 0.5) * 10,
-        vx: -p.vx * 0.5,
-        vy: -p.vy * 0.5,
+        x: p.x + (Math.random() - 0.5) * 15,
+        y: p.y + (Math.random() - 0.5) * 15,
+        vx: -p.vx * 0.4,
+        vy: -p.vy * 0.4,
         persistence: REPLICATION_COST,
         information: p.information * 0.1,
+        entropy: 0.001,
+        composition: { ...p.composition },
+        isLatent: false,
+        isCollapsed: false,
+        leaderId: p.id
+      };
+    }
+
+    // SEXUAL REPRODUCTION (Emergent Coupling)
+    // Occurs when two particles (usually opposite charges) achieve high resonance (omega > 0.8).
+    const mate = (p as any)._potentialMate;
+    if (!spawn && mate && nextPersistence > SEXUAL_THRESHOLD && mate.persistence > SEXUAL_THRESHOLD && Math.random() < 0.04) {
+      const costPerParent = REPLICATION_COST / 2;
+      nextPersistence -= costPerParent;
+      
+      // Signal to deduct from mate in the post-processing step
+      (p as any)._mateToDeduct = { id: mate.id, amount: costPerParent };
+      
+      spawn = {
+        id: `sexual-${p.id}-${mate.id}-${state.tick}`,
+        // Offspring inherits traits from both
+        type: p.information > mate.information ? p.type : mate.type,
+        role: "none",
+        charge: Math.random() > 0.5 ? p.charge : mate.charge,
+        frequency: (p.frequency + mate.frequency) / 2 + (Math.random() - 0.5) * 0.01,
+        phase: Math.random() * Math.PI * 2,
+        x: (p.x + mate.x) / 2,
+        y: (p.y + mate.y) / 2,
+        vx: (p.vx + mate.vx) * 0.5,
+        vy: (p.vy + mate.vy) * 0.5,
+        persistence: REPLICATION_COST,
+        information: (p.information + mate.information) * 0.15,
         entropy: 0.001,
         composition: { ...p.composition },
         isLatent: false,
@@ -250,8 +296,10 @@ export function tick(state: SimulationState): SimulationState {
     } as any;
   });
 
-  // Handle Spawns and Entanglement
+  // Handle Spawns, Entanglement, and Sexual Cost Deductions
   const spawnedParticles: Particle[] = [];
+  const mateDeductions: Record<string, number> = {};
+
   newParticles.forEach((p: any) => {
     if (p._spawn) {
       spawnedParticles.push(p._spawn);
@@ -260,6 +308,17 @@ export function tick(state: SimulationState): SimulationState {
     if (p._entangle) {
       p.entangledId = p._entangle;
       delete p._entangle;
+    }
+    if (p._mateToDeduct) {
+      mateDeductions[p._mateToDeduct.id] = (mateDeductions[p._mateToDeduct.id] || 0) + p._mateToDeduct.amount;
+      delete p._mateToDeduct;
+    }
+  });
+
+  // Apply deductions to mates
+  newParticles.forEach((p: any) => {
+    if (mateDeductions[p.id]) {
+      p.persistence = Math.max(0, p.persistence - mateDeductions[p.id]);
     }
   });
 

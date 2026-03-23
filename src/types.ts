@@ -1,4 +1,4 @@
-export type ParticleType = "matter" | "energy" | "singularity" | "life";
+export type ParticleType = "matter" | "energy" | "singularity" | "life" | "nebula" | "star";
 export type ParticleRole = "leader" | "coupler" | "none";
 
 export interface Particle {

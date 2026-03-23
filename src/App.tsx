@@ -10,7 +10,8 @@ import {
   Layers,
   Cpu,
 } from "lucide-react";
-import { Particle, SimulationState, WorkerMessage, WorkerResponse } from "./types";
+import { io, Socket } from "socket.io-client";
+import { SimulationState } from "./types";
 import { calculateObserverMetrics, ObserverMetrics } from "./ObserverLayer";
 import { LazyDocumentary, DocumentaryEvent } from "./LazyDocumentary";
 
@@ -71,7 +72,9 @@ function renderSimulation(
     
     // Color mapping based on taxonomy and charge
     let color = "#ffffff";
-    if (p.isCollapsed) color = "#f87171"; // Singularity
+    if (p.type === "singularity") color = "#ffffff"; // Black Hole (white core, black shadow)
+    else if (p.type === "star") color = "#fde047"; // Star (Yellow/White)
+    else if (p.type === "nebula") color = "#f472b6"; // Nebula (Pink/Purple)
     else if (p.type === "life") color = "#4ade80";
     else if (p.type === "energy") color = "#60a5fa";
     else if (p.role === "leader") color = "#fbbf24";
@@ -79,19 +82,33 @@ function renderSimulation(
     else if (p.charge > 0) color = "#fef08a";
     else color = "#c4b5fd";
 
-    // Information Glow
-    if (p.information > 100) {
+    // Information Glow & Cosmic Effects
+    if (p.type === "singularity") {
+      ctx.shadowBlur = 30;
+      ctx.shadowColor = "#ffffff";
+      ctx.fillStyle = "#000000"; // Black hole core
+    } else if (p.type === "star") {
+      ctx.shadowBlur = 20;
+      ctx.shadowColor = "#fde047";
+      ctx.fillStyle = color;
+    } else if (p.type === "nebula") {
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = "#f472b6";
+      ctx.globalAlpha = alpha * 0.5; // Nebulas are diffuse
+      ctx.fillStyle = color;
+    } else if (p.information > 100) {
       ctx.shadowBlur = (p.information / 1000) * 15;
       ctx.shadowColor = color;
+      ctx.fillStyle = color;
     } else {
       ctx.shadowBlur = 0;
+      ctx.fillStyle = color;
     }
 
     ctx.globalAlpha = p.isLatent ? alpha * 0.3 : alpha;
-    ctx.fillStyle = color;
     
     ctx.beginPath();
-    ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, p.type === "star" ? 3 : p.type === "singularity" ? 5 : size, 0, Math.PI * 2);
     ctx.fill();
     
     ctx.shadowBlur = 0; // Reset
@@ -127,98 +144,32 @@ function renderSimulation(
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const workerRef = useRef<Worker | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const documentaryRef = useRef(new LazyDocumentary());
   
   const [state, setState] = useState<SimulationState | null>(null);
   const [metrics, setMetrics] = useState<ObserverMetrics | null>(null);
   const [events, setEvents] = useState<DocumentaryEvent[]>([]);
-  const [isPaused, setIsPaused] = useState(false);
   const [showLogs, setShowLogs] = useState(true);
 
-  // ── Worker Initialization ─────────────────────────────────────────
+  // ── Socket Initialization ─────────────────────────────────────────
   useEffect(() => {
-    const worker = new Worker(new URL("./simulation.worker.ts", import.meta.url), { type: "module" });
-    workerRef.current = worker;
+    const socket = io();
+    socketRef.current = socket;
 
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-
-    const seedAlpha: Particle = {
-      id: "alpha-leader",
-      type: "matter",
-      role: "leader",
-      charge: 1,
-      frequency: 0.5, // Seed frequency
-      phase: 0,
-      x: width / 2 - 2,
-      y: height / 2,
-      vx: 0,
-      vy: 0,
-      persistence: 1.0,
-      information: 0,
-      entropy: 0.001,
-      composition: { C: 0, H: 0, O: 0, N: 0 },
-      isLatent: false,
-      isCollapsed: false
-    };
-
-    const seedBeta: Particle = {
-      id: "beta-coupler",
-      type: "matter",
-      role: "coupler",
-      charge: -1,
-      frequency: 0.5, // Resonant frequency
-      phase: Math.PI, // Opposite phase to start the dance
-      x: width / 2 + 2,
-      y: height / 2,
-      vx: 0,
-      vy: 0,
-      persistence: 1.0,
-      information: 0,
-      entropy: 0.001,
-      composition: { C: 0, H: 0, O: 0, N: 0 },
-      isLatent: false,
-      isCollapsed: false
-    };
-
-    const initialState: SimulationState = {
-      particles: [seedAlpha, seedBeta],
-      tick: 0,
-      bounds: { width, height },
-      metrics: {
-        activeParticles: 2,
-        totalInformation: 0,
-        emergentComplexity: 0
+    socket.on("universe-update", (nextState: SimulationState) => {
+      setState(nextState);
+      setMetrics(calculateObserverMetrics(nextState));
+      const newEvents = documentaryRef.current.observe(nextState);
+      if (newEvents.length > 0) {
+        setEvents(prev => [...newEvents, ...prev].slice(0, 50));
       }
+    });
+
+    return () => {
+      socket.disconnect();
     };
-
-    worker.postMessage({ type: "INIT", payload: initialState } as WorkerMessage);
-
-    worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
-      const { type, payload } = e.data;
-      if (type === "STATE_UPDATE") {
-        const nextState = payload as SimulationState;
-        setState(nextState);
-        setMetrics(calculateObserverMetrics(nextState));
-        const newEvents = documentaryRef.current.observe(nextState);
-        if (newEvents.length > 0) {
-          setEvents(prev => [...newEvents, ...prev].slice(0, 50));
-        }
-      }
-    };
-
-    return () => worker.terminate();
   }, []);
-
-  // ── Simulation Loop ───────────────────────────────────────────────
-  useEffect(() => {
-    if (isPaused) return;
-    const interval = setInterval(() => {
-      workerRef.current?.postMessage({ type: "TICK" } as WorkerMessage);
-    }, 16); // ~60fps
-    return () => clearInterval(interval);
-  }, [isPaused]);
 
   // ── Rendering Loop ────────────────────────────────────────────────
   useEffect(() => {
@@ -240,10 +191,7 @@ export default function App() {
   }, [state]);
 
   const handleCanvasClick = (e: React.MouseEvent) => {
-    workerRef.current?.postMessage({
-      type: "STIMULUS",
-      payload: { x: e.clientX, y: e.clientY, radius: 100 }
-    } as WorkerMessage);
+    socketRef.current?.emit("stimulus", { x: e.clientX, y: e.clientY, radius: 100 });
   };
 
   if (!state || !metrics) return <div className="h-screen w-screen bg-black flex items-center justify-center text-white font-mono animate-pulse">Initializing Substrate...</div>;
@@ -275,12 +223,6 @@ export default function App() {
 
         {/* ── Bottom Controls ───────────────────────────────────────── */}
         <div className="absolute bottom-6 left-6 flex gap-3">
-          <button
-            onClick={() => setIsPaused(!isPaused)}
-            className="bg-white/5 hover:bg-white/10 border border-white/10 p-3 rounded backdrop-blur-md transition-all group"
-          >
-            {isPaused ? <Zap className="w-5 h-5 text-yellow-500" /> : <Activity className="w-5 h-5 text-cyan-500 animate-pulse" />}
-          </button>
           <button
             onClick={() => setShowLogs(!showLogs)}
             className="bg-white/5 hover:bg-white/10 border border-white/10 p-3 rounded backdrop-blur-md transition-all"
