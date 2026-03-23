@@ -6,3 +6,7 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Ignore large downloaded docs to keep commit size small
+docs/
+public/docs/
