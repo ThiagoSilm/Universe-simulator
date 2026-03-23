@@ -718,8 +718,19 @@ export class UniverseCore {
         }
         // ----------------------------------------------------
 
+        // ── Observability Decay ──────────────────
+        // Lower persistence = lower definition (smaller interaction radius)
+        p.waveRadius = 20 * (p.persistence * 0.5 + 0.5);
+        
         if (neighbors.length > 1) {
           const { fx, fy } = this.calculateForce(p, neighbors);
+          
+          // Interaction as Information Propagation: Restores persistence
+          const interactionIntensity = Math.sqrt(fx * fx + fy * fy);
+          if (interactionIntensity > this.INTERACTION_THRESHOLD) {
+            p.persistence = Math.min(1.0, p.persistence + interactionIntensity * 0.005);
+          }
+          
           p.vx += (fx / p.weight) * this.DT;
           p.vy += (fy / p.weight) * this.DT;
           this.decisionsPerTick++;
