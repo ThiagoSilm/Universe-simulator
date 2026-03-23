@@ -2,7 +2,7 @@ import { SimulationState } from "./types";
 
 export interface DocumentaryEvent {
   id: string;
-  type: "COLLAPSE" | "EMERGENCE" | "ENTANGLEMENT";
+  type: "COLLAPSE" | "EMERGENCE" | "ENTANGLEMENT" | "PHYSICS" | "BIOGENESIS";
   description: string;
   tick: number;
 }
@@ -16,7 +16,7 @@ export class LazyDocumentary {
 
     // 1. Detect State Collapses
     const newCollapses = state.particles.filter(p => p.isCollapsed && !p.isLatent);
-    if (newCollapses.length > 0) {
+    if (newCollapses.length > 0 && state.tick % 100 === 0) {
       newEvents.push({
         id: `collapse-${state.tick}`,
         type: "COLLAPSE",
@@ -25,12 +25,25 @@ export class LazyDocumentary {
       });
     }
 
-    // 2. Detect Emergence (High complexity spikes)
-    if (state.metrics.emergentComplexity > 10 && this.lastTick % 100 === 0) {
+    // 2. Detect Dissonance Exclusion (Negative Omega)
+    // We'll use a heuristic for now since we don't store totalOmega in the particle state
+    // But we can check for high velocity separation
+    const highSpeed = state.particles.filter(p => Math.sqrt(p.vx * p.vx + p.vy * p.vy) > 5).length;
+    if (highSpeed > 2 && state.tick % 150 === 0) {
       newEvents.push({
-        id: `emergence-${state.tick}`,
+        id: `exclusion-${state.tick}`,
+        type: "PHYSICS",
+        description: "Dissonance Exclusion: Phase misalignment generating emergent repulsion.",
+        tick: state.tick
+      });
+    }
+
+    // 3. Detect Resonant Coupling
+    if (state.metrics.activeParticles > 10 && state.tick % 200 === 0) {
+      newEvents.push({
+        id: `coupling-${state.tick}`,
         type: "EMERGENCE",
-        description: `Complexity threshold reached: ${state.metrics.emergentComplexity.toFixed(2)}`,
+        description: "Resonant Coupling: Local clusters achieving phase-lock and information sharing.",
         tick: state.tick
       });
     }

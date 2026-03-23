@@ -115,43 +115,60 @@ export function tick(state: SimulationState): SimulationState {
       const dy = n.y - p.y;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
       
-      // A Regra Única Revisitada: Ressonância (Φ)
-      // Φ = cos(phase_diff) * (1 - abs(freq_diff))
+      // A Regra Única: Ressonância como Convite (Φ)
+      // A partícula emite sua assinatura (freq, phase, persistence)
       const phaseDiff = p.phase - n.phase;
       const freqDiff = Math.abs(p.frequency - n.frequency);
       const resonance = Math.cos(phaseDiff) * Math.max(0, 1 - freqDiff);
       
-      // Polarity (charge) affects interaction
       const polarity = p.charge * n.charge < 0 ? 1.2 : 0.8;
       
-      // Ω = Força de Acoplamento (Caminho de Maior Persistência)
-      const omega = (p.persistence * n.persistence * (n.information + 1) * resonance * polarity) / dist;
+      // Ω = Força de Acoplamento (O Convite é aceito?)
+      const omega = (p.persistence * n.persistence * resonance * polarity) / dist;
       totalOmega += omega;
 
-      // Emergent Gravity: Information density warps the movement bias
-      // High information areas act as attractors even without direct resonance
-      const gravity = (n.information / BEKENSTEIN_LIMIT) * 0.02;
+      // Se o acoplamento ocorre (Ω > 0), há troca de informação e sincronização
+      if (omega > 0.1) {
+        // Sincronização de fase (Acoplamento Voluntário)
+        const syncStrength = 0.05 * omega;
+        (p as any)._phaseShift = ((p as any)._phaseShift || 0) - (Math.sin(phaseDiff) * syncStrength);
+        
+        // Troca de Informação (Contextual Weight)
+        // Apenas o que é relevante (resultado da interação) é compartilhado
+        const exchange = (n.information * 0.01 * omega);
+        (p as any)._infoGain = ((p as any)._infoGain || 0) + exchange;
 
-      // Atração/Repulsão: Partículas buscam ressonância + gravidade informativa
+        // Mutabilidade de Carga (Polarização sob alta densidade)
+        if (n.information > 800 && Math.random() < 0.01) {
+          (p as any)._chargeShift = n.charge;
+        }
+      }
+
+      // Gravidade Emergente (Distorção do substrato pela densidade de info)
+      const gravity = (n.information / BEKENSTEIN_LIMIT) * 0.02;
       const force = (omega * 0.1) + gravity;
       nextVX += (dx / dist) * force;
       nextVY += (dy / dist) * force;
 
-      // ER=EPR Entanglement: Extremely high resonance creates a bridge
+      // ER=EPR Entanglement
       if (omega > 5.0 && !p.entangledId && !n.entangledId && Math.random() < 0.05) {
         (p as any)._entangle = n.id;
       }
     });
 
     // 4. State Update based on Ω (Resonance)
-    const infoGain = Math.abs(totalOmega) * 0.1;
+    // A informação ganha vem do acoplamento seletivo
+    const infoGain = ((p as any)._infoGain || 0) + (Math.abs(totalOmega) * 0.01);
     
     // Persistência é a recompensa pela ressonância
-    // Se Ω é positivo (ressonância), P(t) aumenta. Se negativo (dissonância), P(t) decai.
     persistence = Math.min(1, p.persistence + (totalOmega * 0.1) - 0.002);
     
-    // Update internal clock (phase)
-    const nextPhase = (p.phase + p.frequency * 0.1) % (Math.PI * 2);
+    // Update internal clock (phase) + Synchronization shift
+    const phaseShift = (p as any)._phaseShift || 0;
+    const nextPhase = (p.phase + p.frequency * 0.1 + phaseShift) % (Math.PI * 2);
+
+    // Charge mutation/polarization
+    const nextCharge = (p as any)._chargeShift !== undefined ? (p as any)._chargeShift : p.charge;
 
     isLatent = persistence < 0.05;
 
@@ -197,9 +214,10 @@ export function tick(state: SimulationState): SimulationState {
       ...p,
       type,
       phase: nextPhase,
+      charge: nextCharge,
       x: p.x + nextVX,
       y: p.y + nextVY,
-      vx: nextVX * 0.98, // Slightly more friction for stability
+      vx: nextVX * 0.98,
       vy: nextVY * 0.98,
       persistence,
       information: p.information + infoGain,
