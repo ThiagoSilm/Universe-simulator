@@ -115,25 +115,35 @@ export function tick(state: SimulationState): SimulationState {
       const dy = n.y - p.y;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
       
-      // A Regra Única: Ω define a força da realidade entre dois pontos
-      // Polarity (charge) affects interaction: opposite charges attract and boost Omega
-      const polarity = p.charge * n.charge < 0 ? 1.5 : 0.5;
-      const omega = (p.persistence * n.persistence * (n.information + 1) * polarity) / dist;
+      // A Regra Única Revisitada: Ressonância (Φ)
+      // Φ = cos(phase_diff) * (1 - abs(freq_diff))
+      const phaseDiff = p.phase - n.phase;
+      const freqDiff = Math.abs(p.frequency - n.frequency);
+      const resonance = Math.cos(phaseDiff) * Math.max(0, 1 - freqDiff);
+      
+      // Polarity (charge) affects interaction
+      const polarity = p.charge * n.charge < 0 ? 1.2 : 0.8;
+      
+      // Ω = Força de Acoplamento (Caminho de Maior Persistência)
+      const omega = (p.persistence * n.persistence * (n.information + 1) * resonance * polarity) / dist;
       totalOmega += omega;
 
-      // Atração/Repulsão baseada no fluxo de informação (Ω)
-      const force = omega * 0.05;
+      // Atração/Repulsão: Partículas buscam ressonância, não apenas proximidade
+      const force = omega * 0.1;
       nextVX += (dx / dist) * force;
       nextVY += (dy / dist) * force;
     });
 
-    // 4. State Update based on Ω
-    // Informação ganha é proporcional à interação total
-    const infoGain = totalOmega * 0.1;
+    // 4. State Update based on Ω (Resonance)
+    const infoGain = Math.abs(totalOmega) * 0.1;
     
-    // Persistência é alimentada pela interação (Ω), mas combatida pela entropia
-    persistence = Math.min(1, p.persistence + (totalOmega * 0.05) - 0.005);
+    // Persistência é a recompensa pela ressonância
+    // Se Ω é positivo (ressonância), P(t) aumenta. Se negativo (dissonância), P(t) decai.
+    persistence = Math.min(1, p.persistence + (totalOmega * 0.1) - 0.002);
     
+    // Update internal clock (phase)
+    const nextPhase = (p.phase + p.frequency * 0.1) % (Math.PI * 2);
+
     isLatent = persistence < 0.05;
 
     // 5. Bekenstein Collapse Check
@@ -151,17 +161,18 @@ export function tick(state: SimulationState): SimulationState {
       type = "matter"; // Stable interaction state
     }
 
-    // 7. Spawning (Emergence of new nodes)
-    // If interaction is high, spawn a new particle nearby
+    // 7. Spawning (Emergence of new nodes via Resonance)
     let spawn: Particle | null = null;
-    if (totalOmega > 2.0 && Math.random() < 0.01 && particles.length < 1000) {
+    if (totalOmega > 3.0 && Math.random() < 0.02 && particles.length < 1000) {
       spawn = {
         id: `spawn-${p.id}-${state.tick}`,
-        type: Math.random() > 0.8 ? "energy" : "matter",
+        type: "matter",
         role: "none",
         charge: Math.random() > 0.5 ? 1 : -1,
-        x: p.x + (Math.random() - 0.5) * 10,
-        y: p.y + (Math.random() - 0.5) * 10,
+        frequency: p.frequency + (Math.random() - 0.5) * 0.1, // Inherit frequency with mutation
+        phase: Math.random() * Math.PI * 2,
+        x: p.x + (Math.random() - 0.5) * 20,
+        y: p.y + (Math.random() - 0.5) * 20,
         vx: p.vx + (Math.random() - 0.5),
         vy: p.vy + (Math.random() - 0.5),
         persistence: 0.5,
@@ -176,6 +187,7 @@ export function tick(state: SimulationState): SimulationState {
     return {
       ...p,
       type,
+      phase: nextPhase,
       x: p.x + nextVX,
       y: p.y + nextVY,
       vx: nextVX * 0.99,

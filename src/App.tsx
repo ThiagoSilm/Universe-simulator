@@ -98,6 +98,8 @@ export default function App() {
       type: "matter",
       role: "leader",
       charge: 1,
+      frequency: 0.5, // Seed frequency
+      phase: 0,
       x: width / 2 - 2,
       y: height / 2,
       vx: 0,
@@ -115,6 +117,8 @@ export default function App() {
       type: "matter",
       role: "coupler",
       charge: -1,
+      frequency: 0.5, // Resonant frequency
+      phase: Math.PI, // Opposite phase to start the dance
       x: width / 2 + 2,
       y: height / 2,
       vx: 0,

@@ -5,11 +5,15 @@ export interface Particle {
   id: string;
   type: ParticleType;
   role: ParticleRole;
-  charge: number; // 1 for Alpha/Positive, -1 for Beta/Negative
+  charge: number; 
   x: number;
   y: number;
   vx: number;
   vy: number;
+  
+  // Resonance Properties
+  frequency: number;      // The "signature" of the particle
+  phase: number;          // Current state in its cycle
   
   // Lazy Universe Properties
   persistence: number;
