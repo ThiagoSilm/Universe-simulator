@@ -116,7 +116,9 @@ export function tick(state: SimulationState): SimulationState {
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
       
       // A Regra Única: Ω define a força da realidade entre dois pontos
-      const omega = (p.persistence * n.persistence * (n.information + 1)) / dist;
+      // Polarity (charge) affects interaction: opposite charges attract and boost Omega
+      const polarity = p.charge * n.charge < 0 ? 1.5 : 0.5;
+      const omega = (p.persistence * n.persistence * (n.information + 1) * polarity) / dist;
       totalOmega += omega;
 
       // Atração/Repulsão baseada no fluxo de informação (Ω)
@@ -149,6 +151,28 @@ export function tick(state: SimulationState): SimulationState {
       type = "matter"; // Stable interaction state
     }
 
+    // 7. Spawning (Emergence of new nodes)
+    // If interaction is high, spawn a new particle nearby
+    let spawn: Particle | null = null;
+    if (totalOmega > 2.0 && Math.random() < 0.01 && particles.length < 1000) {
+      spawn = {
+        id: `spawn-${p.id}-${state.tick}`,
+        type: Math.random() > 0.8 ? "energy" : "matter",
+        role: "none",
+        charge: Math.random() > 0.5 ? 1 : -1,
+        x: p.x + (Math.random() - 0.5) * 10,
+        y: p.y + (Math.random() - 0.5) * 10,
+        vx: p.vx + (Math.random() - 0.5),
+        vy: p.vy + (Math.random() - 0.5),
+        persistence: 0.5,
+        information: 0,
+        entropy: 0.001,
+        composition: { C: 0, H: 0, O: 0, N: 0 },
+        isLatent: false,
+        isCollapsed: false
+      };
+    }
+
     return {
       ...p,
       type,
@@ -159,18 +183,30 @@ export function tick(state: SimulationState): SimulationState {
       persistence,
       information: p.information + infoGain,
       isLatent: false,
-      isCollapsed
-    };
+      isCollapsed,
+      _spawn: spawn
+    } as any;
   });
+
+  // Handle Spawns
+  const spawnedParticles: Particle[] = [];
+  newParticles.forEach((p: any) => {
+    if (p._spawn) {
+      spawnedParticles.push(p._spawn);
+      delete p._spawn;
+    }
+  });
+
+  const finalParticles = [...newParticles, ...spawnedParticles];
 
   return {
     ...state,
     tick: state.tick + 1,
-    particles: newParticles,
+    particles: finalParticles,
     metrics: {
-      activeParticles: newParticles.filter(p => !p.isLatent).length,
-      totalInformation: newParticles.reduce((acc, p) => acc + p.information, 0),
-      emergentComplexity: calculateComplexity(newParticles)
+      activeParticles: finalParticles.filter(p => !p.isLatent).length,
+      totalInformation: finalParticles.reduce((acc, p) => acc + p.information, 0),
+      emergentComplexity: calculateComplexity(finalParticles)
     }
   };
 }

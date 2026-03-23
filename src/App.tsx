@@ -74,8 +74,6 @@ function renderSimulation(
 //  APP
 // ═══════════════════════════════════════════════════════════════════
 
-const INITIAL_PARTICLE_COUNT = 500;
-
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const workerRef = useRef<Worker | null>(null);
@@ -95,27 +93,46 @@ export default function App() {
     const width = window.innerWidth;
     const height = window.innerHeight;
 
-    const initialParticles: Particle[] = Array.from({ length: INITIAL_PARTICLE_COUNT }).map((_, i) => ({
-      id: `p-${i}`,
-      type: Math.random() > 0.9 ? "energy" : "matter",
-      x: Math.random() * width,
-      y: Math.random() * height,
-      vx: (Math.random() - 0.5) * 2,
-      vy: (Math.random() - 0.5) * 2,
-      persistence: Math.random(),
+    const seedAlpha: Particle = {
+      id: "alpha-leader",
+      type: "matter",
+      role: "leader",
+      charge: 1,
+      x: width / 2 - 2,
+      y: height / 2,
+      vx: 0,
+      vy: 0,
+      persistence: 1.0,
       information: 0,
       entropy: 0.001,
       composition: { C: 0, H: 0, O: 0, N: 0 },
       isLatent: false,
       isCollapsed: false
-    }));
+    };
+
+    const seedBeta: Particle = {
+      id: "beta-coupler",
+      type: "matter",
+      role: "coupler",
+      charge: -1,
+      x: width / 2 + 2,
+      y: height / 2,
+      vx: 0,
+      vy: 0,
+      persistence: 1.0,
+      information: 0,
+      entropy: 0.001,
+      composition: { C: 0, H: 0, O: 0, N: 0 },
+      isLatent: false,
+      isCollapsed: false
+    };
 
     const initialState: SimulationState = {
-      particles: initialParticles,
+      particles: [seedAlpha, seedBeta],
       tick: 0,
       bounds: { width, height },
       metrics: {
-        activeParticles: INITIAL_PARTICLE_COUNT,
+        activeParticles: 2,
         totalInformation: 0,
         emergentComplexity: 0
       }

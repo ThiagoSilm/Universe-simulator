@@ -1,21 +1,24 @@
 export type ParticleType = "matter" | "energy" | "singularity" | "life";
+export type ParticleRole = "leader" | "coupler" | "none";
 
 export interface Particle {
   id: string;
   type: ParticleType;
+  role: ParticleRole;
+  charge: number; // 1 for Alpha/Positive, -1 for Beta/Negative
   x: number;
   y: number;
   vx: number;
   vy: number;
   
   // Lazy Universe Properties
-  persistence: number;    // 0 to 1: How "real" the particle is. < 0.1 = Latent.
-  information: number;    // Accumulated "bits" of interaction.
-  entropy: number;        // Decay rate of information/persistence.
+  persistence: number;
+  information: number;
+  entropy: number;
   
   // Quantum/Emergent Properties
-  entangledId?: string;   // ER=EPR bridge
-  composition: Record<string, number>; // C, H, O, N, etc.
+  entangledId?: string;
+  composition: Record<string, number>;
   
   // State
   isLatent: boolean;
