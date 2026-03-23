@@ -91,21 +91,21 @@ export function tick(state: SimulationState): SimulationState {
     let persistence = p.persistence - 0.001;
     if (persistence < 0) persistence = 0;
     
-    const isLatent = persistence < 0.1;
+    let isLatent = persistence < 0.1;
 
     if (isLatent) {
       return { ...p, persistence, isLatent: true };
     }
 
-    // 3. Information Exchange (Observability)
+    // 3. Unique Rule Interaction (Ω = P(t) * (1/dist) * Info_Density)
     const neighbors = qt.query({
-      x: p.x - 20,
-      y: p.y - 20,
-      w: 40,
-      h: 40
+      x: p.x - 50,
+      y: p.y - 50,
+      w: 100,
+      h: 100
     });
 
-    let infoGain = 0;
+    let totalOmega = 0;
     let nextVX = p.vx;
     let nextVY = p.vy;
 
@@ -113,25 +113,45 @@ export function tick(state: SimulationState): SimulationState {
       if (n.id === p.id) return;
       const dx = n.x - p.x;
       const dy = n.y - p.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
       
-      if (dist < 10) {
-        infoGain += 1; // Exchange 1 bit
-        persistence = Math.min(1, persistence + 0.1); // Interaction boosts persistence
-        
-        // Simple attraction/repulsion based on information
-        const force = 0.01;
-        nextVX += dx * force;
-        nextVY += dy * force;
-      }
+      // A Regra Única: Ω define a força da realidade entre dois pontos
+      const omega = (p.persistence * n.persistence * (n.information + 1)) / dist;
+      totalOmega += omega;
+
+      // Atração/Repulsão baseada no fluxo de informação (Ω)
+      const force = omega * 0.05;
+      nextVX += (dx / dist) * force;
+      nextVY += (dy / dist) * force;
     });
 
-    // 4. Bekenstein Collapse Check
-    const localInfo = neighbors.reduce((acc, curr) => acc + curr.information, 0);
-    const isCollapsed = localInfo > BEKENSTEIN_LIMIT;
+    // 4. State Update based on Ω
+    // Informação ganha é proporcional à interação total
+    const infoGain = totalOmega * 0.1;
+    
+    // Persistência é alimentada pela interação (Ω), mas combatida pela entropia
+    persistence = Math.min(1, p.persistence + (totalOmega * 0.05) - 0.005);
+    
+    isLatent = persistence < 0.05;
+
+    // 5. Bekenstein Collapse Check
+    const isCollapsed = p.information > BEKENSTEIN_LIMIT;
+
+    // 6. Emergent Taxonomy (Type arises from state)
+    let type = p.type;
+    if (isCollapsed) {
+      type = "singularity";
+    } else if (persistence > 0.8 && p.information > 500) {
+      type = "life"; // High persistence + High information = Complexity
+    } else if (persistence < 0.3) {
+      type = "energy"; // Low persistence = Ghostly wave-like state
+    } else {
+      type = "matter"; // Stable interaction state
+    }
 
     return {
       ...p,
+      type,
       x: p.x + nextVX,
       y: p.y + nextVY,
       vx: nextVX * 0.99,
