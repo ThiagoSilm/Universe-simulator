@@ -1,5 +1,3 @@
-import { LocalPhysics } from '../types';
-
 export interface ParticleTrace {
   targetId: string;
   affinity: number;
@@ -39,11 +37,6 @@ export interface ParticleCore {
   ax: number;
   ay: number;
   persistence: number;
-  contextualWeight: number;
-  isLeader: boolean;
-  internalVx: number;
-  internalVy: number;
-  status: 'STABLE' | 'AUTONOMOUS_DISSIPATION' | 'COUPLED';
   lastReward?: number;
   lastMutation?: { type: 'phase' | 'direction' | 'energy'; value: number };
   entangledId?: string;
@@ -152,34 +145,7 @@ export class UniverseCore {
   private activeParticles: Set<ParticleCore> = new Set();
   private particleMap: Map<string, ParticleCore> = new Map();
   private cosmicMemory: Map<string, ParticleTrace[]> = new Map();
-  private vacuumMemory: { phase: number; traces: ParticleTrace[]; energy: number }[] = [];
-  private readonly MAX_VACUUM_MEMORY = 1000;
   private seed: number;
-
-  private compressTraces(p: ParticleCore) {
-    if (p.traces.length <= 2) return;
-    
-    // Summarize traces: find the most significant ones
-    // Sort by affinity
-    p.traces.sort((a, b) => b.affinity - a.affinity);
-    
-    // Keep only top 2 traces as a summary
-    const summary = p.traces.slice(0, 2);
-    
-    // Calculate average affinity
-    const avgAffinity = p.traces.reduce((acc, t) => acc + t.affinity, 0) / p.traces.length;
-    
-    p.traces = summary;
-    
-    // Add a "compressed" trace that represents the lost information
-    p.traces.push({
-      targetId: 'COMPRESSED_MEMORY',
-      affinity: avgAffinity * 0.5,
-      tick: this.tickCount
-    });
-    
-    this.recentEvents.push("Compressão de Informação: Memória otimizada para persistência");
-  }
 
   // Fundamental Constants
   private readonly C = 50; 
@@ -191,30 +157,9 @@ export class UniverseCore {
   private readonly PLANCK_TEMP = 1000; 
   private readonly BEKENSTEIN_LIMIT = 20; 
   private readonly MEMORY_THRESHOLD = 2000; // Ticks a particle stays active after being observed
-  private readonly INTERACTION_THRESHOLD = 0.15; // Minimum force required for meaningful interaction
   private currentGenesisRate = 0.008;
   private habitabilityMap: Map<string, { potential: number, coherence: number, density: number, activity: number }> = new Map();
-  private vacuumMemoryMap: Map<string, number> = new Map();
   private readonly HABITABILITY_GRID_SIZE = 800;
-  private readonly VACUUM_MEMORY_GRID_SIZE = 100;
-
-  private getGridKey(x: number, y: number, size: number): string {
-    const gx = Math.floor(x / size);
-    const gy = Math.floor(y / size);
-    return `${gx},${gy}`;
-  }
-
-  private getLocalPhysics(x: number, y: number): LocalPhysics {
-    const key = this.getGridKey(x, y, this.VACUUM_MEMORY_GRID_SIZE);
-    const memory = this.vacuumMemoryMap.get(key) || 0;
-    
-    // Laws are emergent: High memory = slower light (C), more stability (lower alpha/beta)
-    return {
-      c: this.C * (1 / (1 + memory * 0.1)),
-      alpha: 0.006 * (1 / (1 + memory * 0.5)),
-      beta: 0.014 * (1 / (1 + memory * 0.5))
-    };
-  }
   private successfulExplorations = 0;
   private totalExplorations = 0;
   private nonLocalInteractions = 0;
@@ -223,11 +168,6 @@ export class UniverseCore {
   private G_influence = 1.0;
   private LAMBDA_influence = 1.0;
   private ENTROPY_influence = 1.0;
-
-  public setInfluence(type: 'G' | 'LAMBDA', value: number) {
-    if (type === 'G') this.G_influence = value;
-    if (type === 'LAMBDA') this.LAMBDA_influence = value;
-  }
 
   private get effectiveG() { return Math.max(0.001, Math.min(0.1, this.G * this.G_influence)); }
   private get effectiveLAMBDA() { return Math.max(0.0001, Math.min(0.01, this.LAMBDA * this.LAMBDA_influence)); }
@@ -407,18 +347,6 @@ export class UniverseCore {
     
     this.currentGenesisRate = baseInstability + (alpha * (1 - coherence)) + (beta * (1 - activityLevel));
     
-    // ── Vacuum Memory Decay ──────────────────
-    if (this.tickCount % 100 === 0) {
-      for (const [key, density] of this.vacuumMemoryMap.entries()) {
-        const newDensity = density * 0.99;
-        if (newDensity < 0.0001) {
-          this.vacuumMemoryMap.delete(key);
-        } else {
-          this.vacuumMemoryMap.set(key, newDensity);
-        }
-      }
-    }
-    
     // Continuous Genesis (Gênese Contínua)
     // This represents the spontaneous emergence of new information/potential.
     // It prevents the system from staying in an absorbing state (thermal death).
@@ -426,13 +354,10 @@ export class UniverseCore {
       const randomIdx = Math.floor(Math.random() * this.particles.length);
       const p = this.particles[randomIdx];
       
-      const { alpha, beta } = this.getLocalPhysics(p.x, p.y);
-      
       // Inject Energy & Information
       p.energy += 0.8;
-      // CP Violation: Slight bias in momentum injection
-      p.vx += (Math.random() - 0.49) * 2.0; 
-      p.vy += (Math.random() - 0.51) * 2.0;
+      p.vx += (Math.random() - 0.5) * 2.0;
+      p.vy += (Math.random() - 0.5) * 2.0;
       
       // Spontaneous Information Seed: Create a random trace to trigger potential interactions
       if (!p.traces) p.traces = [];
@@ -442,15 +367,6 @@ export class UniverseCore {
         affinity: 0.1,
         tick: this.tickCount
       });
-
-      // Lazy RAG: Query vacuum memory for initial state
-      if (this.vacuumMemory.length > 0 && Math.random() < 0.3) { // 30% chance to inherit culture
-        const culture = this.vacuumMemory.splice(Math.floor(Math.random() * this.vacuumMemory.length), 1)[0];
-        p.phase = culture.phase;
-        p.energy = Math.max(1.0, culture.energy * 0.5); // Inherit some energy
-        p.traces.push(...culture.traces.slice(0, 2)); // Inherit up to 2 traces
-        this.recentEvents.push("Reencarnação: Informação ancestral integrada");
-      }
 
       this.wakeUp(p);
       this.recentEvents.push("Gênese Contínua: Instabilidade do vácuo detectada");
@@ -477,11 +393,20 @@ export class UniverseCore {
 
     const toSleep: ParticleCore[] = [];
     const toWake: ParticleCore[] = [];
-    const toDissolve: ParticleCore[] = [];
 
-    // 0. Lazy Path Integral for Latent Particles (O(1) True Lazy Evaluation)
-    // The loop was removed. Latent particles now only calculate their accumulated
-    // drift mathematically when they are awakened (in wakeUp).
+    // 0. Lazy Path Integral for Latent Particles
+    // Latent particles evolve their potential histories without collapsing
+    for (const p of this.particles) {
+      if (p.isLatent && !p.isBound) {
+        for (const history of p.potentialHistories) {
+          history.x += history.vx;
+          history.y += history.vy;
+          // Subtle drift in potential velocities
+          history.vx += (Math.random() - 0.5) * 0.1;
+          history.vy += (Math.random() - 0.5) * 0.1;
+        }
+      }
+    }
 
     // Rebuild Quadtree for active particles
     const qt = new Quadtree(0, 0, 100000); // Expanded for cosmological growth
@@ -505,8 +430,7 @@ export class UniverseCore {
       p.waveRadius = momentum > 0 ? (20 / (1 + momentum * 10)) : 50;
 
       // Decoherence: Particles collapse when observed, and slowly return to wave state
-      // Observability is a function of persistence. Low persistence = loss of definition.
-      if (p.persistence < 0.5 || (this.tickCount - p.lastObservedTick > COLLAPSE_THRESHOLD)) {
+      if (this.tickCount - p.lastObservedTick > COLLAPSE_THRESHOLD) {
         p.isCollapsed = false;
       }
 
@@ -539,39 +463,6 @@ export class UniverseCore {
           const speed = Math.sqrt(currentSpeedSq) || 1;
           p.vx = (p.vx / speed) * this.C;
           p.vy = (p.vy / speed) * this.C;
-        }
-
-        // ── Vacuum Memory Influence (Quantum Probing) ──────────────────
-        const probeCount = 3;
-        let bestPath = { vx: p.vx, vy: p.vy, resistance: Infinity };
-        
-        for (let i = 0; i < probeCount; i++) {
-          const angle = (Math.random() - 0.5) * Math.PI / 2; // Probe +/- 45 degrees
-          const probeVx = p.vx * Math.cos(angle) - p.vy * Math.sin(angle);
-          const probeVy = p.vx * Math.sin(angle) + p.vy * Math.cos(angle);
-          
-          const probeX = p.x + probeVx * this.DT;
-          const probeY = p.y + probeVy * this.DT;
-          
-          const key = this.getGridKey(probeX, probeY, this.VACUUM_MEMORY_GRID_SIZE);
-          const resistance = this.vacuumMemoryMap.get(key) || 0;
-          
-          if (resistance < bestPath.resistance) {
-            bestPath = { vx: probeVx, vy: probeVy, resistance };
-          }
-        }
-        
-        // Collapse to the path of least resistance
-        p.vx = bestPath.vx;
-        p.vy = bestPath.vy;
-
-        // Enforce local C
-        const { c } = this.getLocalPhysics(p.x, p.y);
-        const speedSq = p.vx * p.vx + p.vy * p.vy;
-        if (speedSq > c * c) {
-            const speed = Math.sqrt(speedSq);
-            p.vx = (p.vx / speed) * c;
-            p.vy = (p.vy / speed) * c;
         }
 
         p.x += p.vx * this.DT;
@@ -640,8 +531,8 @@ export class UniverseCore {
 
         // Movement Cost (Search Penalty)
         // Changing state/position costs persistence
-        const movementSpeedSq = p.vx * p.vx + p.vy * p.vy;
-        const movementCost = movementSpeedSq * 0.05; // Increased cost to compete with gains
+        const speedSq = p.vx * p.vx + p.vy * p.vy;
+        const movementCost = speedSq * 0.05; // Increased cost to compete with gains
         p.persistence -= movementCost;
         
         // Boundary check (Universe Horizon)
@@ -691,51 +582,16 @@ export class UniverseCore {
         // Persistence grows in stable environments (coupling) and decays in high-entropy ones.
         const couplingBonus = p.traces.length * 0.001;
         const entropyPenalty = density * 0.0001;
-        // Strict Sustainability: No artificial minimum. If it drops <= 0, it dissolves.
-        p.persistence = Math.min(2.0, p.persistence + couplingBonus - entropyPenalty);
-        
-        // Observer Effect: Conscious particles stabilize their neighborhood
-        if (p.isConscious) {
-          // Thermodynamic Cost: Stabilization consumes the observer's own persistence
-          p.persistence -= 0.002; 
-          
-          for (const n of neighbors) {
-            if (n.id !== p.id) {
-              n.persistence += 0.001; // Persistence boost
-              n.energy += 0.0005; // Entropy reduction (energy preservation)
-            }
-          }
-        }
-        
-        // Lossy RAG: If traces are getting too dense, compress them
-        if (p.traces.length > 5) {
-          this.compressTraces(p);
-        }
+        p.persistence = Math.max(0.1, Math.min(2.0, p.persistence + couplingBonus - entropyPenalty));
         
         // Trace Decay: Information fades faster in dense environments, but coupling protects it
         if (density > 5 && p.traces.length > 0) {
           p.traces = p.traces.filter(() => Math.random() > (this.TRACE_DECAY_RATE / couplingFactor));
         }
-        
-        // Strict Bekenstein Limit: If spatial density exceeds substrate capacity, force dissipation
-        if (density > 30) {
-           p.persistence -= 0.2; // Massive penalty for exceeding information density limit
-        }
         // ----------------------------------------------------
 
-        // ── Observability Decay ──────────────────
-        // Lower persistence = lower definition (smaller interaction radius)
-        p.waveRadius = 20 * (p.persistence * 0.5 + 0.5);
-        
         if (neighbors.length > 1) {
           const { fx, fy } = this.calculateForce(p, neighbors);
-          
-          // Interaction as Information Propagation: Restores persistence
-          const interactionIntensity = Math.sqrt(fx * fx + fy * fy);
-          if (interactionIntensity > this.INTERACTION_THRESHOLD) {
-            p.persistence = Math.min(1.0, p.persistence + interactionIntensity * 0.005);
-          }
-          
           p.vx += (fx / p.weight) * this.DT;
           p.vy += (fy / p.weight) * this.DT;
           this.decisionsPerTick++;
@@ -861,19 +717,12 @@ export class UniverseCore {
       const rs = (2 * this.effectiveG * p.weight) / (this.C * this.C);
       if (!p.isBlackHole && (p.traces.length >= this.BEKENSTEIN_LIMIT || rs > this.PLANCK_LENGTH)) {
         p.isBlackHole = true; 
+        p.isConscious = true; // Consciousness emerges from high information density
         p.energy = 0;
         p.vx = 0;
         p.vy = 0;
         p.traces = []; // Information is collapsed
         this.recentEvents.push("Singularidade: Colapso de informação detectado");
-      }
-
-      // 8. Emergent Observer Nodes (Consequence of High Persistence/Efficiency)
-      // If a particle has high persistence, high traces (info), and low entropy,
-      // it becomes a conscious observer node.
-      if (!p.isConscious && !p.isLatent && p.persistence > 1.5 && p.traces.length > 5) {
-        p.isConscious = true;
-        this.recentEvents.push("Consciência Emergente: Observador detectado em cluster de alta eficiência");
       }
 
       this.activeTracesCount += p.traces.length;
@@ -883,25 +732,7 @@ export class UniverseCore {
       // Memory Check: If recently observed, it stays active
       const isRemembered = (this.tickCount - p.lastObservedTick) < this.MEMORY_THRESHOLD;
       
-      if (p.persistence <= 0) {
-        // ER=EPR Survival Mechanism (Quantum Insurance)
-        // If entangled, try to drain persistence from partner to survive
-        let savedByEntanglement = false;
-        if (p.entangledId) {
-          const partner = this.particleMap.get(p.entangledId);
-          if (partner && !partner.isLatent && partner.persistence > 0.5) {
-            partner.persistence -= 0.3; // Cost of saving the partner
-            p.persistence += 0.3; // Drained through the wormhole
-            savedByEntanglement = true;
-            this.recentEvents.push("ER=EPR: Partícula salva por entrelaçamento não-local");
-          }
-        }
-        
-        if (!savedByEntanglement) {
-          // Strict Sustainability: Dissolve completely
-          toDissolve.push(p);
-        }
-      } else if (p.isBound || (p.energy + this.getKineticEnergy(p)) <= 0) {
+      if (p.isBound || (p.energy + this.getKineticEnergy(p)) <= 0) {
         if (!p.isBlackHole && !isRemembered) toSleep.push(p);
       } else if (this.tickCount - p.lastActiveTick > 1000 && !p.isBlackHole && !isRemembered) {
         toSleep.push(p);
@@ -925,25 +756,6 @@ export class UniverseCore {
 
     for (const p of toWake) this.wakeUp(p);
     for (const p of toSleep) this.sleep(p);
-    
-    if (toDissolve.length > 0) {
-      const dissolveSet = new Set(toDissolve.map(p => p.id));
-      this.particles = this.particles.filter(p => !dissolveSet.has(p.id));
-      for (const p of toDissolve) {
-        this.activeParticles.delete(p);
-        this.particleMap.delete(p.id);
-        this.cosmicMemory.delete(p.id);
-        
-        // Lazy RAG: Save culture to vacuum memory
-        if (p.traces.length > 0 || p.energy > 1.5) {
-          this.vacuumMemory.push({ phase: p.phase, traces: [...p.traces], energy: p.energy });
-          if (this.vacuumMemory.length > this.MAX_VACUUM_MEMORY) {
-            this.vacuumMemory.shift(); // Keep only recent/most relevant culture
-          }
-        }
-      }
-      this.recentEvents.push(`Sustentabilidade: ${toDissolve.length} partículas dissipadas (P(t) <= 0)`);
-    }
   }
 
   private generateBeyondHorizon(count: number) {
@@ -1079,11 +891,7 @@ export class UniverseCore {
       }
 
       // Information exchange (probabilistic)
-      if (Math.abs(netForce) > this.INTERACTION_THRESHOLD) {
-        const key = this.getGridKey(p.x, p.y, this.VACUUM_MEMORY_GRID_SIZE);
-        const currentMemory = this.vacuumMemoryMap.get(key) || 0;
-        this.vacuumMemoryMap.set(key, currentMemory + Math.abs(netForce) * 0.001);
-
+      if (Math.random() < 0.1) {
         p.traces.push({ 
           targetId: n.id,
           affinity: Math.abs(netForce),
@@ -1194,21 +1002,6 @@ export class UniverseCore {
   private wakeUp(p: ParticleCore) {
     if (p.isLatent) {
       p.isLatent = false;
-      
-      // True Lazy Evaluation: Calculate elapsed time and apply drift in O(1)
-      const deltaTicks = this.tickCount - p.lastActiveTick;
-      if (deltaTicks > 0) {
-        for (const history of p.potentialHistories) {
-          // Apply accumulated drift mathematically
-          history.x += history.vx * deltaTicks;
-          history.y += history.vy * deltaTicks;
-          // Add accumulated noise (random walk variance scales with sqrt(time))
-          const noiseScale = 0.1 * Math.sqrt(deltaTicks);
-          history.vx += (Math.random() - 0.5) * noiseScale;
-          history.vy += (Math.random() - 0.5) * noiseScale;
-        }
-      }
-
       p.lastActiveTick = this.tickCount;
       p.energy = 1.0;
       
@@ -1289,9 +1082,6 @@ export class UniverseCore {
           p.lastActiveTick = this.tickCount;
           p.lastObservedTick = this.tickCount;
           p.isCollapsed = true; // Collapse on observation
-          // Active Observation Cost: Measuring the system extracts a toll on its persistence
-          p.persistence -= 0.05; 
-          p.energy += 0.01; // Small heat injection from observation
           observedCount++;
         }
       }
@@ -1405,16 +1195,6 @@ export class UniverseCore {
     }
   }
 
-  private getInformationEfficiency(): number {
-    const active = Array.from(this.activeParticles);
-    if (active.length === 0) return 0;
-    
-    const totalPersistence = active.reduce((acc, p) => acc + p.persistence, 0);
-    const totalEnergy = active.reduce((acc, p) => acc + p.energy, 0);
-    
-    return totalPersistence / (Math.abs(totalEnergy) + 0.001); // Avoid division by zero
-  }
-
   public getSnapshot(viewport?: { x: number, y: number, width: number, height: number, scale: number }) {
     // Lazy Snapshot: Only send active particles and a stable subset of latent ones
     // This significantly reduces worker postMessage overhead and main thread rendering load.
@@ -1459,11 +1239,6 @@ export class UniverseCore {
     const activityLevel = this.activeParticles.size / (this.particles.length || 1);
     const currentExpansionRate = this.effectiveLAMBDA * (activityLevel > 0.001 ? 1.0 : 0.05);
 
-    const vacuumMemoryMap = Array.from(this.vacuumMemoryMap.entries()).map(([key, density]) => {
-      const [gx, gy] = key.split(',').map(Number);
-      return { x: gx * this.VACUUM_MEMORY_GRID_SIZE, y: gy * this.VACUUM_MEMORY_GRID_SIZE, density };
-    });
-
     return {
       tick: this.tickCount,
       particles: [...active, ...sampledLatent].map(p => {
@@ -1472,7 +1247,6 @@ export class UniverseCore {
       }),
       activeCount: Math.max(0, this.activeParticles.size),
       totalCount: Math.max(1, this.particles.length),
-      vacuumMemoryMap,
       metrics: {
         decisionsPerTick: this.decisionsPerTick,
         avgCandidates: this.avgCandidates,
@@ -1486,7 +1260,6 @@ export class UniverseCore {
         explorationSuccessRate: this.totalExplorations > 0 ? this.successfulExplorations / this.totalExplorations : 0,
         nonLocalEfficiency: this.decisionsPerTick > 0 ? this.nonLocalInteractions / this.decisionsPerTick : 0,
         memoryUsage: this.activeParticles.size / this.particles.length,
-        informationEfficiency: this.getInformationEfficiency(),
         habitabilityMap: Array.from(this.habitabilityMap.entries()).map(([key, val]) => {
           const [gx, gy] = key.split(',').map(Number);
           return {

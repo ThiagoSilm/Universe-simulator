@@ -28,29 +28,28 @@ export interface Particle {
   // New properties for chemistry/biology
   moleculeId?: string | null;
   element?: 'C' | 'H' | 'O' | 'N' | null;
-  energy?: number;
-  isMetabolizing?: boolean;
-  isReplicating?: boolean;
-  generation?: number;
+  energy: number;
+  isMetabolizing: boolean;
+  isReplicating: boolean;
+  generation: number;
 
   // New properties for collective consciousness
-  mentalModels?: Record<string, { state: any, lastObserved: number }>;
-  isCollectiveConscious?: boolean;
-  knowledge?: number;
-  tools?: number;
-  age?: number;
+  mentalModels: Record<string, { state: any, lastObserved: number }>;
+  isCollectiveConscious: boolean;
+  knowledge: number;
+  tools: number;
+  age: number;
   
   // Quantum Refinement
-  amplitude?: number;
-  phase?: number;
+  amplitude: number;
+  phase: number;
   lastInteractionType?: 'interference' | 'entanglement' | 'collision';
-  contextualBias?: number;
-  lastObservedTick?: number;
+  contextualBias: number;
+  lastObservedTick: number;
 
   // Relativity & Photons
   isPhoton?: boolean;
   properTime?: number;
-  isEntropy?: boolean;
 
   // Cosmic Memory Traces
   traces?: { targetId: string; affinity: number; tick: number }[];
@@ -92,18 +91,6 @@ export interface HabitabilityCell {
   coherence: number;
   density: number;
   activity: number;
-}
-
-export interface VacuumMemoryCell {
-  x: number;
-  y: number;
-  density: number;
-}
-
-export interface LocalPhysics {
-  c: number;
-  alpha: number;
-  beta: number;
 }
 
 export interface UniverseState {
@@ -196,20 +183,7 @@ export interface UniverseState {
   explorationSuccessRate: number;
   nonLocalEfficiency: number;
   memoryUsage: number;
-  informationEfficiency: number;
-  interactionDensity: number;
   habitabilityMap?: HabitabilityCell[];
-  vacuumMemoryMap?: VacuumMemoryCell[];
-  
-  // P(t) Equation Metrics
-  ptEquation: {
-    avgCoupling: number; // <k>
-    avgPersistence: number; // tau
-    horizon: number; // H
-    activeObservation: number; // A
-    density: number; // D
-    pt: number; // Final P(t)
-  };
 }
 
 export interface CycleHistory {

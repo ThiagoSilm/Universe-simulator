@@ -102,8 +102,5 @@ self.onmessage = (e: MessageEvent) => {
     case 'TELEPORT':
       core.teleport(payload.x, payload.y);
       break;
-    case 'SET_INFLUENCE':
-      core.setInfluence(payload.type, payload.value);
-      break;
   }
 };
