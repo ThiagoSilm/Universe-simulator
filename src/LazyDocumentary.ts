@@ -2,7 +2,7 @@ import { SimulationState } from "./types";
 
 export interface DocumentaryEvent {
   id: string;
-  type: "COLLAPSE" | "EMERGENCE" | "ENTANGLEMENT" | "PHYSICS" | "BIOGENESIS";
+  type: "COLLAPSE" | "EMERGENCE" | "ENTANGLEMENT" | "PHYSICS" | "BIOGENESIS" | "EDITING";
   description: string;
   tick: number;
 }
@@ -21,7 +21,7 @@ export class LazyDocumentary {
       newEvents.push({
         id: `collapse-${state.tick}`,
         type: "COLLAPSE",
-        description: `${newCollapses.length} particles reached Bekenstein Limit and collapsed.`,
+        description: `Bekenstein Limit reached. Substrate is compressing information into singular points.`,
         tick: state.tick
       });
     }
@@ -44,7 +44,7 @@ export class LazyDocumentary {
       newEvents.push({
         id: `coupling-${state.tick}`,
         type: "EMERGENCE",
-        description: "Resonant Coupling: Local clusters achieving phase-lock and information sharing.",
+        description: "Coherence Emergence: Nodes are achieving mutual observation and persistence.",
         tick: state.tick
       });
     }
@@ -58,6 +58,17 @@ export class LazyDocumentary {
         tick: state.tick
       });
       this.lastParticleCount = state.particles.length;
+    }
+
+    // 5. Detect Cluster Editing
+    const leaders = state.particles.filter(p => p.role === "leader").length;
+    if (leaders > 0 && state.tick % 250 === 0) {
+      newEvents.push({
+        id: `editing-${state.tick}`,
+        type: "EDITING",
+        description: `Internal Observation: ${leaders} nodes have assumed leadership to stabilize reality.`,
+        tick: state.tick
+      });
     }
 
     this.events = [...newEvents, ...this.events].slice(0, 50); // Keep last 50 events

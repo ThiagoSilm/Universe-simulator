@@ -46,6 +46,19 @@ function renderSimulation(
         ctx.stroke();
       }
     }
+    
+    // ── 1.1 Draw Leader-Coupler Processing Lines ────────────────────
+    if (p.leaderId && p.role === "coupler" && !p.isLatent) {
+      const leader = particles.find(n => n.id === p.leaderId);
+      if (leader && !leader.isLatent) {
+        ctx.strokeStyle = `rgba(255, 255, 255, ${p.persistence * 0.1})`;
+        ctx.lineWidth = 0.2;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(leader.x, leader.y);
+        ctx.stroke();
+      }
+    }
   });
 
   // ── 2. Draw Particles ─────────────────────────────────────────────
@@ -336,6 +349,18 @@ export default function App() {
           <div className="flex items-center justify-between text-[10px] text-white/20">
             <span>EMERGENT COSMOS v2.0</span>
             <span className="animate-pulse">● ONLINE</span>
+            {/* ── Ontological Status ─────────────────────────────────── */}
+            <div className="absolute top-6 right-6 text-right pointer-events-none">
+              <div className="text-[10px] uppercase tracking-[0.2em] text-white/30 mb-1">Status Ontológico</div>
+              <div className="text-xl font-light text-white/80 tracking-tight">
+                {state.metrics.activeParticles > 0 
+                  ? (state.particles.reduce((acc, p) => acc + p.persistence, 0) / state.particles.length * 100).toFixed(1)
+                  : "0.0"}% <span className="text-[10px] opacity-40 ml-1">Persistência</span>
+              </div>
+              <div className="text-[9px] text-white/20 mt-1 italic">
+                {state.metrics.emergentComplexity > 15 ? "Realidade Estabilizada" : "Substrato em Flutuação"}
+              </div>
+            </div>
           </div>
         </div>
       </div>

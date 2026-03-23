@@ -22,6 +22,8 @@ export interface Particle {
   
   // Quantum/Emergent Properties
   entangledId?: string;
+  leaderId?: string;       // The ID of the node currently processing this one
+  clusterPersistence?: number; // Total health of the cluster this node belongs to
   composition: Record<string, number>;
   
   // State

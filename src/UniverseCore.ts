@@ -97,17 +97,21 @@ export function tick(state: SimulationState): SimulationState {
       return { ...p, persistence, isLatent: true };
     }
 
-    // 3. Unique Rule Interaction (Ω = P(t) * (1/dist) * Info_Density)
+    // 3. Unique Rule: Leader-Driven Processing (The Observer)
+    // Identify if this particle is a Leader (Observer)
+    const isLeader = p.persistence > 0.7 && p.information > 100;
+    
     const neighbors = qt.query({
-      x: p.x - 50,
-      y: p.y - 50,
-      w: 100,
-      h: 100
+      x: p.x - 60,
+      y: p.y - 60,
+      w: 120,
+      h: 120
     });
 
     let totalOmega = 0;
     let nextVX = p.vx;
     let nextVY = p.vy;
+    let clusterPersistence = p.persistence;
 
     neighbors.forEach(n => {
       if (n.id === p.id) return;
@@ -116,35 +120,39 @@ export function tick(state: SimulationState): SimulationState {
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
       
       // A Regra Única: Ressonância como Convite (Φ)
-      // A partícula emite sua assinatura (freq, phase, persistence)
       const phaseDiff = p.phase - n.phase;
       const freqDiff = Math.abs(p.frequency - n.frequency);
       const resonance = Math.cos(phaseDiff) * Math.max(0, 1 - freqDiff);
-      
       const polarity = p.charge * n.charge < 0 ? 1.2 : 0.8;
       
       // Ω = Força de Acoplamento (O Convite é aceito?)
       const omega = (p.persistence * n.persistence * resonance * polarity) / dist;
       totalOmega += omega;
 
-      // Se o acoplamento ocorre (Ω > 0), há troca de informação e sincronização
-      if (omega > 0.1) {
-        // Sincronização de fase (Acoplamento Voluntário)
-        const syncStrength = 0.05 * omega;
-        (p as any)._phaseShift = ((p as any)._phaseShift || 0) - (Math.sin(phaseDiff) * syncStrength);
+      // LEADER LOGIC: The Leader "edits" the cluster
+      if (isLeader && omega > 0.2) {
+        // The leader "processes" this neighbor
+        (n as any)._leaderId = p.id;
+        (n as any)._processedByLeader = true;
         
-        // Troca de Informação (Contextual Weight)
-        // Apenas o que é relevante (resultado da interação) é compartilhado
-        const exchange = (n.information * 0.01 * omega);
-        (p as any)._infoGain = ((p as any)._infoGain || 0) + exchange;
-
-        // Mutabilidade de Carga (Polarização sob alta densidade)
-        if (n.information > 800 && Math.random() < 0.01) {
-          (p as any)._chargeShift = n.charge;
-        }
+        // Information Flow: Leader shares its "processed results"
+        const exchange = (p.information * 0.02 * omega);
+        (n as any)._infoGain = ((n as any)._infoGain || 0) + exchange;
+        
+        // Phase Synchronization (Imposed by Leader for cluster stability)
+        const syncStrength = 0.1 * omega;
+        (n as any)._phaseShift = ((n as any)._phaseShift || 0) - (Math.sin(phaseDiff) * syncStrength);
+        
+        clusterPersistence += n.persistence;
       }
 
-      // Gravidade Emergente (Distorção do substrato pela densidade de info)
+      // DISSONANCE EDITING: The Leader dissipates nodes that don't serve the cluster
+      if (isLeader && omega < -0.5) {
+        // This node is a threat to the cluster's persistence
+        (n as any)._dissipate = true;
+      }
+
+      // Gravidade Emergente
       const gravity = (n.information / BEKENSTEIN_LIMIT) * 0.02;
       const force = (omega * 0.1) + gravity;
       nextVX += (dx / dist) * force;
@@ -157,12 +165,17 @@ export function tick(state: SimulationState): SimulationState {
     });
 
     // 4. State Update based on Ω (Resonance)
-    // A informação ganha vem do acoplamento seletivo
+    // If processed by a leader, info gain is higher
     const infoGain = ((p as any)._infoGain || 0) + (Math.abs(totalOmega) * 0.01);
     
-    // Persistência é a recompensa pela ressonância
-    persistence = Math.min(1, p.persistence + (totalOmega * 0.1) - 0.002);
+    // Persistence is the reward for resonance and cluster contribution
+    let nextPersistence = Math.min(1, p.persistence + (totalOmega * 0.1) - 0.002);
     
+    // Apply Dissipation from Leader
+    if ((p as any)._dissipate) {
+      nextPersistence *= 0.5; // Rapid decay
+    }
+
     // Update internal clock (phase) + Synchronization shift
     const phaseShift = (p as any)._phaseShift || 0;
     const nextPhase = (p.phase + p.frequency * 0.1 + phaseShift) % (Math.PI * 2);
@@ -170,66 +183,68 @@ export function tick(state: SimulationState): SimulationState {
     // Charge mutation/polarization
     const nextCharge = (p as any)._chargeShift !== undefined ? (p as any)._chargeShift : p.charge;
 
-    isLatent = persistence < 0.05;
+    isLatent = nextPersistence < 0.05;
 
     // 5. Bekenstein Collapse Check
     const isCollapsed = p.information > BEKENSTEIN_LIMIT;
 
-    // 6. Emergent Taxonomy (Type arises from state)
+    // 6. Emergent Taxonomy
     let type = p.type;
     if (isCollapsed) {
       type = "singularity";
-    } else if (persistence > 0.8 && p.information > 500) {
-      type = "life"; // High persistence + High information = Complexity
-    } else if (persistence < 0.3) {
-      type = "energy"; // Low persistence = Ghostly wave-like state
+    } else if (nextPersistence > 0.8 && p.information > 500) {
+      type = "life";
+    } else if (nextPersistence < 0.3) {
+      type = "energy";
     } else {
-      type = "matter"; // Stable interaction state
+      type = "matter";
     }
 
     // 7. Replication (Self-Sustaining Evolution)
-    // A particle replicates if it reaches a high persistence threshold
     let spawn: Particle | null = null;
     const REPLICATION_THRESHOLD = 0.95;
     const REPLICATION_COST = 0.4;
 
-    if (persistence > REPLICATION_THRESHOLD && particles.length < 1500 && Math.random() < 0.05) {
-      // Mother pays the cost
-      persistence -= REPLICATION_COST;
+    if (nextPersistence > REPLICATION_THRESHOLD && particles.length < 1500 && Math.random() < 0.05) {
+      nextPersistence -= REPLICATION_COST;
       
       spawn = {
         id: `rep-${p.id}-${state.tick}`,
         type: p.type,
-        role: "none",
+        role: isLeader ? "leader" : "none", // Leaders spawn potential leaders
         charge: p.charge,
-        frequency: p.frequency + (Math.random() - 0.5) * 0.02, // Inherit frequency with small mutation
-        phase: (p.phase + Math.PI) % (Math.PI * 2), // Daughter starts in opposite phase
+        frequency: p.frequency + (Math.random() - 0.5) * 0.02,
+        phase: (p.phase + Math.PI) % (Math.PI * 2),
         x: p.x + (Math.random() - 0.5) * 10,
         y: p.y + (Math.random() - 0.5) * 10,
-        vx: -p.vx * 0.5, // Ejected in opposite direction
+        vx: -p.vx * 0.5,
         vy: -p.vy * 0.5,
-        persistence: REPLICATION_COST, // Daughter starts with the cost paid by mother
-        information: p.information * 0.1, // Inherit a fraction of information
+        persistence: REPLICATION_COST,
+        information: p.information * 0.1,
         entropy: 0.001,
         composition: { ...p.composition },
         isLatent: false,
-        isCollapsed: false
+        isCollapsed: false,
+        leaderId: p.id
       };
     }
 
     return {
       ...p,
       type,
+      role: isLeader ? "leader" : ((p as any)._processedByLeader ? "coupler" : "none"),
       phase: nextPhase,
       charge: nextCharge,
       x: p.x + nextVX,
       y: p.y + nextVY,
       vx: nextVX * 0.98,
       vy: nextVY * 0.98,
-      persistence,
+      persistence: nextPersistence,
       information: p.information + infoGain,
       isLatent: false,
       isCollapsed,
+      leaderId: (p as any)._leaderId || p.leaderId,
+      clusterPersistence,
       _spawn: spawn,
       _entangle: (p as any)._entangle
     } as any;
