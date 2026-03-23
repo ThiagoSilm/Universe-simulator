@@ -39,6 +39,11 @@ export interface ParticleCore {
   ax: number;
   ay: number;
   persistence: number;
+  contextualWeight: number;
+  isLeader: boolean;
+  internalVx: number;
+  internalVy: number;
+  status: 'STABLE' | 'AUTONOMOUS_DISSIPATION' | 'COUPLED';
   lastReward?: number;
   lastMutation?: { type: 'phase' | 'direction' | 'energy'; value: number };
   entangledId?: string;
