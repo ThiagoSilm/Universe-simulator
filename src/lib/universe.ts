@@ -1,4 +1,4 @@
-import { Particle, Stimulus, Vector2, C, H, LAMBDA } from './physics';
+import { Particle, Stimulus, Vector2, C, H, LAMBDA, MAX_DENSITY, HORIZON, INTERACTION_RADIUS } from './physics';
 
 export class Universe {
   particles: Particle[] = [];
@@ -128,20 +128,49 @@ export class Universe {
       }
     }
 
+    // 3.5 Density check & Interactions (Lazy Evaluation, Bekenstein Limit, Information Channels)
+    const user = this.particles[this.userIndex];
+    const densities = new Array(this.particles.length).fill(0);
+
+    for (let i = 0; i < this.particles.length; i++) {
+      const p1 = this.particles[i];
+      
+      // Lazy Evaluation: If particle is far from user and has low persistence, skip complex interactions
+      const distToUser = p1.pos.clone().sub(user.pos).mag();
+      const isLazy = distToUser > HORIZON && p1.p < 0.5;
+      
+      if (isLazy) continue;
+
+      for (let j = i + 1; j < this.particles.length; j++) {
+        const p2 = this.particles[j];
+        const dist = p1.pos.clone().sub(p2.pos).mag();
+        
+        if (dist < INTERACTION_RADIUS) {
+          densities[i]++;
+          densities[j]++;
+          p1.interact(p2, dist);
+        }
+      }
+    }
+
     // 4. Update all particles
-    for (const p of this.particles) {
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+
       if (p.state === 'ISOLADO') {
         // Isolation penalty
         p.p -= LAMBDA;
+      }
+
+      // Information Density Limit (Bekenstein limit)
+      if (densities[i] > MAX_DENSITY) {
+        p.p -= LAMBDA * 5; // Rapid decay due to instability
       }
 
       // Spatial expansion
       p.pos.x += (p.pos.x - this.width / 2) * LAMBDA;
       p.pos.y += (p.pos.y - this.height / 2) * LAMBDA;
 
-      // Enforce limits
-      if (p.p < H) p.p = H;
-      
       p.vel.limit(C);
       p.pos.add(p.vel);
 
@@ -152,6 +181,26 @@ export class Universe {
       if (p.pos.y > this.height) p.pos.y -= this.height;
 
       p.updateMemory();
+
+      // Observability calculation
+      const distToUser = p.pos.clone().sub(user.pos).mag();
+      const horizonFactor = Math.max(0, 1 - distToUser / HORIZON);
+      p.observability = Math.min(1, p.p) * horizonFactor;
+
+      // Sustainability: Dissolve if persistence < H
+      if (p.p < H) {
+        if (!p.isUser) {
+          this.particles.splice(i, 1);
+          if (i < this.userIndex) this.userIndex--;
+        } else {
+          p.p = H; // User never fully dies, just stays at minimum
+        }
+      }
+    }
+
+    // 5. Spawn new particles occasionally to keep universe alive
+    if (Math.random() < 0.1 && this.particles.length < 400) {
+      this.particles.push(new Particle(Math.random() * this.width, Math.random() * this.height));
     }
   }
 

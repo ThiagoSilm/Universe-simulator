@@ -1,6 +1,9 @@
 export const C = 10; // Scaled down speed of light for simulation (max velocity)
 export const H = 0.001; // Scaled down Planck constant (minimum persistence)
 export const LAMBDA = 0.0005; // Scaled down cosmological constant (isolation decay / expansion)
+export const MAX_DENSITY = 12; // Bekenstein limit (max particles per local region)
+export const HORIZON = 800; // Hubble horizon (observability limit)
+export const INTERACTION_RADIUS = 150; // Max distance for information exchange
 
 export class Vector2 {
   constructor(public x: number, public y: number) {}
@@ -69,6 +72,7 @@ export class Particle {
   state: 'LIDERANDO' | 'ACOPLADO' | 'ISOLADO';
   frequency: number;
   contextualWeight: number;
+  observability: number; // 0 to 1, based on persistence and distance to observer
 
   constructor(x: number, y: number, isUser: boolean = false) {
     this.pos = new Vector2(x, y);
@@ -81,6 +85,32 @@ export class Particle {
     this.state = 'ISOLADO';
     this.frequency = 0;
     this.contextualWeight = 0;
+    this.observability = 1;
+  }
+
+  interact(other: Particle, distance: number) {
+    // Information exchange restores persistence
+    const infoExchange = 1 - (distance / INTERACTION_RADIUS);
+    
+    if (infoExchange > 0) {
+      // 1. Restore persistence (Sustentabilidade via troca de informação)
+      this.p += infoExchange * 0.002;
+      other.p += infoExchange * 0.002;
+      
+      // 2. Electromagnetism (Charge info exchange)
+      // Opposite charges attract, same repel
+      const forceMag = (this.charge * other.charge) / (distance * distance + 10);
+      const dir = this.pos.clone().sub(other.pos).normalize();
+      
+      this.vel.add(dir.clone().mult(forceMag));
+      other.vel.sub(dir.clone().mult(forceMag));
+      
+      // 3. Gravity (Position & Mass info exchange)
+      // Mutual attraction based on persistence (mass equivalent)
+      const gravMag = (this.p * other.p * 0.01) / (distance + 10);
+      this.vel.sub(dir.clone().mult(gravMag));
+      other.vel.add(dir.clone().mult(gravMag));
+    }
   }
 
   updateFrequency() {

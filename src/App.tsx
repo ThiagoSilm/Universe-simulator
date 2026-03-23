@@ -65,25 +65,28 @@ const App: React.FC = () => {
 
       // Draw particles
       for (const p of universe.particles) {
+        if (p.observability <= 0.01) continue; // Don't draw if completely unobservable
+
         ctx.beginPath();
         const radius = Math.max(1, p.p * 2);
         ctx.arc(p.pos.x, p.pos.y, radius, 0, Math.PI * 2);
         
         // Color based on frequency
         const hue = (p.frequency + 1) * 180;
+        const alpha = p.observability;
         
         if (p.isUser) {
-          ctx.fillStyle = '#ffffff';
+          ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
           ctx.shadowBlur = 15;
-          ctx.shadowColor = '#ffffff';
+          ctx.shadowColor = `rgba(255, 255, 255, ${alpha})`;
         } else {
-          ctx.fillStyle = `hsl(${hue}, 70%, 60%)`;
+          ctx.fillStyle = `hsla(${hue}, 70%, 60%, ${alpha})`;
           ctx.shadowBlur = p.state === 'LIDERANDO' ? 10 : 0;
-          ctx.shadowColor = `hsl(${hue}, 100%, 50%)`;
+          ctx.shadowColor = `hsla(${hue}, 100%, 50%, ${alpha})`;
         }
 
         if (p.state === 'LIDERANDO') {
-          ctx.strokeStyle = '#ffffff';
+          ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
           ctx.lineWidth = 1;
           ctx.stroke();
         }
@@ -97,7 +100,7 @@ const App: React.FC = () => {
            // For performance, we skip full graph drawing and just draw a subtle aura
            ctx.beginPath();
            ctx.arc(p.pos.x, p.pos.y, radius * 3, 0, Math.PI * 2);
-           ctx.fillStyle = `hsla(${hue}, 50%, 50%, 0.1)`;
+           ctx.fillStyle = `hsla(${hue}, 50%, 50%, ${0.1 * alpha})`;
            ctx.fill();
         }
       }
@@ -159,6 +162,9 @@ const App: React.FC = () => {
             </div>
             <div className="text-sm">
               <span className="text-white/50">PESO P(t):</span> {userState?.p.toFixed(4)}
+            </div>
+            <div className="text-sm">
+              <span className="text-white/50">OBSERVABILIDADE:</span> {(userState?.observability || 0).toFixed(4)}
             </div>
             <div className="text-sm">
               <span className="text-white/50">FREQUÊNCIA:</span> {userState?.frequency.toFixed(4)}
