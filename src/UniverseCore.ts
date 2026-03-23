@@ -128,10 +128,19 @@ export function tick(state: SimulationState): SimulationState {
       const omega = (p.persistence * n.persistence * (n.information + 1) * resonance * polarity) / dist;
       totalOmega += omega;
 
-      // Atração/Repulsão: Partículas buscam ressonância, não apenas proximidade
-      const force = omega * 0.1;
+      // Emergent Gravity: Information density warps the movement bias
+      // High information areas act as attractors even without direct resonance
+      const gravity = (n.information / BEKENSTEIN_LIMIT) * 0.02;
+
+      // Atração/Repulsão: Partículas buscam ressonância + gravidade informativa
+      const force = (omega * 0.1) + gravity;
       nextVX += (dx / dist) * force;
       nextVY += (dy / dist) * force;
+
+      // ER=EPR Entanglement: Extremely high resonance creates a bridge
+      if (omega > 5.0 && !p.entangledId && !n.entangledId && Math.random() < 0.05) {
+        (p as any)._entangle = n.id;
+      }
     });
 
     // 4. State Update based on Ω (Resonance)
@@ -163,19 +172,19 @@ export function tick(state: SimulationState): SimulationState {
 
     // 7. Spawning (Emergence of new nodes via Resonance)
     let spawn: Particle | null = null;
-    if (totalOmega > 3.0 && Math.random() < 0.02 && particles.length < 1000) {
+    if (totalOmega > 3.0 && Math.random() < 0.02 && particles.length < 1500) {
       spawn = {
         id: `spawn-${p.id}-${state.tick}`,
         type: "matter",
         role: "none",
         charge: Math.random() > 0.5 ? 1 : -1,
-        frequency: p.frequency + (Math.random() - 0.5) * 0.1, // Inherit frequency with mutation
+        frequency: p.frequency + (Math.random() - 0.5) * 0.05, // Inherit frequency with mutation
         phase: Math.random() * Math.PI * 2,
-        x: p.x + (Math.random() - 0.5) * 20,
-        y: p.y + (Math.random() - 0.5) * 20,
-        vx: p.vx + (Math.random() - 0.5),
-        vy: p.vy + (Math.random() - 0.5),
-        persistence: 0.5,
+        x: p.x + (Math.random() - 0.5) * 30,
+        y: p.y + (Math.random() - 0.5) * 30,
+        vx: p.vx + (Math.random() - 0.5) * 2,
+        vy: p.vy + (Math.random() - 0.5) * 2,
+        persistence: 0.6,
         information: 0,
         entropy: 0.001,
         composition: { C: 0, H: 0, O: 0, N: 0 },
@@ -190,22 +199,27 @@ export function tick(state: SimulationState): SimulationState {
       phase: nextPhase,
       x: p.x + nextVX,
       y: p.y + nextVY,
-      vx: nextVX * 0.99,
-      vy: nextVY * 0.99,
+      vx: nextVX * 0.98, // Slightly more friction for stability
+      vy: nextVY * 0.98,
       persistence,
       information: p.information + infoGain,
       isLatent: false,
       isCollapsed,
-      _spawn: spawn
+      _spawn: spawn,
+      _entangle: (p as any)._entangle
     } as any;
   });
 
-  // Handle Spawns
+  // Handle Spawns and Entanglement
   const spawnedParticles: Particle[] = [];
   newParticles.forEach((p: any) => {
     if (p._spawn) {
       spawnedParticles.push(p._spawn);
       delete p._spawn;
+    }
+    if (p._entangle) {
+      p.entangledId = p._entangle;
+      delete p._entangle;
     }
   });
 

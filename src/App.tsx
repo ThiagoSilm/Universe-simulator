@@ -30,44 +30,82 @@ function renderSimulation(
   ctx.fillStyle = "#020203";
   ctx.fillRect(0, 0, w, h);
 
-  // ── Particles ─────────────────────────────────────────────────────
+  // ── 1. Draw Entanglement Bridges (ER=EPR) ─────────────────────────
+  ctx.lineWidth = 0.5;
   particles.forEach(p => {
-    if (p.isLatent && p.persistence < 0.01) return; // Don't even draw if extremely latent
+    if (p.entangledId && !p.isLatent) {
+      const target = particles.find(n => n.id === p.entangledId);
+      if (target && !target.isLatent) {
+        const gradient = ctx.createLinearGradient(p.x, p.y, target.x, target.y);
+        gradient.addColorStop(0, `rgba(100, 200, 255, ${p.persistence * 0.3})`);
+        gradient.addColorStop(1, `rgba(100, 200, 255, ${target.persistence * 0.3})`);
+        ctx.strokeStyle = gradient;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(target.x, target.y);
+        ctx.stroke();
+      }
+    }
+  });
+
+  // ── 2. Draw Particles ─────────────────────────────────────────────
+  particles.forEach(p => {
+    if (p.isLatent && p.persistence < 0.01) return;
 
     const size = p.isCollapsed ? 4 : 1.5;
+    const pulse = Math.sin(p.phase) * 0.5 + 0.5;
+    const alpha = p.persistence * (0.4 + pulse * 0.6);
     
-    // Color mapping
+    // Color mapping based on taxonomy and charge
     let color = "#ffffff";
-    if (p.isCollapsed) color = "#ff3300"; // Singularity
-    else if (p.type === "energy") color = "#00ffff";
-    else if (p.persistence > 0.8) color = "#ffffff";
-    else color = `rgba(255, 255, 255, ${p.persistence})`;
+    if (p.isCollapsed) color = "#f87171"; // Singularity
+    else if (p.type === "life") color = "#4ade80";
+    else if (p.type === "energy") color = "#60a5fa";
+    else if (p.role === "leader") color = "#fbbf24";
+    else if (p.role === "coupler") color = "#a78bfa";
+    else if (p.charge > 0) color = "#fef08a";
+    else color = "#c4b5fd";
 
-    ctx.globalAlpha = p.isLatent ? 0.2 : 1.0;
-    ctx.fillStyle = color;
-    
-    if (p.isCollapsed) {
-      // Draw Singularity with glow
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = "#ff3300";
+    // Information Glow
+    if (p.information > 100) {
+      ctx.shadowBlur = (p.information / 1000) * 15;
+      ctx.shadowColor = color;
+    } else {
+      ctx.shadowBlur = 0;
     }
 
+    ctx.globalAlpha = p.isLatent ? alpha * 0.3 : alpha;
+    ctx.fillStyle = color;
+    
     ctx.beginPath();
     ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
     ctx.fill();
     
     ctx.shadowBlur = 0; // Reset
 
-    // Velocity vectors for active particles
+    // Resonance Ring for high persistence
+    if (p.persistence > 0.9 && !p.isLatent && !p.isCollapsed) {
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = alpha * 0.2;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, size * 4 * pulse, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Velocity vectors (subtle)
     if (!p.isLatent && !p.isCollapsed) {
-      ctx.strokeStyle = `rgba(255, 255, 255, ${p.persistence * 0.2})`;
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = alpha * 0.1;
       ctx.lineWidth = 0.5;
       ctx.beginPath();
       ctx.moveTo(p.x, p.y);
-      ctx.lineTo(p.x + p.vx * 5, p.y + p.vy * 5);
+      ctx.lineTo(p.x + p.vx * 3, p.y + p.vy * 3);
       ctx.stroke();
     }
   });
+
+  ctx.globalAlpha = 1;
 }
 
 // ═══════════════════════════════════════════════════════════════════
