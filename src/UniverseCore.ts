@@ -187,24 +187,31 @@ export function tick(state: SimulationState): SimulationState {
       type = "matter"; // Stable interaction state
     }
 
-    // 7. Spawning (Emergence of new nodes via Resonance)
+    // 7. Replication (Self-Sustaining Evolution)
+    // A particle replicates if it reaches a high persistence threshold
     let spawn: Particle | null = null;
-    if (totalOmega > 3.0 && Math.random() < 0.02 && particles.length < 1500) {
+    const REPLICATION_THRESHOLD = 0.95;
+    const REPLICATION_COST = 0.4;
+
+    if (persistence > REPLICATION_THRESHOLD && particles.length < 1500 && Math.random() < 0.05) {
+      // Mother pays the cost
+      persistence -= REPLICATION_COST;
+      
       spawn = {
-        id: `spawn-${p.id}-${state.tick}`,
-        type: "matter",
+        id: `rep-${p.id}-${state.tick}`,
+        type: p.type,
         role: "none",
-        charge: Math.random() > 0.5 ? 1 : -1,
-        frequency: p.frequency + (Math.random() - 0.5) * 0.05, // Inherit frequency with mutation
-        phase: Math.random() * Math.PI * 2,
-        x: p.x + (Math.random() - 0.5) * 30,
-        y: p.y + (Math.random() - 0.5) * 30,
-        vx: p.vx + (Math.random() - 0.5) * 2,
-        vy: p.vy + (Math.random() - 0.5) * 2,
-        persistence: 0.6,
-        information: 0,
+        charge: p.charge,
+        frequency: p.frequency + (Math.random() - 0.5) * 0.02, // Inherit frequency with small mutation
+        phase: (p.phase + Math.PI) % (Math.PI * 2), // Daughter starts in opposite phase
+        x: p.x + (Math.random() - 0.5) * 10,
+        y: p.y + (Math.random() - 0.5) * 10,
+        vx: -p.vx * 0.5, // Ejected in opposite direction
+        vy: -p.vy * 0.5,
+        persistence: REPLICATION_COST, // Daughter starts with the cost paid by mother
+        information: p.information * 0.1, // Inherit a fraction of information
         entropy: 0.001,
-        composition: { C: 0, H: 0, O: 0, N: 0 },
+        composition: { ...p.composition },
         isLatent: false,
         isCollapsed: false
       };

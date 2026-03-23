@@ -10,6 +10,7 @@ export interface DocumentaryEvent {
 export class LazyDocumentary {
   events: DocumentaryEvent[] = [];
   lastTick = 0;
+  lastParticleCount = 0;
 
   observe(state: SimulationState): DocumentaryEvent[] {
     const newEvents: DocumentaryEvent[] = [];
@@ -46,6 +47,17 @@ export class LazyDocumentary {
         description: "Resonant Coupling: Local clusters achieving phase-lock and information sharing.",
         tick: state.tick
       });
+    }
+
+    // 4. Detect Replication
+    if (state.particles.length > this.lastParticleCount + 5) {
+      newEvents.push({
+        id: `replication-${state.tick}`,
+        type: "BIOGENESIS",
+        description: "Replication Event: High-persistence nodes are dividing and evolving.",
+        tick: state.tick
+      });
+      this.lastParticleCount = state.particles.length;
     }
 
     this.events = [...newEvents, ...this.events].slice(0, 50); // Keep last 50 events
