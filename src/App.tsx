@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Universe } from './lib/universe';
-import { Particle } from './lib/physics';
 
 const App: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [userState, setUserState] = useState<Particle | null>(null);
-  const universeRef = useRef<Universe | null>(null);
+  const [userState, setUserState] = useState<any>(null);
+  const [universeStats, setUniverseStats] = useState({ age: 0, particles: 0 });
+  const workerRef = useRef<Worker | null>(null);
+  const renderStateRef = useRef<any>(null);
+  const cameraPosRef = useRef({ x: 0, y: 0 });
+  const lastReactUpdate = useRef(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -14,95 +16,103 @@ const App: React.FC = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const worker = new Worker(new URL('./universe.worker.ts', import.meta.url), { type: 'module' });
+    workerRef.current = worker;
+
     const resize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
-      if (!universeRef.current) {
-        universeRef.current = new Universe(canvas.width, canvas.height, 400);
-      } else {
-        universeRef.current.width = canvas.width;
-        universeRef.current.height = canvas.height;
-      }
+      worker.postMessage({ type: 'RESIZE', payload: { width: canvas.width, height: canvas.height } });
     };
 
     window.addEventListener('resize', resize);
     resize();
+    worker.postMessage({ type: 'INIT', payload: { width: canvas.width, height: canvas.height } });
+
+    worker.onmessage = (e) => {
+      if (e.data.type === 'STATE_UPDATE') {
+        renderStateRef.current = e.data.payload;
+        
+        const now = performance.now();
+        if (now - lastReactUpdate.current > 100) { // Throttle React state updates to 10fps
+          setUserState(e.data.payload.focalParticle);
+          setUniverseStats({ age: e.data.payload.age, particles: e.data.payload.particleCount });
+          lastReactUpdate.current = now;
+        }
+      }
+    };
 
     let animationFrameId: number;
 
     const render = () => {
-      if (!universeRef.current || !ctx) return;
-      const universe = universeRef.current;
-
-      universe.tick();
-      const user = universe.getUser();
-      setUserState({ ...user } as Particle); // Clone for state update
-
-      // Clear canvas with trail effect
-      ctx.fillStyle = 'rgba(5, 5, 5, 0.3)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Camera follows user
-      const cx = canvas.width / 2 - user.pos.x;
-      const cy = canvas.height / 2 - user.pos.y;
-
-      ctx.save();
-      ctx.translate(cx, cy);
-
-      // Draw stimuli
-      for (const s of universe.stimuli) {
-        ctx.beginPath();
-        ctx.arc(s.pos.x, s.pos.y, s.intensity * 5, 0, Math.PI * 2);
-        ctx.fillStyle = `hsla(${(s.frequency + 1) * 180}, 100%, 50%, ${s.life / 200})`;
-        ctx.fill();
-        
-        // Pulse effect
-        ctx.beginPath();
-        ctx.arc(s.pos.x, s.pos.y, s.intensity * 10 + Math.sin(Date.now() / 100) * 5, 0, Math.PI * 2);
-        ctx.strokeStyle = `hsla(${(s.frequency + 1) * 180}, 100%, 50%, ${s.life / 400})`;
-        ctx.stroke();
+      const state = renderStateRef.current;
+      if (!state || !ctx) {
+        animationFrameId = requestAnimationFrame(render);
+        return;
       }
 
-      // Draw particles
-      for (const p of universe.particles) {
-        if (p.observability <= 0.01) continue; // Don't draw if completely unobservable
+      // Clear canvas (solid black for realistic space)
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        ctx.beginPath();
-        const radius = Math.max(1, p.p * 2);
-        ctx.arc(p.pos.x, p.pos.y, radius, 0, Math.PI * 2);
-        
-        // Color based on frequency
-        const hue = (p.frequency + 1) * 180;
-        const alpha = p.observability;
-        
-        if (p.isUser) {
-          ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-          ctx.shadowBlur = 15;
-          ctx.shadowColor = `rgba(255, 255, 255, ${alpha})`;
+      const user = state.focalParticle;
+      // Scale factor to map physics coordinates to screen pixels
+      const SCALE = 5000;
+
+      if (user) {
+        // Camera follows user smoothly
+        const targetCx = canvas.width / 2 - user.x * SCALE;
+        const targetCy = canvas.height / 2 - user.y * SCALE;
+
+        // Initialize camera pos if it's 0,0
+        if (cameraPosRef.current.x === 0 && cameraPosRef.current.y === 0) {
+          cameraPosRef.current.x = targetCx;
+          cameraPosRef.current.y = targetCy;
+        }
+
+        const dx = targetCx - cameraPosRef.current.x;
+        const dy = targetCy - cameraPosRef.current.y;
+
+        // Snap camera if distance is too large
+        if (Math.abs(dx) > canvas.width / 2 || Math.abs(dy) > canvas.height / 2) {
+          cameraPosRef.current.x = targetCx;
+          cameraPosRef.current.y = targetCy;
         } else {
-          ctx.fillStyle = `hsla(${hue}, 70%, 60%, ${alpha})`;
-          ctx.shadowBlur = p.state === 'LIDERANDO' ? 10 : 0;
-          ctx.shadowColor = `hsla(${hue}, 100%, 50%, ${alpha})`;
+          cameraPosRef.current.x += dx * 0.05;
+          cameraPosRef.current.y += dy * 0.05;
+        }
+      }
+
+      ctx.save();
+      ctx.translate(cameraPosRef.current.x, cameraPosRef.current.y);
+
+      // Draw particles (Celestial bodies)
+      // Lazy Evaluation: Viewport Culling bounds
+      const cx = cameraPosRef.current.x;
+      const cy = cameraPosRef.current.y;
+      const screenLeft = -cx - 100;
+      const screenRight = canvas.width - cx + 100;
+      const screenTop = -cy - 100;
+      const screenBottom = canvas.height - cy + 100;
+
+      for (const p of state.particles) {
+        const px = p.x * SCALE;
+        const py = p.y * SCALE;
+
+        // Lazy Evaluation: Spatial Culling (Don't render if outside viewport)
+        if (px < screenLeft || px > screenRight || py < screenTop || py > screenBottom) {
+          continue;
         }
 
-        if (p.state === 'LIDERANDO') {
-          ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        }
-
+        const radius = Math.max(0.5, p.pt * 0.8);
+        const hue = (p.f + 1) * 180;
+        const alpha = Math.min(1, p.pt);
+        
+        // Pure star-like rendering
+        ctx.fillStyle = p.isLeader ? `rgba(255, 255, 255, ${alpha})` : `hsla(${hue}, 60%, 80%, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(px, py, radius, 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0; // Reset
-
-        // Draw connections if coupled
-        if (p.state === 'ACOPLADO' || p.state === 'LIDERANDO') {
-           // We don't explicitly store who is coupled to who, but we can draw lines to nearby resonant particles
-           // For performance, we skip full graph drawing and just draw a subtle aura
-           ctx.beginPath();
-           ctx.arc(p.pos.x, p.pos.y, radius * 3, 0, Math.PI * 2);
-           ctx.fillStyle = `hsla(${hue}, 50%, 50%, ${0.1 * alpha})`;
-           ctx.fill();
-        }
       }
 
       ctx.restore();
@@ -115,88 +125,61 @@ const App: React.FC = () => {
     return () => {
       window.removeEventListener('resize', resize);
       cancelAnimationFrame(animationFrameId);
+      worker.terminate();
     };
   }, []);
 
   return (
     <div className="relative w-full h-screen bg-black overflow-hidden font-mono text-white/80 selection:bg-white/20">
-      {/* Immersive Background Effects */}
-      <div 
-        className="absolute inset-0 pointer-events-none transition-opacity duration-1000 mix-blend-screen"
-        style={{
-          opacity: userState?.state === 'LIDERANDO' ? 0.15 : 0,
-          background: `radial-gradient(circle at center, hsl(${((userState?.frequency || 0) + 1) * 180}, 100%, 50%), transparent 70%)`
-        }}
-      />
-      <div 
-        className="absolute inset-0 pointer-events-none transition-opacity duration-1000 mix-blend-multiply"
-        style={{
-          opacity: userState?.state === 'ISOLADO' ? 0.8 : 0,
-          background: 'radial-gradient(circle at center, transparent 30%, #000 100%)'
-        }}
-      />
-      <div 
-        className="absolute inset-0 pointer-events-none transition-opacity duration-500 mix-blend-screen"
-        style={{
-          opacity: userState?.state === 'ACOPLADO' ? 0.05 + Math.sin(Date.now() / 200) * 0.05 : 0,
-          background: `radial-gradient(circle at center, hsl(${((userState?.frequency || 0) + 1) * 180}, 50%, 50%), transparent 80%)`
-        }}
-      />
-
-      <canvas ref={canvasRef} className="absolute inset-0 block mix-blend-screen" />
+      <canvas ref={canvasRef} className="absolute inset-0 block" />
       
-      {/* HUD - The User's Internal State */}
-      <div className="absolute top-0 left-0 w-full h-full pointer-events-none p-8 flex flex-col justify-between z-10">
+      {/* HUD - Technical Observatory Dashboard */}
+      <div className="absolute top-0 left-0 w-full h-full pointer-events-none p-6 flex flex-col justify-between z-10">
         
         <div className="flex justify-between items-start">
-          <div className="space-y-1">
-            <h1 className="text-xs uppercase tracking-[0.2em] text-white/40 mb-4">SISTEMA DE COORDENAÇÃO ÚNICA</h1>
-            <div className="text-sm">
-              <span className="text-white/50">ESTADO:</span>{' '}
-              <span className={
-                userState?.state === 'LIDERANDO' ? 'text-emerald-400 font-bold' :
-                userState?.state === 'ACOPLADO' ? 'text-blue-400' : 'text-zinc-500'
-              }>
-                {userState?.state || 'INICIALIZANDO'}
-              </span>
+          <div className="space-y-4">
+            <div>
+              <h1 className="text-sm font-bold uppercase tracking-[0.3em] text-white/70 mb-1">UNIVERSE ENGINE</h1>
+              <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 flex items-center gap-2">
+                Observatory Mode // Live
+              </div>
             </div>
-            <div className="text-sm">
-              <span className="text-white/50">PESO P(t):</span> {userState?.p.toFixed(4)}
+
+            <div className="space-y-1 w-64">
+              <div className="text-[10px] uppercase tracking-widest text-white/30 mb-2 border-b border-white/10 pb-1">Global Metrics</div>
+              <div className="flex justify-between text-xs font-mono"><span className="text-white/40">AGE (TICKS)</span> <span className="text-white/70">{universeStats.age}</span></div>
+              <div className="flex justify-between text-xs font-mono"><span className="text-white/40">ENTITIES</span> <span className="text-white/70">{universeStats.particles}</span></div>
+              <div className="flex justify-between text-xs font-mono"><span className="text-white/40">EXPANSION (Λ)</span> <span className="text-white/70">ACTIVE</span></div>
             </div>
-            <div className="text-sm">
-              <span className="text-white/50">OBSERVABILIDADE:</span> {(userState?.observability || 0).toFixed(4)}
-            </div>
-            <div className="text-sm">
-              <span className="text-white/50">FREQUÊNCIA:</span> {userState?.frequency.toFixed(4)}
+
+            <div className="space-y-1 w-64">
+              <div className="text-[10px] uppercase tracking-widest text-white/30 mb-2 border-b border-white/10 pb-1">Focal Observer (Leader)</div>
+              <div className="flex justify-between text-xs font-mono">
+                <span className="text-white/40">ID</span> 
+                <span className="text-white/70">
+                  {userState?.id || '---'}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs font-mono"><span className="text-white/40">MASS P(t)</span> <span className="text-white/70">{userState?.pt?.toFixed(4) || '0.0000'}</span></div>
+              <div className="flex justify-between text-xs font-mono"><span className="text-white/40">WEIGHT W_c</span> <span className="text-white/70">{userState?.wc?.toFixed(4) || '0.0000'}</span></div>
+              <div className="flex justify-between text-xs font-mono"><span className="text-white/40">FREQUENCY</span> <span className="text-white/70">{userState?.f?.toFixed(4) || '0.0000'} Hz</span></div>
+              <div className="flex justify-between text-xs font-mono"><span className="text-white/40">CONNECTIONS</span> <span className="text-white/70">{userState?.connections || 0}</span></div>
             </div>
           </div>
 
-          <div className="text-right space-y-1">
-            <div className="text-xs text-white/30">PARÂMETROS ESTRUTURAIS</div>
-            <div className="text-xs text-white/40">C = 299792458</div>
-            <div className="text-xs text-white/40">H = 6.62607015e-34</div>
-            <div className="text-xs text-white/40">Λ = 1e-52</div>
+          <div className="space-y-1 w-48 text-right">
+            <div className="text-[10px] uppercase tracking-widest text-white/30 mb-2 border-b border-white/10 pb-1 text-right">Physics Constants</div>
+            <div className="text-xs font-mono text-white/40">c = 299792458</div>
+            <div className="text-xs font-mono text-white/40">h = 6.626e-34</div>
+            <div className="text-xs font-mono text-white/40">Λ = 1e-6</div>
+            <div className="text-xs font-mono text-white/40">α = 1.0, β = 1.0</div>
+            <div className="text-xs font-mono text-white/40">dt = 0.1</div>
           </div>
         </div>
 
         <div className="max-w-md">
-          <div className="text-xs text-white/30 mb-2">MEMÓRIA EMERGENTE (W_c)</div>
-          <div className="flex flex-wrap gap-1">
-            {userState?.memories.map((m, i) => (
-              <div 
-                key={m.id} 
-                className="h-1 bg-white"
-                style={{ 
-                  width: `${Math.max(2, m.weight * 20)}px`,
-                  opacity: Math.min(1, m.weight),
-                  backgroundColor: `hsl(${(m.data + 1) * 180}, 70%, 60%)`
-                }}
-              />
-            ))}
-            {(!userState?.memories || userState.memories.length === 0) && (
-              <span className="text-xs text-white/20 italic">dissipado</span>
-            )}
-          </div>
+          <div className="text-[10px] uppercase tracking-widest text-white/30 mb-2 border-b border-white/10 pb-1">Event Memory Size</div>
+          <div className="text-xs font-mono text-white/70">{renderStateRef.current?.eventMemorySize || 0} events tracked</div>
         </div>
 
       </div>
