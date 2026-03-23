@@ -100,6 +100,9 @@ async function startServer() {
   io.on("connection", (socket) => {
     console.log("Novo observador conectado ao substrato.");
     
+    // Emit immediate state upon connection
+    socket.emit("universe-update", state);
+    
     socket.on("stimulus", (payload) => {
       // Apply stimulus to the server-side state
       state.particles.forEach(p => {
