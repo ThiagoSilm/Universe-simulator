@@ -241,61 +241,128 @@ Direção Mútua De alta persistência para baixa
 Efeito Restaura persistência Otimiza parâmetros
 Velocidade Gradual Instantânea (dentro do acoplamento)
 
-Consequências Emergentes
-
-Fenômeno Mecanismo
-Aprendizado Partículas copiam configurações de alta persistência
-Evolução cultural Configurações úteis se espalham pelo cluster
-Otimização coletiva Todo o cluster converge para a configuração de máxima eficiência
-Inovação Variação na replicação gera novas configurações; as melhores persistem e são ensinadas
-Aceleração evolutiva Não é preciso redescobrir; o conhecimento se propaga
-
+Dinâmicas Emergentes
+Aprendizado
+Partículas tendem a adotar configurações de maior persistência através do acoplamento.
+Evolução cultural
+Configurações úteis se propagam pelo cluster via interações recorrentes.
+Otimização coletiva
+O sistema tende a convergir para estados de maior persistência (W_c > H), condicionados pelas restrições do ambiente e da topologia de interação.
+Inovação
+Variações na replicação introduzem novas configurações; aquelas que superam o limiar H persistem e podem ser retransmitidas.
+Aceleração evolutiva
+Configurações já validadas não precisam ser redescobertas; são reutilizadas e propagadas, reduzindo custo exploratório.
+Limitação estrutural
+A convergência pode resultar em ótimos locais; diversidade é mantida pela variação na replicação e pela dinâmica do ambiente.
 Por que isso é lazy evaluation:
 
-· O sistema não recalcula do zero o que já foi descoberto
-· Configurações ótimas são armazenadas em memória de alto W_c
-· A transferência direta evita desperdício de processamento
+O sistema não recalcula estados já validados pela dinâmica de persistência
+Estados que superam o limiar H funcionam como memória persistente no sistema
+A transferência durante o acoplamento reduz o custo de exploração do espaço de estados
+A exploração ocorre apenas quando necessário (via variação ou falha de persistência)
 
 [POTENCIAL] Implementação em andamento. Hipótese testável.
 
 ---
 
-O Ciclo Completo com Ensino
+O Ciclo Completo com Ensino (versão física)
+Python
+Para cada partícula p:
+    Nova_config(p) = null
+    Inicializar W_c_líder = -∞
+    Líder = p
+    Candidatos_ensino = []
+    Interações = 0
 
-```
-Para cada partícula p, q em proximidade:
-    se C(p,q) = 0:
-        continuar (sem interação)
-    
-    W_c = P(t) · f_local · charge_factor
-    
-    se W_c > W_c_líder:
-        líder = p
-    
-    registrar interação com peso W_c
-    
-    se W_c > H:
-        memória persiste
-        
-        se persistência(q) > persistência(p):
-            p.adota_configuração(q)   // ENSINO
-            // p agora tem os parâmetros de q
-            // a configuração de alta persistência se espalha
-    
-    senão:
-        memória dissipa
+    Para cada partícula q em proximidade de p:
 
-líder processa estímulo
-redistribui ΣP(t) no cluster
-```
+        Se C(p,q) == 0:
+            Continuar  # Filtro não permite interação
 
-O que emerge:
+        Se interações >= k:
+            Quebrar  # limite de capacidade de interações por tick
 
-· Clusters se formam onde há ressonância e alinhamento
-· Líderes emergem por maior W_c
-· Configurações de alta persistência se espalham via ensino
-· O sistema converge para eficiência máxima
-· Isolamento leva à dissipação
+        # Distância e atraso de propagação
+        Distância = dist(p,q)
+        Δt = distância / W_c  # W_c = clock máximo = velocidade da luz do sistema
+
+        # Cálculo do peso da interação
+        W_c_int = P(p,t) · f_local(p,q) · charge_factor(p,q)
+
+        # Custo energético da interação
+        Custo = k1 * W_c_int + k2 * distância
+
+        # Verifica energia suficiente
+        Se P(p) <= custo ou P(q) <= custo:
+            Continuar  # sem energia para interagir
+
+        # Pagar custo
+        P(p) -= custo
+        P(q) -= custo
+
+        # Agendar interação com atraso
+        Agendar interação(p,q,W_c_int) para t + Δt
+
+        Interações += 1
+Processamento das Interações (com atraso)
+Python
+Para cada interação (p,q,W_c_int) no tempo atual:
+
+    Registrar interação (p,q) com peso W_c_int
+
+    # Atualiza persistência com amortecimento λ
+    Persistência(p) = λ * persistência(p) + W_c_int
+    Persistência(q) = λ * persistência(q) + W_c_int
+
+    # Atualiza líder local
+    Se W_c_int > W_c_líder(p):
+        Líder(p) = q
+        W_c_líder(p) = W_c_int
+
+    # Persistência mínima H = Planck
+    Se W_c_int > H:
+        Marcar memória como persistente
+        Candidatos_ensino(p).append((q, persistência(q)))
+    Senão:
+        Marcar memória como dissipada
+ENSINO (fase separada)
+Python
+Para cada partícula p:
+
+    Se candidatos_ensino(p) não vazio:
+
+        Q* = candidato com maior persistência
+
+        # α limitado pelo clock local e H
+        Α = min(1, W_c_int / H)
+
+        Se persistência(q*) > persistência(p):
+            Nova_config(p) = mix(p.config, q*.config, α)
+Aplicação síncrona das novas configurações
+Python
+Para cada partícula p:
+    Se nova_config(p) existe:
+        p.config = nova_config(p)
+Pós-processamento por cluster
+Python
+Para cada cluster:
+
+    # Determina líder global
+    Líder_global = partícula com maior persistência ou ΣW_c
+
+    # Redistribuição proporcional de energia/potencial
+    Peso_total = Σ persistência(i)
+
+    Para cada partícula i:
+        Ganho = ΣP_cluster * (persistência(i) / peso_total)
+        P_i = (1 – γ) * P_i + ganho  # γ = taxa de dissipação
+O que emerge
+Clusters se formam onde há ressonância e alinhamento
+Líderes emergem por maior influência (W_c ou persistência)
+Configurações de alta persistência se propagam via ensino, limitado por energia e velocidade
+O sistema tende a convergir para estados de maior persistência (W_c > H)
+Isolamento ou falta de energia leva à dissipação
+Causalidade e limites físicos são respeitados (latência Δt, custo de energia, W_c como velocidade máxima, H como quantum mínimo)
 
 ---
 
@@ -509,3 +576,4 @@ Falsificabilidade: se o sistema não convergir, a tese é enfraquecida.
 ---
 
 — Thiago Maciel, 2025/2026 — v14 (Março 2026) — Arquitetura da Persistência: Filtro, Peso, Limiar e Ensino como Física Implementada
+
