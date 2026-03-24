@@ -42,4 +42,26 @@ Registro de Desenvolvimento (Cronologia Final)
 Conclusão
 A v14 demonstra que a complexidade não requer parâmetros infinitos. Ela emerge da tensão entre o ganho e a perda dentro de um sistema com conservação de energia.
 O Universo Simulator prova que a realidade se organiza em hierarquias estruturadas não por "desejo", mas por necessidade mecânica. O sistema se organiza para persistir; o que não se organiza, dissipa.
+
+## Relação entre v13 e v14
+
+O Universe Simulator evoluiu em duas camadas de compreensão:
+
+### v13 — O Alicerce Conceitual
+- **Lazy Evaluation:** o sistema só processa quando há interação.
+- **Observabilidade Limitada:** só existe o que propaga informação.
+- **Sustentabilidade:** só persiste o que troca informação suficiente.
+- **P(t):** medida de persistência como potencial.
+- **H:** quantum mínimo de persistência.
+> Natureza: Teoria. Responde ao **"o que"**.
+
+### v14 — Arquitetura Operacional
+- **Filtro:** ressonância + alinhamento como condição binária.
+- **Peso:** W_c = P(t) · f_local · charge_factor como regra de dominância.
+- **Limiar:** H como piso de sobrevivência.
+- **Ensino:** transferência de configuração (hipótese).
+> Natureza: Engenharia. Responde ao **"como"**.
+
+### Relação entre as versões
+
 — Thiago Maciel, 24 de março de 2026 —
