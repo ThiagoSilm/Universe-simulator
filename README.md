@@ -42,5 +42,4 @@ Registro de Desenvolvimento (Cronologia Final)
 Conclusão
 A v14 demonstra que a complexidade não requer parâmetros infinitos. Ela emerge da tensão entre o ganho e a perda dentro de um sistema com conservação de energia.
 O Universo Simulator prova que a realidade se organiza em hierarquias estruturadas não por "desejo", mas por necessidade mecânica. O sistema se organiza para persistir; o que não se organiza, dissipa.
-O 9.1 foi atingido. O código está em repouso.
 — Thiago Maciel, 24 de março de 2026 —
