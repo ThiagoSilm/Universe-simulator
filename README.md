@@ -1,8 +1,12 @@
 Universe Simulator
+
 O Universo Preguiçoso — v14: Axioma Falsificado
 Thiago Maciel — 24 de março de 2026
+
 “O que vemos não é tudo que existe. É tudo que pode ser visto e que durou o suficiente para ser visto.”
+
 A v14 propunha que persistência pura + lazy evaluation máxima seriam suficientes para fazer inteligência emergir, sem controle externo, sem julgamento, sem geração ativa, sem feedback — apenas repetição, decaimento e limiar.
+
 Não são.
 O que a v14 pura gera
 Silêncio na maioria dos casos
